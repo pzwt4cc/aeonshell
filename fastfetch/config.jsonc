@@ -1,0 +1,71 @@
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "type": "kitty-direct",
+    // "source": "$HOME/.config/fastfetch/img/", // Uncomment for static image (disable .zshrc script)
+    "height": 11,
+    "width": 23,
+    "padding": {
+      "top": 1,
+      "left": 2
+    }
+  },
+  "display": {
+    "separator": "  "
+  },
+  "modules": [
+    {
+      "type": "title",
+      "color": {
+        "user": "35",
+        "at": "37",
+        "host": "35"
+      }
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[35m─────────────────────────────"
+    },
+    {
+      "type": "os",
+      "key": "\u001b[34m󰣇 \u001b[37m os    "
+    },
+    {
+      "type": "kernel",
+      "key": "\u001b[34m󰌽 \u001b[37m krl   "
+    },
+    {
+      "type": "uptime",
+      "key": "\u001b[34m󱎫 \u001b[37m upt   "
+    },
+    {
+      "type": "packages",
+      "key": "\u001b[34m󰏗 \u001b[37m pkgs  "
+    },
+    {
+      "type": "wm",
+      "key": "\u001b[34m󱂬 \u001b[37m wm    "
+    },
+    {
+      "type": "terminal",
+      "key": "\u001b[34m󰆍 \u001b[37m term  "
+    },
+    {
+      "type": "cpu",
+      "key": "\u001b[35m󰻠 \u001b[37m cpu   "
+    },
+    {
+      "type": "gpu",
+      "key": "\u001b[35m󰍹 \u001b[37m gpu   "
+    },
+    {
+      "type": "memory",
+      "key": "\u001b[35m󰑭 \u001b[37m ram   "
+    },
+    "break",
+    {
+      "type": "colors",
+      "symbol": "circle"
+    }
+  ]
+}

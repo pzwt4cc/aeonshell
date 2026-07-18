@@ -1,0 +1,10 @@
+zsh-users/zsh-completions
+Aloxaf/fzf-tab
+zdharma-continuum/fast-syntax-highlighting
+zsh-users/zsh-autosuggestions
+zsh-users/zsh-syntax-highlighting
+hlissner/zsh-autopair
+MichaelAquilina/zsh-you-should-use
+joshskidmore/zsh-fzf-history-search
+ael-code/zsh-colored-man-pages
+romkatv/powerlevel10k

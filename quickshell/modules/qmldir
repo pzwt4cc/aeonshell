@@ -1,0 +1,38 @@
+module modules
+
+singleton Colors 1.0 Colors.qml
+singleton AppSettings 1.0 AppSettings.qml
+singleton ShellState 1.0 ShellState.qml
+singleton NotificationService 1.0 NotificationService.qml
+singleton MprisService 1.0 MprisService.qml
+
+Audio 1.0 Audio.qml
+Bar 1.0 Bar.qml
+Bluetooth 1.0 Bluetooth.qml
+CenterPopup 1.0 CenterPopup.qml
+Clipboard 1.0 Clipboard.qml
+Clock 1.0 Clock.qml
+ControlCenter 1.0 ControlCenter.qml
+GpuStat 1.0 GpuStat.qml
+Launcher 1.0 Launcher.qml
+MetricPill 1.0 MetricPill.qml
+Network 1.0 Network.qml
+NotificationCenter 1.0 NotificationCenter.qml
+Notifications 1.0 Notifications.qml
+NotificationToasts 1.0 NotificationToasts.qml
+Player 1.0 Player.qml
+PowerButton 1.0 PowerButton.qml
+PowerMenuAction 1.0 PowerMenuAction.qml
+PowerMenu 1.0 PowerMenu.qml
+ProfilePopup 1.0 ProfilePopup.qml
+Screenshot 1.0 Screenshot.qml
+Separator 1.0 Separator.qml
+SettingsButton 1.0 SettingsButton.qml
+SysInfo 1.0 SysInfo.qml
+ToastCard 1.0 ToastCard.qml
+Tray 1.0 Tray.qml
+Workspaces 1.0 Workspaces.qml
+SettingsWindow 1.0 SettingsWindow.qml
+VolumeOSD 1.0 VolumeOSD.qml
+FilePicker 1.0 FilePicker.qml
+TextInputPopup 1.0 TextInputPopup.qml

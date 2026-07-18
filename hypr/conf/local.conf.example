@@ -1,0 +1,78 @@
+# ==================================================
+# local.conf.example
+# ==================================================
+# This is a template. Copy it to local.conf and edit the copy:
+#
+#   cp local.conf.example local.conf
+#
+# local.conf is meant to be personal and machine-specific — it's excluded
+# from the repo via .gitignore, so your own edits never get committed.
+# hyprland.conf sources local.conf last, so anything here overrides the
+# defaults from the other conf/ files.
+
+# ==================================================
+# --- env ---
+# ==================================================
+
+env = LANG,en_US.UTF-8
+
+# --- GPU ---
+# Uncomment the block below ONLY if you actually have an Nvidia GPU.
+# Setting these variables on AMD/Intel hardware can break your Wayland
+# session (blank screen on login, compositor crash on start).
+#
+# env = LIBVA_DRIVER_NAME,nvidia
+# env = GBM_BACKEND,nvidia-drm
+# env = __GLX_VENDOR_LIBRARY_NAME,nvidia
+# env = NVD_BACKEND,direct
+
+# --- cursor ---
+env = XCURSOR_SIZE,24
+env = XCURSOR_THEME,Bibata-Modern-Classic
+env = HYPRCURSOR_THEME,Bibata-Modern-Classic
+env = HYPRCURSOR_SIZE,24
+
+# ==================================================
+# --- autostart ---
+# ==================================================
+# Add your own personal autostart entries here, for example:
+#
+# exec-once = vesktop
+# exec-once = steam
+# exec-once = openrgb --profile "MyProfile"
+# exec-once = /absolute/path/to/your/own/script
+
+# ==================================================
+# --- keyboard ---
+# ==================================================
+# monitor.conf and keyboard.conf already ship sane single-layout defaults.
+# Only touch this if you want extra layouts, e.g.:
+#
+# input {
+#     kb_layout = us,ru
+#     kb_options = grp:alt_shift_toggle
+# }
+
+# ==================================================
+# --- monitors ---
+# ==================================================
+# monitor.conf already has a universal fallback:
+#   monitor = , preferred, auto, 1
+# which covers a single-monitor setup out of the box. Only add anything
+# here if you need a specific multi-monitor layout.
+#
+# Run `hyprctl monitors` after your first login to see your real output
+# names, then replace the placeholders below:
+#
+# monitor = YOUR-OUTPUT-1, 1920x1080@60, 0x0, 1
+# monitor = YOUR-OUTPUT-2, 1920x1080@60, 1920x0, 1
+# workspace = 1, monitor:YOUR-OUTPUT-1, default:true
+# workspace = 6, monitor:YOUR-OUTPUT-2, default:true
+
+# ==================================================
+# --- windowrule ---
+# ==================================================
+# Add float rules for your own apps here. To find an app's window class:
+#   hyprctl clients -j | jq -r '.[] | "\(.class): \(.size)"'
+#
+# windowrule = float on, size 1500 1000, match:class YourApp
