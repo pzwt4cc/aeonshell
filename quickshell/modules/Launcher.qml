@@ -158,6 +158,16 @@ PanelWindow {
     
     property int wpFocusSection: 1 
 
+    readonly property string thumbCacheDir: Quickshell.env("HOME") + "/.cache/aeonshell/wallpaper-thumbs"
+
+    property int thumbGenTick: 0
+
+    readonly property string videoExtRegex: "\\.(mp4|webm|mkv|avi|mov|m4v)$"
+
+    function isVideoFile(name) {
+        return new RegExp(videoExtRegex, "i").test(name);
+    }
+
     function isScreenPrimary(screen) {
         if (!screen) return false;
         if (screen.isPrimary) return true;
@@ -207,11 +217,27 @@ PanelWindow {
         const esc = path.replace(/'/g, "'\\''");
         const targetMon = launcher.targetScreenName;
         const updateColors = launcher.isScreenPrimaryByName(targetMon);
-        let cmd = "pgrep -x awww-daemon >/dev/null 2>&1 || (awww-daemon >/tmp/awww-daemon.log 2>&1 & disown; sleep 0.4); ";
-        cmd += "awww img '" + esc + "' -o '" + targetMon + "' --transition-type wipe --transition-fps 60 --transition-duration 0.7 >/tmp/awww-apply.log 2>&1; ";
+        
+        let cmd = "file='" + esc + "'; mon='" + targetMon + "'; ";
+        cmd += "ext=$(echo \"${file##*.}\" | tr '[:upper:]' '[:lower:]'); ";
+        
+        cmd += "if [[ \"$ext\" =~ ^(mp4|webm|mkv|avi|mov|m4v)$ ]]; then ";
+        cmd += "  pkill -f \"mpvpaper .*$mon\" 2>/dev/null; ";
+        cmd += "  mkdir -p /tmp/aeonshell-video-wp 2>/dev/null; echo \"$file\" > \"/tmp/aeonshell-video-wp/$mon\"; ";
+        cmd += "  mpvpaper -o \"no-audio loop-file=inf hwdec=auto vo=gpu gpu-context=wayland cache=no demuxer-max-bytes=32MiB demuxer-max-back-bytes=16MiB vd-lavc-threads=2 input-ipc-server=/tmp/aeonshell-mpv-$mon.sock\" \"$mon\" \"$file\" >/tmp/mpvpaper-apply.log 2>&1 & disown; ";
         if (updateColors) {
-            cmd += "wal -i '" + esc + "' -n -q 2>/dev/null";
+            cmd += "  ffmpeg -y -i \"$file\" -vframes 1 /tmp/wp_frame.jpg >/dev/null 2>&1; ";
+            cmd += "  wal -i /tmp/wp_frame.jpg -n -q 2>/dev/null; ";
         }
+        cmd += "else ";
+        cmd += "  pkill -f \"mpvpaper .*$mon\" 2>/dev/null; ";
+        cmd += "  rm -f \"/tmp/aeonshell-video-wp/$mon\" 2>/dev/null; ";
+        cmd += "  pgrep -x awww-daemon >/dev/null 2>&1 || (awww-daemon >/tmp/awww-daemon.log 2>&1 & disown; sleep 0.4); ";
+        cmd += "  awww img \"$file\" -o \"$mon\" --transition-type wipe --transition-fps 60 --transition-duration 0.7 >/tmp/awww-apply.log 2>&1; ";
+        if (updateColors) {
+            cmd += "  wal -i \"$file\" -n -q 2>/dev/null; ";
+        }
+        cmd += "fi";
 
         wallpaperApplyProc.command = ["bash", "-c", cmd];
         wallpaperApplyProc.running = true;
@@ -227,7 +253,7 @@ PanelWindow {
         readonly property string _escDir: AppSettings.wallpaperDir.replace(/'/g, "'\\''")
         command: ["bash", "-c",
             "d='" + _escDir + "'; mkdir -p \"$d\" 2>/dev/null; " +
-            "ls -1 \"$d\" 2>/dev/null | grep -Ei '\\.(jpg|jpeg|png|webp|bmp)$'"]
+            "ls -1 \"$d\" 2>/dev/null | grep -Ei '\\.(jpg|jpeg|png|webp|bmp|gif|mp4|webm|mkv|avi|mov|m4v)$'"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const lines = this.text.split("\n")
@@ -245,20 +271,107 @@ PanelWindow {
         readonly property string _escDir: AppSettings.wallpaperDir.replace(/'/g, "'\\''")
         command: ["bash", "-c",
             "d='" + _escDir + "'; mkdir -p \"$d\" 2>/dev/null; " +
-            "ls -1 \"$d\" 2>/dev/null | grep -Ei '\\.(jpg|jpeg|png|webp|bmp)$'"]
+            "ls -1 \"$d\" 2>/dev/null | grep -Ei '\\.(jpg|jpeg|png|webp|bmp|gif|mp4|webm|mkv|avi|mov|m4v)$'"]
         stdout: StdioCollector {
-            
             onStreamFinished: {
                 const lines = this.text.split("\n")
                     .map(function (s) { return s.trim(); })
                     .filter(function (s) { return s.length > 0; });
                 launcher.wallpaperFiles = lines;
+                launcher.generateMissingThumbs();
             }
         }
     }
 
     Process {
+        id: wallpaperThumbProc
+        onExited: launcher.thumbGenTick++
+    }
+
+    function generateMissingThumbs() {
+        const videos = launcher.wallpaperFiles.filter(f => launcher.isVideoFile(f));
+        if (videos.length === 0) return;
+        if (wallpaperThumbProc.running) wallpaperThumbProc.running = false;
+
+        const escDir = AppSettings.wallpaperDir.replace(/'/g, "'\\''");
+        const escThumbDir = launcher.thumbCacheDir.replace(/'/g, "'\\''");
+        const script =
+            "d='" + escDir + "'; td='" + escThumbDir + "'; mkdir -p \"$td\" 2>/dev/null; " +
+            "printf '%s\\n' \"$@\" | xargs -P 4 -I{} bash -c '" +
+            "thumb=\"$1/{}.jpg\"; " +
+            "[ -f \"$thumb\" ] || ffmpeg -y -ss 00:00:01 -i \"$2/{}\" -frames:v 1 -vf scale=360:-1 -q:v 4 \"$thumb\" >>/tmp/aeonshell-thumbs.log 2>&1" +
+            "' _ \"$td\" \"$d\"";
+
+        wallpaperThumbProc.command = ["bash", "-c", script, "bash"].concat(videos);
+        wallpaperThumbProc.running = true;
+    }
+
+    Process {
         id: wallpaperApplyProc
+    }
+
+    property int watchdogInterval: 15
+    property int watchdogRssLimitMb: 700
+
+    Timer {
+        interval: launcher.watchdogInterval * 1000
+        running: true
+        repeat: true
+        triggeredOnStart: false
+        onTriggered: mpvWatchdogProc.running = true
+    }
+
+    Process {
+        id: mpvWatchdogProc
+        command: ["bash", "-c",
+            "sd='/tmp/aeonshell-video-wp'; [ -d \"$sd\" ] || exit 0; " +
+            "mpvopts='no-audio loop-file=inf hwdec=auto vo=gpu gpu-context=wayland cache=no demuxer-max-bytes=32MiB demuxer-max-back-bytes=16MiB vd-lavc-threads=2'; " +
+            "for f in \"$sd\"/*; do " +
+            "  [ -e \"$f\" ] || continue; " +
+            "  mon=$(basename \"$f\"); file=$(cat \"$f\" 2>/dev/null); " +
+            "  [ -n \"$file\" ] || continue; " +
+            "  [ -f \"$file\" ] || continue; " +
+            "  pid=$(pgrep -f \"mpvpaper .*$mon\" | head -n1); " +
+            "  [ -n \"$pid\" ] || continue; " +
+            "  rss=$(ps -o rss= -p \"$pid\" 2>/dev/null | tr -d ' '); " +
+            "  [ -n \"$rss\" ] || continue; " +
+            "  limit=$((" + launcher.watchdogRssLimitMb + " * 1024)); " +
+            "  if [ \"$rss\" -gt \"$limit\" ]; then " +
+            "    mpvpaper -o \"$mpvopts input-ipc-server=/tmp/aeonshell-mpv-$mon.sock\" \"$mon\" \"$file\" >/tmp/mpvpaper-watchdog.log 2>&1 & disown; " +
+            "    sleep 0.5; " +
+            "    kill \"$pid\" 2>/dev/null; " +
+            "  fi; " +
+            "done"]
+    }
+
+    Process {
+        id: fullscreenPauseListener
+        running: true
+        command: ["bash", "-c",
+            "sig=\"$HYPRLAND_INSTANCE_SIGNATURE\"; " +
+            "rt=\"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}\"; " +
+            "sock=\"$rt/hypr/$sig/.socket2.sock\"; " +
+            "[ -S \"$sock\" ] || exit 0; " +
+            "socat -U - UNIX-CONNECT:\"$sock\" 2>/dev/null | while IFS= read -r line; do " +
+            "  case \"$line\" in " +
+            "    fullscreen\\>\\>*|activewindow\\>\\>*|activewindowv2\\>\\>*) ;; " +
+            "    *) continue ;; " +
+            "  esac; " +
+            "  aw=$(hyprctl activewindow -j 2>/dev/null); " +
+            "  [ -z \"$aw\" ] && continue; " +
+            "  fs=$(echo \"$aw\" | jq -r '.fullscreen // 0'); " +
+            "  monid=$(echo \"$aw\" | jq -r '.monitor // empty'); " +
+            "  [ -z \"$monid\" ] && continue; " +
+            "  monname=$(hyprctl monitors -j 2>/dev/null | jq -r --arg id \"$monid\" '.[] | select(.id == ($id|tonumber)) | .name'); " +
+            "  [ -z \"$monname\" ] && continue; " +
+            "  msock=\"/tmp/aeonshell-mpv-$monname.sock\"; " +
+            "  [ -S \"$msock\" ] || continue; " +
+            "  if [ \"$fs\" != \"0\" ] && [ \"$fs\" != \"null\" ]; then " +
+            "    echo '{\"command\":[\"set_property\",\"pause\",true]}' | socat - UNIX-CONNECT:\"$msock\" >/dev/null 2>&1; " +
+            "  else " +
+            "    echo '{\"command\":[\"set_property\",\"pause\",false]}' | socat - UNIX-CONNECT:\"$msock\" >/dev/null 2>&1; " +
+            "  fi; " +
+            "done"]
     }
 
     readonly property var allApps: {
@@ -982,14 +1095,64 @@ PanelWindow {
                                 z: PathView.itemZ
 
                                 readonly property bool isCurrent: PathView.itemScale > 0.95
+                                readonly property bool isVideo: launcher.isVideoFile(modelData)
+
+                                readonly property string imgSource: wpDelegate.isVideo
+                                    ? ("file://" + launcher.thumbCacheDir + "/" + modelData + ".jpg?g=" + launcher.thumbGenTick)
+                                    : ("file://" + AppSettings.wallpaperDir + "/" + modelData)
 
                                 Image {
+                                    id: previewImg
                                     anchors.fill: parent
-                                    source: "file://" + AppSettings.wallpaperDir + "/" + modelData
+                                    source: wpDelegate.imgSource
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true
+                                    cache: true
                                     sourceSize.width: 360
                                     sourceSize.height: 220
+                                    visible: status === Image.Ready
+                                }
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    visible: previewImg.status !== Image.Ready
+                                    color: Qt.rgba(0.08, 0.08, 0.08, 1.0)
+
+                                    ColumnLayout {
+                                        anchors.centerIn: parent
+                                        spacing: 8
+                                        Text {
+                                            text: wpDelegate.isVideo ? "🎬" : "🖼"
+                                            font.pixelSize: 32
+                                            Layout.alignment: Qt.AlignHCenter
+                                        }
+                                        Text {
+                                            text: modelData
+                                            color: Colors.surfaceText
+                                            font.pixelSize: 11
+                                            Layout.alignment: Qt.AlignHCenter
+                                            Layout.maximumWidth: wpDelegate.width - 20
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    visible: wpDelegate.isVideo && previewImg.status === Image.Ready
+                                    anchors.top: parent.top
+                                    anchors.right: parent.right
+                                    anchors.margins: 6
+                                    width: 22
+                                    height: 22
+                                    radius: 11
+                                    color: Qt.rgba(0, 0, 0, 0.55)
+                                    Text {
+                                        anchors.centerIn: parent
+                                        anchors.horizontalCenterOffset: 1
+                                        text: "▶"
+                                        color: "white"
+                                        font.pixelSize: 9
+                                    }
                                 }
                                 
                                 Rectangle {

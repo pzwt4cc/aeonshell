@@ -121,7 +121,7 @@ yay -S --needed \
   quickshell-git awww python-pywal \
   zen-browser-bin bibata-cursor-theme \
   otf-font-awesome ttf-jetbrains-mono-nerd zsh-antidote \
-  kvantum gpu-screen-recorder-ui peazip xfce4-mousepad
+  kvantum gpu-screen-recorder-ui peazip xfce4-mousepad \ mvppaper
 ```
 
 > `awww` is the wallpaper daemon the launcher's `>wallpaper` picker drives
@@ -294,7 +294,7 @@ yay -S --needed \
   quickshell-git awww python-pywal \
   zen-browser-bin bibata-cursor-theme \
   otf-font-awesome ttf-jetbrains-mono-nerd zsh-antidote \
-  kvantum gpu-screen-recorder-ui peazip xfce4-mousepad
+  kvantum gpu-screen-recorder-ui peazip xfce4-mousepad \ mvppaper
 ```
 
 > `awww` (он же swww, теперь awww) — демон обоев, которым лаунчер напрямую управляет через `>wallpaper`
