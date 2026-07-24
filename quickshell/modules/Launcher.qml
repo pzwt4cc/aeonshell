@@ -212,18 +212,23 @@ PanelWindow {
         wallpaperListProc.running = true;
     }
 
+    readonly property string persistStateDir: Quickshell.env("HOME") + "/.cache/aeonshell/wallpaper-state"
+
     function applyWallpaper(path) {
         if (!path) return;
         const esc = path.replace(/'/g, "'\\''");
         const targetMon = launcher.targetScreenName;
         const updateColors = launcher.isScreenPrimaryByName(targetMon);
-        
-        let cmd = "file='" + esc + "'; mon='" + targetMon + "'; ";
+        const escPersistDir = launcher.persistStateDir.replace(/'/g, "'\\''");
+
+        let cmd = "file='" + esc + "'; mon='" + targetMon + "'; pdir='" + escPersistDir + "'; ";
+        cmd += "mkdir -p \"$pdir\" 2>/dev/null; ";
         cmd += "ext=$(echo \"${file##*.}\" | tr '[:upper:]' '[:lower:]'); ";
         
         cmd += "if [[ \"$ext\" =~ ^(mp4|webm|mkv|avi|mov|m4v)$ ]]; then ";
         cmd += "  pkill -f \"mpvpaper .*$mon\" 2>/dev/null; ";
         cmd += "  mkdir -p /tmp/aeonshell-video-wp 2>/dev/null; echo \"$file\" > \"/tmp/aeonshell-video-wp/$mon\"; ";
+        cmd += "  echo \"video|$file\" > \"$pdir/$mon\"; ";
         cmd += "  mpvpaper -o \"no-audio loop-file=inf hwdec=auto vo=gpu gpu-context=wayland cache=no demuxer-max-bytes=32MiB demuxer-max-back-bytes=16MiB vd-lavc-threads=2 input-ipc-server=/tmp/aeonshell-mpv-$mon.sock\" \"$mon\" \"$file\" >/tmp/mpvpaper-apply.log 2>&1 & disown; ";
         if (updateColors) {
             cmd += "  ffmpeg -y -i \"$file\" -vframes 1 /tmp/wp_frame.jpg >/dev/null 2>&1; ";
@@ -232,6 +237,7 @@ PanelWindow {
         cmd += "else ";
         cmd += "  pkill -f \"mpvpaper .*$mon\" 2>/dev/null; ";
         cmd += "  rm -f \"/tmp/aeonshell-video-wp/$mon\" 2>/dev/null; ";
+        cmd += "  echo \"image|$file\" > \"$pdir/$mon\"; ";
         cmd += "  pgrep -x awww-daemon >/dev/null 2>&1 || (awww-daemon >/tmp/awww-daemon.log 2>&1 & disown; sleep 0.4); ";
         cmd += "  awww img \"$file\" -o \"$mon\" --transition-type wipe --transition-fps 60 --transition-duration 0.7 >/tmp/awww-apply.log 2>&1; ";
         if (updateColors) {
@@ -344,35 +350,7 @@ PanelWindow {
             "done"]
     }
 
-    Process {
-        id: fullscreenPauseListener
-        running: true
-        command: ["bash", "-c",
-            "sig=\"$HYPRLAND_INSTANCE_SIGNATURE\"; " +
-            "rt=\"${XDG_RUNTIME_DIR:-/run/user/$(id -u)}\"; " +
-            "sock=\"$rt/hypr/$sig/.socket2.sock\"; " +
-            "[ -S \"$sock\" ] || exit 0; " +
-            "socat -U - UNIX-CONNECT:\"$sock\" 2>/dev/null | while IFS= read -r line; do " +
-            "  case \"$line\" in " +
-            "    fullscreen\\>\\>*|activewindow\\>\\>*|activewindowv2\\>\\>*) ;; " +
-            "    *) continue ;; " +
-            "  esac; " +
-            "  aw=$(hyprctl activewindow -j 2>/dev/null); " +
-            "  [ -z \"$aw\" ] && continue; " +
-            "  fs=$(echo \"$aw\" | jq -r '.fullscreen // 0'); " +
-            "  monid=$(echo \"$aw\" | jq -r '.monitor // empty'); " +
-            "  [ -z \"$monid\" ] && continue; " +
-            "  monname=$(hyprctl monitors -j 2>/dev/null | jq -r --arg id \"$monid\" '.[] | select(.id == ($id|tonumber)) | .name'); " +
-            "  [ -z \"$monname\" ] && continue; " +
-            "  msock=\"/tmp/aeonshell-mpv-$monname.sock\"; " +
-            "  [ -S \"$msock\" ] || continue; " +
-            "  if [ \"$fs\" != \"0\" ] && [ \"$fs\" != \"null\" ]; then " +
-            "    echo '{\"command\":[\"set_property\",\"pause\",true]}' | socat - UNIX-CONNECT:\"$msock\" >/dev/null 2>&1; " +
-            "  else " +
-            "    echo '{\"command\":[\"set_property\",\"pause\",false]}' | socat - UNIX-CONNECT:\"$msock\" >/dev/null 2>&1; " +
-            "  fi; " +
-            "done"]
-    }
+    readonly property var _mpvWatcherKeepAlive: MpvFullscreenWatcher
 
     readonly property var allApps: {
         let list = [...DesktopEntries.applications.values];

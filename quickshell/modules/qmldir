@@ -5,6 +5,7 @@ singleton AppSettings 1.0 AppSettings.qml
 singleton ShellState 1.0 ShellState.qml
 singleton NotificationService 1.0 NotificationService.qml
 singleton MprisService 1.0 MprisService.qml
+singleton MpvFullscreenWatcher 1.0 MpvFullscreenWatcher.qml
 
 Audio 1.0 Audio.qml
 Bar 1.0 Bar.qml
