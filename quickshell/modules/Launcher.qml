@@ -224,15 +224,16 @@ PanelWindow {
         let cmd = "file='" + esc + "'; mon='" + targetMon + "'; pdir='" + escPersistDir + "'; ";
         cmd += "mkdir -p \"$pdir\" 2>/dev/null; ";
         cmd += "ext=$(echo \"${file##*.}\" | tr '[:upper:]' '[:lower:]'); ";
-        
+
         cmd += "if [[ \"$ext\" =~ ^(mp4|webm|mkv|avi|mov|m4v)$ ]]; then ";
         cmd += "  pkill -f \"mpvpaper .*$mon\" 2>/dev/null; ";
         cmd += "  mkdir -p /tmp/aeonshell-video-wp 2>/dev/null; echo \"$file\" > \"/tmp/aeonshell-video-wp/$mon\"; ";
         cmd += "  echo \"video|$file\" > \"$pdir/$mon\"; ";
         cmd += "  mpvpaper -o \"no-audio loop-file=inf hwdec=auto vo=gpu gpu-context=wayland cache=no demuxer-max-bytes=32MiB demuxer-max-back-bytes=16MiB vd-lavc-threads=2 input-ipc-server=/tmp/aeonshell-mpv-$mon.sock\" \"$mon\" \"$file\" >/tmp/mpvpaper-apply.log 2>&1 & disown; ";
         if (updateColors) {
-            cmd += "  ffmpeg -y -i \"$file\" -vframes 1 /tmp/wp_frame.jpg >/dev/null 2>&1; ";
-            cmd += "  wal -i /tmp/wp_frame.jpg -n -q 2>/dev/null; ";
+            cmd += "  framefile=\"/tmp/aeonshell-wp-frame-$(echo -n \"$file\" | md5sum | cut -d' ' -f1).jpg\"; ";
+            cmd += "  ffmpeg -y -i \"$file\" -vframes 1 \"$framefile\" >/dev/null 2>&1; ";
+            cmd += "  wal -i \"$framefile\" -n -q 2>/dev/null; ";
         }
         cmd += "else ";
         cmd += "  pkill -f \"mpvpaper .*$mon\" 2>/dev/null; ";
