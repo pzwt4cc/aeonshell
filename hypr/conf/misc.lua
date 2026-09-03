@@ -1,0 +1,8 @@
+-- misc.lua
+
+hl.config({
+    misc = {
+        always_follow_on_dnd        = true,
+        allow_session_lock_restore  = true,
+    },
+})

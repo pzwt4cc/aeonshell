@@ -1,0 +1,16 @@
+-- keyboard.lua
+-- -----------------------------------------------------------
+
+hl.config({
+    input = {
+        kb_layout    = "us",
+        repeat_rate  = 50,
+        repeat_delay = 500,
+    },
+
+    cursor = {
+        no_hardware_cursors = true,
+    },
+})
+
+-- -----------------------------------------------------------

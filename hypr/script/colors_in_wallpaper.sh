@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
 
-# Абсолютный HOME на случай, если переменная вдруг не установлена
-# в момент запуска (например, из exec-once с урезанным окружением).
 HOME="${HOME:-/home/$(id -un)}"
 
 TARGET_FILE="$HOME/.cache/wal/colors"
-OUT_FILE="$HOME/.config/hypr/script/colors-wal.conf"
+OUT_LUA="$HOME/.config/hypr/conf/colors-wal.lua"
 
-# Абсолютные пути к бинарям вместо голых имён — так скрипт не зависит
-# от того, насколько полный $PATH прокинут в окружение, из которого
-# его запустили.
-HYPRCTL_BIN="$(command -v hyprctl || echo /usr/bin/hyprctl)"
 INOTIFYWAIT_BIN="$(command -v inotifywait || echo /usr/bin/inotifywait)"
 
 generate_colors() {
     if [ -f "$TARGET_FILE" ]; then
+        # Берем строки 2 и 5
         color1=$(sed -n '2p' "$TARGET_FILE" | sed 's/#//')
         color2=$(sed -n '5p' "$TARGET_FILE" | sed 's/#//')
+        
+        echo "$(date): Color1=$color1, Color2=$color2" >> /tmp/colors-debug.log
 
-        cat <<EOF > "$OUT_FILE"
-\$color_active_1 = rgba(${color1}ff)
-\$color_active_2 = rgba(${color2}ff)
+        cat <<EOF > "$OUT_LUA"
+-- colors-wal.lua
+return {
+  active_1 = "0xff${color1}",
+  active_2 = "0xff${color2}",
+}
 EOF
-        "$HYPRCTL_BIN" reload
+        hyprctl reload
     fi
 }
 
