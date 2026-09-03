@@ -32,7 +32,11 @@ Item {
     property bool groupNotificationsBySource: false
     property bool barShowPlayer: true
     property bool barShowTray: true
+    property bool barShowWindows: true
+    property string pinnedApps: ""
     property string wallpaperDir: Quickshell.env("HOME") + "/Pictures/Wallpapers"
+    property string launcherHiddenApps: ""
+    property string launcherViewMode: "list"
 
     property bool edgeToEdge: false
 
@@ -44,6 +48,40 @@ Item {
     property bool _applying: false
     property bool _dirReady: false
 
+    function pinnedList() {
+        return root.pinnedApps.length ? root.pinnedApps.split(",") : [];
+    }
+
+    function isPinned(cls) {
+        return cls ? root.pinnedList().indexOf(cls) !== -1 : false;
+    }
+
+    function togglePinned(cls) {
+        if (!cls) return;
+        let list = root.pinnedList();
+        const idx = list.indexOf(cls);
+        if (idx !== -1) list.splice(idx, 1);
+        else list.push(cls);
+        root.pinnedApps = list.join(",");
+    }
+
+    function hiddenAppsList() {
+        return root.launcherHiddenApps.length ? root.launcherHiddenApps.split(",") : [];
+    }
+
+    function isAppHidden(id) {
+        return id ? root.hiddenAppsList().indexOf(id) !== -1 : false;
+    }
+
+    function toggleAppHidden(id) {
+        if (!id) return;
+        let list = root.hiddenAppsList();
+        const idx = list.indexOf(id);
+        if (idx !== -1) list.splice(idx, 1);
+        else list.push(id);
+        root.launcherHiddenApps = list.join(",");
+    }
+
     function _parse(text) {
         root._applying = true;
         const m = text.match(/^\s*\$quickshell_barPosition\s*=\s*(\S+)/m);
@@ -54,6 +92,14 @@ Item {
         if (p) root.barShowPlayer = (p[1] === "true" || p[1] === "1");
         const t = text.match(/^\s*\$quickshell_barShowTray\s*=\s*(\S+)/m);
         if (t) root.barShowTray = (t[1] === "true" || t[1] === "1");
+        const bw = text.match(/^\s*\$quickshell_barShowWindows\s*=\s*(\S+)/m);
+        if (bw) root.barShowWindows = (bw[1] === "true" || bw[1] === "1");
+        const pa = text.match(/^\s*\$quickshell_pinnedApps\s*=\s*(.*)\s*$/m);
+        if (pa) root.pinnedApps = pa[1].trim();
+        const lh = text.match(/^\s*\$quickshell_launcherHiddenApps\s*=\s*(.*)\s*$/m);
+        if (lh) root.launcherHiddenApps = lh[1].trim();
+        const lv = text.match(/^\s*\$quickshell_launcherViewMode\s*=\s*(.*)\s*$/m);
+        if (lv) root.launcherViewMode = lv[1].trim();
         const w = text.match(/^\s*\$quickshell_wallpaperDir\s*=\s*(.+)\s*$/m);
         if (w) root.wallpaperDir = w[1].trim();
         const e = text.match(/^\s*\$quickshell_edgeToEdge\s*=\s*(\S+)/m);
@@ -73,6 +119,10 @@ Item {
                "$quickshell_groupNotificationsBySource = " + (root.groupNotificationsBySource ? "true" : "false") + "\n" +
                "$quickshell_barShowPlayer = " + (root.barShowPlayer ? "true" : "false") + "\n" +
                "$quickshell_barShowTray = " + (root.barShowTray ? "true" : "false") + "\n" +
+               "$quickshell_barShowWindows = " + (root.barShowWindows ? "true" : "false") + "\n" +
+               "$quickshell_pinnedApps = " + root.pinnedApps + "\n" +
+               "$quickshell_launcherHiddenApps = " + root.launcherHiddenApps + "\n" +
+               "$quickshell_launcherViewMode = " + root.launcherViewMode + "\n" +
                "$quickshell_wallpaperDir = " + root.wallpaperDir + "\n" +
                "$quickshell_edgeToEdge = " + (root.edgeToEdge ? "true" : "false") + "\n";
     }
@@ -102,6 +152,10 @@ Item {
     onGroupNotificationsBySourceChanged: root._save()
     onBarShowPlayerChanged: root._save()
     onBarShowTrayChanged: root._save()
+    onBarShowWindowsChanged: root._save()
+    onPinnedAppsChanged: root._save()
+    onLauncherHiddenAppsChanged: root._save()
+    onLauncherViewModeChanged: root._save()
     onWallpaperDirChanged: root._save()
     onEdgeToEdgeChanged: {
         root._save();

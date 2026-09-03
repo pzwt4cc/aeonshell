@@ -64,6 +64,7 @@ PanelWindow {
             selectedIndex = 0;
             commandSelectedIndex = 0;
             wallpaperPickerOpen = false;
+            hiddenAppsMode = false;
             searchInput.forceActiveFocus();
             appsList.positionViewAtIndex(0, ListView.Contain);
         }
@@ -93,6 +94,9 @@ PanelWindow {
         onActivated: {
             if (launcher.wallpaperPickerOpen) {
                 launcher.closeWallpaperPicker();
+            } else if (launcher.hiddenAppsMode) {
+                launcher.hiddenAppsMode = false;
+                searchInput.forceActiveFocus();
             } else if (launcher.commandMode) {
                 launcher.searchText = "";
                 searchInput.forceActiveFocus();
@@ -106,6 +110,7 @@ PanelWindow {
     property int selectedIndex: 0
 
     onSearchTextChanged: {
+        if (hiddenAppsMode && searchText !== "") hiddenAppsMode = false;
         selectedIndex = 0;
         commandSelectedIndex = 0;
         appsList.positionViewAtIndex(0, ListView.Contain);
@@ -122,6 +127,7 @@ PanelWindow {
         { id: "settings-hyprlock", label: "Settings → Hyprlock", desc: "Jump straight to hyprlock settings", icon: "󰌾" },
         { id: "settings-about", label: "Settings → About", desc: "Jump straight to the about page", icon: "󰋼" },
         { id: "reload", label: "Reload Hyprland", desc: "hyprctl reload — reapply config changes", icon: "󰜉" },
+        { id: "hidden-apps", label: "Hidden apps", desc: "Show apps hidden from the launcher, click to restore", icon: "👁" },
     ]
 
     readonly property var filteredCommands: {
@@ -140,6 +146,13 @@ PanelWindow {
 
         if (cmd.id === "wallpaper") { openWallpaperPicker(); return; }
 
+        if (cmd.id === "hidden-apps") {
+            launcher.searchText = "";
+            launcher.hiddenAppsMode = true;
+            searchInput.forceActiveFocus();
+            return;
+        }
+
         if (cmd.id === "random-wallpaper") { applyRandomWallpaper(); launcher.toggle(); return; }
 
         if (cmd.id === "reload") { Quickshell.execDetached(["hyprctl", "reload"]); launcher.toggle(); return; }
@@ -155,8 +168,8 @@ PanelWindow {
     property bool wallpaperPickerOpen: false
     property int wallpaperIndex: 0
     property var wallpaperFiles: []
-    
-    property int wpFocusSection: 1 
+
+    property int wpFocusSection: 1
 
     readonly property string thumbCacheDir: Quickshell.env("HOME") + "/.cache/aeonshell/wallpaper-thumbs"
 
@@ -355,10 +368,23 @@ PanelWindow {
 
     readonly property var allApps: {
         let list = [...DesktopEntries.applications.values];
-        list = list.filter(function (a) { return a.name && !a.noDisplay; });
+        list = list.filter(function (a) { return a.name && !a.noDisplay && !AppSettings.isAppHidden(a.id); });
         list.sort(function (a, b) { return a.name.localeCompare(b.name); });
         return list;
     }
+
+    readonly property var hiddenApps: {
+        let list = [...DesktopEntries.applications.values];
+        list = list.filter(function (a) { return a.name && !a.noDisplay && AppSettings.isAppHidden(a.id); });
+        list.sort(function (a, b) { return a.name.localeCompare(b.name); });
+        return list;
+    }
+
+    property bool hiddenAppsMode: false
+
+    readonly property bool gridView: AppSettings.launcherViewMode === "grid"
+
+    readonly property var gridApps: hiddenAppsMode ? hiddenApps : (searchText === "" ? allApps : filteredApps)
 
     readonly property var appsById: {
         let m = {};
@@ -401,6 +427,13 @@ PanelWindow {
 
     readonly property var flatModel: {
         let fm = [];
+        if (hiddenAppsMode) {
+            if (hiddenApps.length > 0) {
+                fm.push({ kind: "header", label: "Hidden apps — click to restore", clearable: false });
+                for (const a of hiddenApps) fm.push({ kind: "app", app: a });
+            }
+            return fm;
+        }
         if (searchText === "") {
             if (recentApps.length > 0) {
                 fm.push({ kind: "header", label: "Recently used", clearable: true });
@@ -427,11 +460,30 @@ PanelWindow {
     }
 
     function launchSelected() {
+        if (launcher.gridView) {
+            if (selectedIndex < 0 || selectedIndex >= gridApps.length) return;
+            gridApps[selectedIndex].execute();
+            launcher.toggle();
+            launcher.trackLaunch(gridApps[selectedIndex]);
+            return;
+        }
         if (selectedIndex < 0 || selectedIndex >= appPositions.length) return;
         const entry = flatModel[appPositions[selectedIndex]];
         entry.app.execute();
         launcher.toggle();
         launcher.trackLaunch(entry.app);
+    }
+
+    function restoreSelected() {
+        if (!launcher.hiddenAppsMode) return;
+        if (launcher.gridView) {
+            if (selectedIndex < 0 || selectedIndex >= gridApps.length) return;
+            AppSettings.toggleAppHidden(gridApps[selectedIndex].id);
+            return;
+        }
+        if (selectedIndex < 0 || selectedIndex >= appPositions.length) return;
+        const entry = flatModel[appPositions[selectedIndex]];
+        AppSettings.toggleAppHidden(entry.app.id);
     }
 
     MouseArea {
@@ -445,7 +497,7 @@ PanelWindow {
         radius: box.radius + 3
         color: Qt.rgba(0, 0, 0, 0.35)
         opacity: box.opacity * 0.3
-       
+
         scale: box.scale
         transformOrigin: box.transformOrigin
         z: box.z - 1
@@ -492,7 +544,7 @@ PanelWindow {
             width: parent.width * 0.28
             height: 3
             visible: !launcher.wallpaperPickerOpen
-            
+
             radius: 2
             gradient: Gradient {
                 orientation: Gradient.Horizontal
@@ -516,7 +568,7 @@ PanelWindow {
 
                 Behavior on Layout.preferredHeight { NumberAnimation { duration: 250; easing.type: Easing.InOutQuad } }
                 Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.InOutQuad } }
-                
+
                 radius: 24
                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07)
                 border.color: searchInput.activeFocus && (!launcher.wallpaperPickerOpen || launcher.wpFocusSection === 0) ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.4) : "transparent"
@@ -546,8 +598,8 @@ PanelWindow {
                     TextField {
                         id: searchInput
                         Layout.fillWidth: true
-                        readOnly: launcher.wallpaperPickerOpen 
-                        
+                        readOnly: launcher.wallpaperPickerOpen
+
                         placeholderText: launcher.wallpaperPickerOpen
                             ? "Esc to go back"
                             : (launcher.commandMode ? "Type a command…" : "Search applications...")
@@ -559,7 +611,7 @@ PanelWindow {
                         font.pixelSize: 17
                         color: Colors.surfaceText
                         background: Item {}
-     
+
                         leftPadding: 0
                         topPadding: 0
                         bottomPadding: 0
@@ -575,11 +627,17 @@ PanelWindow {
                         }
 
                         Keys.onLeftPressed: (event) => {
+                            if (!launcher.wallpaperPickerOpen && launcher.gridView && !launcher.commandMode) {
+                                if (launcher.gridApps.length === 0) return;
+                                appGridView.moveCurrentIndexLeft();
+                                launcher.selectedIndex = appGridView.currentIndex;
+                                return;
+                            }
                             if (!launcher.wallpaperPickerOpen || launcher.wallpaperFiles.length === 0) {
                                 event.accepted = false;
                                 return;
                             }
-                            
+
                             event.accepted = true;
                             if (launcher.wpFocusSection === 0) {
                                 const screens = Quickshell.screens;
@@ -593,6 +651,12 @@ PanelWindow {
                         }
 
                         Keys.onRightPressed: (event) => {
+                            if (!launcher.wallpaperPickerOpen && launcher.gridView && !launcher.commandMode) {
+                                if (launcher.gridApps.length === 0) return;
+                                appGridView.moveCurrentIndexRight();
+                                launcher.selectedIndex = appGridView.currentIndex;
+                                return;
+                            }
                             if (!launcher.wallpaperPickerOpen || launcher.wallpaperFiles.length === 0) {
                                 event.accepted = false;
                                 return;
@@ -623,6 +687,12 @@ PanelWindow {
                                 launcher.commandSelectedIndex = Math.max(0, launcher.commandSelectedIndex - 1);
                                 return;
                             }
+                            if (launcher.gridView) {
+                                if (launcher.gridApps.length === 0) return;
+                                appGridView.moveCurrentIndexUp();
+                                launcher.selectedIndex = appGridView.currentIndex;
+                                return;
+                            }
                             if (launcher.appPositions.length === 0) return;
                             launcher.selectedIndex = Math.max(0, launcher.selectedIndex - 1);
                             if (launcher.selectedIndex === 0) {
@@ -645,6 +715,12 @@ PanelWindow {
                                 launcher.commandSelectedIndex = Math.min(launcher.filteredCommands.length - 1, launcher.commandSelectedIndex + 1);
                                 return;
                             }
+                            if (launcher.gridView) {
+                                if (launcher.gridApps.length === 0) return;
+                                appGridView.moveCurrentIndexDown();
+                                launcher.selectedIndex = appGridView.currentIndex;
+                                return;
+                            }
                             if (launcher.appPositions.length === 0) return;
                             launcher.selectedIndex = Math.min(launcher.appPositions.length - 1, launcher.selectedIndex + 1);
                             appsList.positionViewAtIndex(launcher.appPositions[launcher.selectedIndex], ListView.Contain);
@@ -663,6 +739,14 @@ PanelWindow {
                             }
                             launcher.launchSelected();
                         }
+
+                        Keys.onPressed: (event) => {
+                            if (launcher.hiddenAppsMode && searchInput.text === "" &&
+                                (event.key === Qt.Key_Backspace || event.key === Qt.Key_Delete)) {
+                                launcher.restoreSelected();
+                                event.accepted = true;
+                            }
+                        }
                     }
 
                     Text {
@@ -671,12 +755,103 @@ PanelWindow {
                         color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
                         font.pixelSize: 14
                         TapHandler {
-                            onTapped: 
+                            onTapped:
                             {
                                 launcher.searchText = "";
                                 searchInput.forceActiveFocus();
                             }
                         }
+                    }
+
+                    Rectangle {
+                        id: hiddenToggleBtn
+                        visible: !launcher.wallpaperPickerOpen
+                        Layout.preferredWidth: 34
+                        Layout.preferredHeight: 34
+                        Layout.alignment: Qt.AlignVCenter
+                        radius: 10
+                        color: launcher.hiddenAppsMode
+                            ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.22)
+                            : (hiddenToggleHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.10) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.055))
+                        border.color: launcher.hiddenAppsMode ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.4) : "transparent"
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                        Behavior on border.color { ColorAnimation { duration: 120 } }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "👁"
+                            font.pixelSize: 16
+                            opacity: launcher.hiddenAppsMode ? 1.0 : (launcher.hiddenApps.length > 0 ? 0.75 : 0.4)
+                            Behavior on opacity { NumberAnimation { duration: 120 } }
+                        }
+
+                        Rectangle {
+                            visible: !launcher.hiddenAppsMode && launcher.hiddenApps.length > 0
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.margins: -4
+                            width: 16
+                            height: 16
+                            radius: 8
+                            color: Colors.primary
+                            border.color: Colors.surface
+                            border.width: 1.5
+                            Text {
+                                anchors.centerIn: parent
+                                text: launcher.hiddenApps.length > 9 ? "9+" : launcher.hiddenApps.length
+                                color: "white"
+                                font.pixelSize: 8
+                                font.bold: true
+                            }
+                        }
+
+                        HoverHandler { id: hiddenToggleHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler {
+                            onTapped: {
+                                launcher.searchText = "";
+                                launcher.hiddenAppsMode = !launcher.hiddenAppsMode;
+                                launcher.selectedIndex = 0;
+                                searchInput.forceActiveFocus();
+                            }
+                        }
+
+                        ToolTip.visible: hiddenToggleHover.hovered
+                        ToolTip.delay: 400
+                        ToolTip.text: launcher.hiddenAppsMode
+                            ? "Показать все приложения"
+                            : "Скрытые приложения (" + launcher.hiddenApps.length + ")"
+                    }
+
+                    Rectangle {
+                        id: viewModeBtn
+                        visible: !launcher.wallpaperPickerOpen
+                        Layout.preferredWidth: 34
+                        Layout.preferredHeight: 34
+                        Layout.alignment: Qt.AlignVCenter
+                        radius: 10
+                        color: viewModeHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.10) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.055)
+                        Behavior on color { ColorAnimation { duration: 120 } }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: launcher.gridView ? "▦" : "☰"
+                            font.pixelSize: 15
+                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.75)
+                        }
+
+                        HoverHandler { id: viewModeHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler {
+                            onTapped: {
+                                AppSettings.launcherViewMode = launcher.gridView ? "list" : "grid";
+                                launcher.selectedIndex = 0;
+                                searchInput.forceActiveFocus();
+                            }
+                        }
+
+                        ToolTip.visible: viewModeHover.hovered
+                        ToolTip.delay: 400
+                        ToolTip.text: launcher.gridView ? "Вид списком" : "Вид плиткой"
                     }
                 }
             }
@@ -705,15 +880,14 @@ PanelWindow {
                 ListView {
                     id: appsList
                     anchors.fill: parent
-        
-                    visible: !launcher.commandMode && !launcher.wallpaperPickerOpen
+                    visible: !launcher.gridView && !launcher.commandMode && !launcher.wallpaperPickerOpen
                     clip: true
                     spacing: launcher.listSpacing
                     model: launcher.flatModel
-                    
-  
-                    currentIndex: (launcher.selectedIndex >= 0 && launcher.selectedIndex < launcher.appPositions.length) 
-                                  ? launcher.appPositions[launcher.selectedIndex] 
+
+
+                    currentIndex: (launcher.selectedIndex >= 0 && launcher.selectedIndex < launcher.appPositions.length)
+                                  ? launcher.appPositions[launcher.selectedIndex]
                                   : -1
 
                     onCountChanged: {
@@ -725,7 +899,7 @@ PanelWindow {
                     delegate: Item {
                         id: rowRoot
                         width: ListView.view.width
-        
+
                         height: modelData.kind === "header" ? launcher.headerHeight : launcher.appHeight
 
                         readonly property int myAppIndex: modelData.kind === "app" ? launcher.appPositions.indexOf(index) : -1
@@ -771,9 +945,9 @@ PanelWindow {
                             color: rowRoot.isCurrent
                                 ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.14)
                                 : (hover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06) : "transparent")
-                            
-                            border.color: rowRoot.isCurrent 
-                                ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35) 
+
+                            border.color: rowRoot.isCurrent
+                                ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35)
                                 : "transparent"
                             border.width: 1
 
@@ -819,6 +993,33 @@ PanelWindow {
                                         elide: Text.ElideRight
                                     }
                                 }
+
+                                Rectangle {
+                                    visible: modelData.kind === "app" && launcher.hiddenAppsMode
+                                    Layout.preferredWidth: 30
+                                    Layout.preferredHeight: 30
+                                    radius: 15
+                                    color: restoreHover.hovered ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07)
+                                    Behavior on color { ColorAnimation { duration: 100 } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "↺"
+                                        font.pixelSize: 15
+                                        color: restoreHover.hovered ? Colors.primary : Colors.surfaceText
+                                    }
+
+                                    HoverHandler { id: restoreHover; cursorShape: Qt.PointingHandCursor }
+                                    TapHandler {
+                                        onTapped: {
+                                            if (modelData.kind === "app") AppSettings.toggleAppHidden(modelData.app.id);
+                                        }
+                                    }
+
+                                    ToolTip.visible: restoreHover.hovered
+                                    ToolTip.delay: 400
+                                    ToolTip.text: "Вернуть в список"
+                                }
                             }
 
                             HoverHandler {
@@ -828,11 +1029,20 @@ PanelWindow {
                                 }
                             }
                             TapHandler {
+                                acceptedButtons: Qt.LeftButton
                                 onTapped: {
                                     if (modelData.kind !== "app") return;
                                     modelData.app.execute();
                                     launcher.toggle();
                                     launcher.trackLaunch(modelData.app);
+                                }
+                            }
+
+                            TapHandler {
+                                acceptedButtons: Qt.RightButton
+                                onTapped: {
+                                    if (modelData.kind !== "app" || launcher.hiddenAppsMode) return;
+                                    AppSettings.toggleAppHidden(modelData.app.id);
                                 }
                             }
                         }
@@ -841,7 +1051,149 @@ PanelWindow {
                     Text {
                         visible: launcher.flatModel.length === 0
                         anchors.centerIn: parent
-                        text: "No applications found"
+                        text: launcher.hiddenAppsMode ? "No hidden apps" : "No applications found"
+                        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
+                        font.pixelSize: 15
+                    }
+                }
+
+                GridView {
+                    id: appGridView
+                    anchors.fill: parent
+                    visible: launcher.gridView && !launcher.commandMode && !launcher.wallpaperPickerOpen
+                    clip: true
+                    cellWidth: 96
+                    cellHeight: 108
+                    model: launcher.gridApps
+                    currentIndex: launcher.selectedIndex
+                    highlightFollowsCurrentItem: true
+                    highlightMoveDuration: 120
+                    highlight: Item {}
+
+                    onCurrentIndexChanged: {
+                        if (launcher.selectedIndex !== currentIndex) launcher.selectedIndex = currentIndex;
+                    }
+
+                    Connections {
+                        target: launcher
+                        function onSelectedIndexChanged() {
+                            if (appGridView.currentIndex !== launcher.selectedIndex) appGridView.currentIndex = launcher.selectedIndex;
+                        }
+                        function onGridAppsChanged() {
+                            if (appGridView.currentIndex >= launcher.gridApps.length) {
+                                appGridView.currentIndex = Math.max(0, launcher.gridApps.length - 1);
+                            }
+                        }
+                    }
+
+                    delegate: Item {
+                        id: tileRoot
+                        required property var modelData
+                        required property int index
+                        width: appGridView.cellWidth
+                        height: appGridView.cellHeight
+
+                        readonly property bool isCurrent: tileRoot.index === launcher.selectedIndex
+
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.margins: 4
+                            radius: 14
+                            color: tileRoot.isCurrent
+                                ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.14)
+                                : (tileHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06) : "transparent")
+                            border.color: tileRoot.isCurrent ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35) : "transparent"
+                            border.width: 1
+                            Behavior on color { ColorAnimation { duration: 130 } }
+                            Behavior on border.color { ColorAnimation { duration: 130 } }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.topMargin: 10
+                                anchors.bottomMargin: 8
+                                spacing: 6
+
+                                Rectangle {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    Layout.preferredWidth: 48
+                                    Layout.preferredHeight: 48
+                                    radius: 13
+                                    color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.10)
+
+                                    IconImage {
+                                        anchors.centerIn: parent
+                                        implicitSize: 32
+                                        source: Quickshell.iconPath(tileRoot.modelData.icon, true)
+                                    }
+                                }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignHCenter
+                                    horizontalAlignment: Text.AlignHCenter
+                                    text: tileRoot.modelData.name
+                                    color: Colors.surfaceText
+                                    font.pixelSize: 11
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 2
+                                    wrapMode: Text.WordWrap
+                                }
+                            }
+
+                            HoverHandler {
+                                id: tileHover
+                                onHoveredChanged: if (hovered) launcher.selectedIndex = tileRoot.index
+                            }
+                            TapHandler {
+                                acceptedButtons: Qt.LeftButton
+                                onTapped: {
+                                    tileRoot.modelData.execute();
+                                    launcher.toggle();
+                                    launcher.trackLaunch(tileRoot.modelData);
+                                }
+                            }
+                            TapHandler {
+                                acceptedButtons: Qt.RightButton
+                                onTapped: {
+                                    if (launcher.hiddenAppsMode) return;
+                                    AppSettings.toggleAppHidden(tileRoot.modelData.id);
+                                }
+                            }
+
+                            Rectangle {
+                                visible: launcher.hiddenAppsMode
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: 4
+                                width: 22
+                                height: 22
+                                radius: 11
+                                color: restoreTileHover.hovered ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.25) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.12)
+                                Behavior on color { ColorAnimation { duration: 100 } }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "↺"
+                                    font.pixelSize: 12
+                                    color: restoreTileHover.hovered ? Colors.primary : Colors.surfaceText
+                                }
+
+                                HoverHandler { id: restoreTileHover; cursorShape: Qt.PointingHandCursor }
+                                TapHandler {
+                                    onTapped: AppSettings.toggleAppHidden(tileRoot.modelData.id)
+                                }
+
+                                ToolTip.visible: restoreTileHover.hovered
+                                ToolTip.delay: 400
+                                ToolTip.text: "Вернуть в список"
+                            }
+                        }
+                    }
+
+                    Text {
+                        visible: launcher.gridApps.length === 0
+                        anchors.centerIn: parent
+                        text: launcher.hiddenAppsMode ? "No hidden apps" : "No applications found"
                         color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
                         font.pixelSize: 15
                     }
@@ -874,7 +1226,7 @@ PanelWindow {
                                 ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35)
                                 : "transparent"
                             border.width: 1
-                            
+
                             Behavior on color { ColorAnimation { duration: 130 } }
                             Behavior on border.color { ColorAnimation { duration: 130 } }
 
@@ -998,7 +1350,7 @@ PanelWindow {
                                     }
 
                                     HoverHandler { id: monHover }
-                                    TapHandler { 
+                                    TapHandler {
                                         onTapped: {
                                             launcher.targetScreenName = modelData.name;
                                             launcher.wpFocusSection = 0;
@@ -1029,7 +1381,7 @@ PanelWindow {
                             snapMode: PathView.SnapToItem
                             flickDeceleration: 2000
                             highlightMoveDuration: 260
-                            
+
                             preferredHighlightBegin: 0.5
                             preferredHighlightEnd: 0.5
 
@@ -1041,7 +1393,7 @@ PanelWindow {
                             path: Path {
                                 startX: -wallpaperStrip.cardWidth * 0.8
                                 startY: wallpaperStrip.height / 2
-                                
+
                                 PathAttribute { name: "itemScale"; value: 0.7 }
                                 PathAttribute { name: "itemOpacity"; value: 0.3 }
                                 PathAttribute { name: "itemZ"; value: 0 }
@@ -1050,7 +1402,7 @@ PanelWindow {
                                     x: wallpaperStrip.width / 2
                                     y: wallpaperStrip.height / 2
                                 }
-                                
+
                                 PathAttribute { name: "itemScale"; value: 1.0 }
                                 PathAttribute { name: "itemOpacity"; value: 1.0 }
                                 PathAttribute { name: "itemZ"; value: 10 }
@@ -1059,7 +1411,7 @@ PanelWindow {
                                     x: wallpaperStrip.width + wallpaperStrip.cardWidth * 0.8
                                     y: wallpaperStrip.height / 2
                                 }
-                                
+
                                 PathAttribute { name: "itemScale"; value: 0.7 }
                                 PathAttribute { name: "itemOpacity"; value: 0.3 }
                                 PathAttribute { name: "itemZ"; value: 0 }
@@ -1133,19 +1485,19 @@ PanelWindow {
                                         font.pixelSize: 9
                                     }
                                 }
-                                
+
                                 Rectangle {
                                     anchors.fill: parent
                                     color: wpDelegate.isCurrent ? "transparent" : Qt.rgba(0, 0, 0, 0.3)
                                     Behavior on color { ColorAnimation { duration: 200 } }
                                 }
-                                
+
                                 Rectangle {
                                     anchors.fill: parent
                                     radius: 6
                                     color: "transparent"
-                                    border.color: wpDelegate.isCurrent 
-                                        ? Colors.primary 
+                                    border.color: wpDelegate.isCurrent
+                                        ? Colors.primary
                                         : Qt.rgba(0.55, 0.55, 0.55, 0.4)
                                     border.width: wpDelegate.isCurrent ? 3 : 1.5
                                     Behavior on border.color { ColorAnimation { duration: 180 } }
@@ -1177,7 +1529,7 @@ PanelWindow {
                             visible: launcher.wallpaperFiles.length > 1
                             Behavior on color { ColorAnimation { duration: 150 } }
                         }
-                       
+
                         Text {
                             anchors.right: parent.right
                             anchors.rightMargin: launcher.contentPadding
@@ -1206,7 +1558,9 @@ PanelWindow {
                 spacing: 14
 
                 Text {
-                    text: launcher.wallpaperPickerOpen ? "↑ ↓  Select Section" : "↑ ↓  Navigate"
+                    text: launcher.wallpaperPickerOpen
+                        ? "↑ ↓  Select Section"
+                        : (launcher.gridView && !launcher.commandMode ? "↑↓← →  Navigate" : "↑ ↓  Navigate")
                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
                     font.pixelSize: 11
                 }
@@ -1222,7 +1576,19 @@ PanelWindow {
                     font.pixelSize: 11
                 }
                 Text {
-                    text: "Esc  " + ((launcher.wallpaperPickerOpen || launcher.commandMode) ? "Back" : "Close")
+                    text: "RMB  Hide"
+                    visible: !launcher.wallpaperPickerOpen && !launcher.commandMode && !launcher.hiddenAppsMode
+                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
+                    font.pixelSize: 11
+                }
+                Text {
+                    text: "⌫  Restore"
+                    visible: launcher.hiddenAppsMode
+                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
+                    font.pixelSize: 11
+                }
+                Text {
+                    text: "Esc  " + ((launcher.wallpaperPickerOpen || launcher.commandMode || launcher.hiddenAppsMode) ? "Back" : "Close")
                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
                     font.pixelSize: 11
                 }
@@ -1234,7 +1600,9 @@ PanelWindow {
                         ? (launcher.wallpaperFiles.length + " wallpapers")
                         : (launcher.commandMode
                             ? (launcher.filteredCommands.length + " commands")
-                            : (launcher.appPositions.length + " applications"))
+                            : (launcher.hiddenAppsMode
+                                ? (launcher.hiddenApps.length + " hidden")
+                                : (launcher.appPositions.length + " applications")))
                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
                     font.pixelSize: 11
                 }
