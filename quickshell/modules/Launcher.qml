@@ -127,7 +127,7 @@ PanelWindow {
         { id: "settings-hyprlock", label: "Settings → Hyprlock", desc: "Jump straight to hyprlock settings", icon: "󰌾" },
         { id: "settings-about", label: "Settings → About", desc: "Jump straight to the about page", icon: "󰋼" },
         { id: "reload", label: "Reload Hyprland", desc: "hyprctl reload — reapply config changes", icon: "󰜉" },
-        { id: "hidden-apps", label: "Hidden apps", desc: "Show apps hidden from the launcher, click to restore", icon: "👁" },
+        { id: "hidden-apps", label: "Hidden apps", desc: "Show apps hidden from the launcher, click to restore", icon: "󰈈" },
     ]
 
     readonly property var filteredCommands: {
@@ -780,30 +780,12 @@ PanelWindow {
 
                         Text {
                             anchors.centerIn: parent
-                            text: "👁"
-                            font.pixelSize: 16
+                            text: "󰈈"
+                            font.pixelSize: 17
+                            color: launcher.hiddenAppsMode ? Colors.primary : Colors.surfaceText
                             opacity: launcher.hiddenAppsMode ? 1.0 : (launcher.hiddenApps.length > 0 ? 0.75 : 0.4)
                             Behavior on opacity { NumberAnimation { duration: 120 } }
-                        }
-
-                        Rectangle {
-                            visible: !launcher.hiddenAppsMode && launcher.hiddenApps.length > 0
-                            anchors.top: parent.top
-                            anchors.right: parent.right
-                            anchors.margins: -4
-                            width: 16
-                            height: 16
-                            radius: 8
-                            color: Colors.primary
-                            border.color: Colors.surface
-                            border.width: 1.5
-                            Text {
-                                anchors.centerIn: parent
-                                text: launcher.hiddenApps.length > 9 ? "9+" : launcher.hiddenApps.length
-                                color: "white"
-                                font.pixelSize: 8
-                                font.bold: true
-                            }
+                            Behavior on color { ColorAnimation { duration: 120 } }
                         }
 
                         HoverHandler { id: hiddenToggleHover; cursorShape: Qt.PointingHandCursor }
@@ -1062,8 +1044,10 @@ PanelWindow {
                     anchors.fill: parent
                     visible: launcher.gridView && !launcher.commandMode && !launcher.wallpaperPickerOpen
                     clip: true
-                    cellWidth: 96
-                    cellHeight: 108
+                    readonly property int minCellWidth: 116
+                    readonly property int columns: Math.max(1, Math.floor(width / minCellWidth))
+                    cellWidth: width / columns
+                    cellHeight: 128
                     model: launcher.gridApps
                     currentIndex: launcher.selectedIndex
                     highlightFollowsCurrentItem: true
@@ -1108,32 +1092,37 @@ PanelWindow {
                             Behavior on border.color { ColorAnimation { duration: 130 } }
 
                             ColumnLayout {
-                                anchors.fill: parent
-                                anchors.topMargin: 10
-                                anchors.bottomMargin: 8
-                                spacing: 6
+                                anchors.centerIn: parent
+                                width: parent.width - 12
+                                spacing: 8
 
                                 Rectangle {
                                     Layout.alignment: Qt.AlignHCenter
-                                    Layout.preferredWidth: 48
-                                    Layout.preferredHeight: 48
-                                    radius: 13
-                                    color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.10)
+                                    Layout.preferredWidth: 60
+                                    Layout.preferredHeight: 60
+                                    radius: 16
+                                    color: tileRoot.isCurrent
+                                        ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18)
+                                        : Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.10)
+                                    Behavior on color { ColorAnimation { duration: 130 } }
 
                                     IconImage {
                                         anchors.centerIn: parent
-                                        implicitSize: 32
+                                        implicitSize: 40
                                         source: Quickshell.iconPath(tileRoot.modelData.icon, true)
                                     }
                                 }
 
                                 Text {
                                     Layout.fillWidth: true
+                                    Layout.preferredHeight: 32
                                     Layout.alignment: Qt.AlignHCenter
                                     horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignTop
                                     text: tileRoot.modelData.name
                                     color: Colors.surfaceText
-                                    font.pixelSize: 11
+                                    opacity: 0.92
+                                    font.pixelSize: 12
                                     elide: Text.ElideRight
                                     maximumLineCount: 2
                                     wrapMode: Text.WordWrap

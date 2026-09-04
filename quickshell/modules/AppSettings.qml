@@ -1,21 +1,4 @@
 // AppSettings.qml
-//
-// Singleton for persistent shell settings. Not stored in Quickshell's
-// internal store, but as a plain text file in ~/.config/hypr/conf/ —
-// the same place where your monitors.conf, keybinds.conf, etc. live.
-// The file is created and fully rewritten automatically on every save —
-// there's no need to edit it by hand (and no point, any manual edits
-// would be lost on the next save from the settings window).
-//
-// The format is native Hyprland variable syntax ($name = value), so
-// the file can be safely sourced via "source =" in hyprland.conf: it's
-// just variable declarations that have no effect until something
-// actually uses them. Future user keybinds will land in the same file
-// as plain bind = ... lines, which Hyprland will parse on its own.
-//
-// Temporary UI state (e.g. whether the settings window is open) is
-// deliberately NOT stored here — there's a separate ShellState.qml
-// singleton for that, which is never written to disk.
 
 pragma Singleton
 import QtQuick
@@ -26,7 +9,7 @@ Item {
     id: root
 
     readonly property string confDir: Quickshell.env("HOME") + "/.config/hypr/conf"
-    readonly property string confPath: root.confDir + "/quickshell.conf"
+    readonly property string confPath: root.confDir + "/quickshell.lua"
 
     property string barPosition: "top"
     property bool groupNotificationsBySource: false
@@ -48,6 +31,8 @@ Item {
     property bool _applying: false
     property bool _dirReady: false
 
+    // --- pinned apps helpers -------------------------------------------------
+
     function pinnedList() {
         return root.pinnedApps.length ? root.pinnedApps.split(",") : [];
     }
@@ -64,6 +49,8 @@ Item {
         else list.push(cls);
         root.pinnedApps = list.join(",");
     }
+
+    // --- launcher hidden-apps helpers ------------------------------------------
 
     function hiddenAppsList() {
         return root.launcherHiddenApps.length ? root.launcherHiddenApps.split(",") : [];
@@ -82,49 +69,53 @@ Item {
         root.launcherHiddenApps = list.join(",");
     }
 
+    // --- persistence ----------------------------------------------------------
+
     function _parse(text) {
         root._applying = true;
-        const m = text.match(/^\s*\$quickshell_barPosition\s*=\s*(\S+)/m);
+        const m = text.match(/^\s*barPosition\s*=\s*"([^"]*)"/m);
         if (m) root.barPosition = m[1];
-        const g = text.match(/^\s*\$quickshell_groupNotificationsBySource\s*=\s*(\S+)/m);
-        if (g) root.groupNotificationsBySource = (g[1] === "true" || g[1] === "1");
-        const p = text.match(/^\s*\$quickshell_barShowPlayer\s*=\s*(\S+)/m);
-        if (p) root.barShowPlayer = (p[1] === "true" || p[1] === "1");
-        const t = text.match(/^\s*\$quickshell_barShowTray\s*=\s*(\S+)/m);
-        if (t) root.barShowTray = (t[1] === "true" || t[1] === "1");
-        const bw = text.match(/^\s*\$quickshell_barShowWindows\s*=\s*(\S+)/m);
-        if (bw) root.barShowWindows = (bw[1] === "true" || bw[1] === "1");
-        const pa = text.match(/^\s*\$quickshell_pinnedApps\s*=\s*(.*)\s*$/m);
-        if (pa) root.pinnedApps = pa[1].trim();
-        const lh = text.match(/^\s*\$quickshell_launcherHiddenApps\s*=\s*(.*)\s*$/m);
-        if (lh) root.launcherHiddenApps = lh[1].trim();
-        const lv = text.match(/^\s*\$quickshell_launcherViewMode\s*=\s*(.*)\s*$/m);
-        if (lv) root.launcherViewMode = lv[1].trim();
-        const w = text.match(/^\s*\$quickshell_wallpaperDir\s*=\s*(.+)\s*$/m);
-        if (w) root.wallpaperDir = w[1].trim();
-        const e = text.match(/^\s*\$quickshell_edgeToEdge\s*=\s*(\S+)/m);
-        if (e) root.edgeToEdge = (e[1] === "true" || e[1] === "1");
+        const g = text.match(/^\s*groupNotificationsBySource\s*=\s*(true|false)/m);
+        if (g) root.groupNotificationsBySource = (g[1] === "true");
+        const p = text.match(/^\s*barShowPlayer\s*=\s*(true|false)/m);
+        if (p) root.barShowPlayer = (p[1] === "true");
+        const t = text.match(/^\s*barShowTray\s*=\s*(true|false)/m);
+        if (t) root.barShowTray = (t[1] === "true");
+        const bw = text.match(/^\s*barShowWindows\s*=\s*(true|false)/m);
+        if (bw) root.barShowWindows = (bw[1] === "true");
+        const pa = text.match(/^\s*pinnedApps\s*=\s*"([^"]*)"/m);
+        if (pa) root.pinnedApps = pa[1];
+        const lh = text.match(/^\s*launcherHiddenApps\s*=\s*"([^"]*)"/m);
+        if (lh) root.launcherHiddenApps = lh[1];
+        const lv = text.match(/^\s*launcherViewMode\s*=\s*"([^"]*)"/m);
+        if (lv) root.launcherViewMode = lv[1];
+        const w = text.match(/^\s*wallpaperDir\s*=\s*"([^"]*)"/m);
+        if (w) root.wallpaperDir = w[1];
+        const e = text.match(/^\s*edgeToEdge\s*=\s*(true|false)/m);
+        if (e) root.edgeToEdge = (e[1] === "true");
         root._applying = false;
     }
 
     function _serialize() {
-        return "# Quickshell settings file.\n" +
-               "# Created and rewritten automatically — do not edit by hand,\n" +
-               "# any manual changes will be lost on the next save from the\n" +
-               "# Quickshell settings window.\n" +
-               "#\n" +
-               "# Source it once in hyprland.conf:\n" +
-               "#   source = ~/.config/hypr/conf/quickshell.conf\n\n" +
-               "$quickshell_barPosition = " + root.barPosition + "\n" +
-               "$quickshell_groupNotificationsBySource = " + (root.groupNotificationsBySource ? "true" : "false") + "\n" +
-               "$quickshell_barShowPlayer = " + (root.barShowPlayer ? "true" : "false") + "\n" +
-               "$quickshell_barShowTray = " + (root.barShowTray ? "true" : "false") + "\n" +
-               "$quickshell_barShowWindows = " + (root.barShowWindows ? "true" : "false") + "\n" +
-               "$quickshell_pinnedApps = " + root.pinnedApps + "\n" +
-               "$quickshell_launcherHiddenApps = " + root.launcherHiddenApps + "\n" +
-               "$quickshell_launcherViewMode = " + root.launcherViewMode + "\n" +
-               "$quickshell_wallpaperDir = " + root.wallpaperDir + "\n" +
-               "$quickshell_edgeToEdge = " + (root.edgeToEdge ? "true" : "false") + "\n";
+        return "-- Quickshell settings file.\n" +
+               "-- Created and rewritten automatically — do not edit by hand,\n" +
+               "-- any manual changes will be lost on the next save from the\n" +
+               "-- Quickshell settings window.\n" +
+               "--\n" +
+               "-- Import in your Lua config:\n" +
+               "--   local quickshell = dofile(os.getenv(\"HOME\") .. \"/.config/hypr/conf/quickshell.lua\")\n\n" +
+               "return {\n" +
+               "    barPosition = \"" + root.barPosition + "\",\n" +
+               "    groupNotificationsBySource = " + (root.groupNotificationsBySource ? "true" : "false") + ",\n" +
+               "    barShowPlayer = " + (root.barShowPlayer ? "true" : "false") + ",\n" +
+               "    barShowTray = " + (root.barShowTray ? "true" : "false") + ",\n" +
+               "    barShowWindows = " + (root.barShowWindows ? "true" : "false") + ",\n" +
+               "    pinnedApps = \"" + root.pinnedApps + "\",\n" +
+               "    launcherHiddenApps = \"" + root.launcherHiddenApps + "\",\n" +
+               "    launcherViewMode = \"" + root.launcherViewMode + "\",\n" +
+               "    wallpaperDir = \"" + root.wallpaperDir + "\",\n" +
+               "    edgeToEdge = " + (root.edgeToEdge ? "true" : "false") + ",\n" +
+               "}\n";
     }
 
     property bool _writing: false

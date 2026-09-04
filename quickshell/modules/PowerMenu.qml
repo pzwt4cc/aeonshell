@@ -3,30 +3,21 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-
 PopupWindow {
     id: popup
-
     property bool open: false
     readonly property bool isHovered: menuHover.hovered
-
     function toggle() { popup.open = !popup.open }
-
     readonly property int shadowMargin: 12
-
     implicitWidth: 330 + shadowMargin * 2
     implicitHeight: 78 + shadowMargin * 2
     color: "transparent"
     visible: popup.open || hideTimer.running
-
-
     Timer {
         id: hideTimer
         interval: 150
     }
-
     property bool menuWasEntered: false
-
     Timer {
         id: closeDelayTimer
         interval: 450
@@ -35,7 +26,6 @@ PopupWindow {
             menuWasEntered = false
         }
     }
-
     onOpenChanged: {
         if (!open) {
             hideTimer.start()
@@ -45,7 +35,6 @@ PopupWindow {
             hideTimer.stop()
         }
     }
-
     Rectangle {
         anchors.fill: menuBg
         anchors.margins: -5
@@ -56,7 +45,6 @@ PopupWindow {
         transformOrigin: menuBg.transformOrigin
         z: menuBg.z - 1
     }
-
     Rectangle {
         id: menuBg
         anchors.fill: parent
@@ -65,7 +53,6 @@ PopupWindow {
         color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.94)
         border.color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08)
         border.width: 1
-
         transformOrigin: {
             if (AppSettings.barPosition === "bottom") return Item.BottomRight
             if (AppSettings.barPosition === "left") return Item.BottomLeft
@@ -74,14 +61,12 @@ PopupWindow {
         }
         scale: popup.open ? 1.0 : 0.75
         opacity: popup.open ? 1.0 : 0.0
-
         Behavior on scale {
             NumberAnimation { duration: 180; easing.type: Easing.OutBack; easing.overshoot: 1.3 }
         }
         Behavior on opacity {
             NumberAnimation { duration: 140; easing.type: Easing.OutQuad }
         }
-
         HoverHandler {
             id: menuHover
             onHoveredChanged: {
@@ -93,37 +78,36 @@ PopupWindow {
                 }
             }
         }
-
         RowLayout {
             anchors.fill: parent
             anchors.margins: 14
             spacing: 10
-
             PowerMenuAction {
-                glyph: "󰌾"
-                command: ["hyprlock"]
-                onActivated: popup.open = false
-            }
-            PowerMenuAction {
-                glyph: "󰍃"
-                command: ["hyprctl", "dispatch", "exit"]
-                onActivated: popup.open = false
-            }
-            PowerMenuAction {
-                glyph: "󰽥"
-                command: ["systemctl", "suspend"]
-                onActivated: popup.open = false
-            }
-            PowerMenuAction {
-                glyph: "󰜉"
-                command: ["systemctl", "reboot"]
-                onActivated: popup.open = false
-            }
-            PowerMenuAction {
-                glyph: "󰤂"
-                command: ["systemctl", "poweroff"]
-                onActivated: popup.open = false
-            }
+    		    glyph: "󰌾"
+    		    command: ["hyprlock"]
+    		    onActivated: popup.open = false
+    		}
+    		PowerMenuAction {
+    		    glyph: "󰍃"
+    		    // command: ["sh", "-c", "loginctl terminate-session $XDG_SESSION_ID && sudo systemctl restart sddm"]
+                command: ["sudo", "systemctl", "restart", "sddm"]
+    		    onActivated: popup.open = false
+    		}
+    		PowerMenuAction {
+    		    glyph: "󰤄"
+    		    command: ["sh", "-c", "hyprlock & systemctl suspend"]
+    		    onActivated: popup.open = false
+    		}
+    		PowerMenuAction {
+    		    glyph: "󰜉"
+    		    command: ["systemctl", "reboot"]
+    		    onActivated: popup.open = false
+    		}
+    		PowerMenuAction {
+    		    glyph: "󰐥"
+    		    command: ["systemctl", "poweroff"]
+    		    onActivated: popup.open = false
+    		}
         }
     }
 }

@@ -9,6 +9,7 @@ singleton MpvFullscreenWatcher 1.0 MpvFullscreenWatcher.qml
 
 Audio 1.0 Audio.qml
 Bar 1.0 Bar.qml
+Dock 1.0 Dock.qml
 Bluetooth 1.0 Bluetooth.qml
 CenterPopup 1.0 CenterPopup.qml
 Clipboard 1.0 Clipboard.qml
@@ -37,3 +38,4 @@ SettingsWindow 1.0 SettingsWindow.qml
 VolumeOSD 1.0 VolumeOSD.qml
 FilePicker 1.0 FilePicker.qml
 TextInputPopup 1.0 TextInputPopup.qml
+WindowContextMenu 1.0 WindowContextMenu.qml

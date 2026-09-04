@@ -1,5 +1,5 @@
 -- colors-wal.lua
 return {
-  active_1 = "0xffB65522",
-  active_2 = "0xffE89136",
+  active_1 = "0xff8E7793",
+  active_2 = "0xff9993AA",
 }

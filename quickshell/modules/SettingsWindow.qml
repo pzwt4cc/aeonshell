@@ -267,6 +267,11 @@ FloatingWindow {
                             checked: AppSettings.barShowTray
                             onToggled: AppSettings.barShowTray = !AppSettings.barShowTray
                         }
+                        SettingRow {
+                            label: "App dock"
+                            checked: AppSettings.barShowWindows
+                            onToggled: AppSettings.barShowWindows = !AppSettings.barShowWindows
+                        }
 
                         Text {
                             text: "LAYOUT"
