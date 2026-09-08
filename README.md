@@ -24,8 +24,8 @@ https://github.com/user-attachments/assets/5c14767b-d2c9-4ad7-b5de-51701005499c
 - Wallpaper changes → entire theme updates automatically via pywal
 - Matching lock screen (Hyprlock)
 
-| Desktop                           | Control center                                      |
-| ----------------------------- | --------------------------------------------------- |
+| Desktop                               | Control center                                      |
+| ------------------------------------- | --------------------------------------------------- |
 | ![desktop](./screenshots/desktop.png) | ![Control center](./screenshots/control-center.png) |
 
 | Launcher                                | Notifications                                     |
@@ -57,6 +57,7 @@ copies the configs into place, and offers to back up any existing
 ```bash
 git clone https://github.com/pzwt4cc/aeonshell
 cd aeonshell
+chmod +x install.sh
 ./install.sh
 ```
 
@@ -231,6 +232,7 @@ Wayland-окружение для **Hyprland**, собранное на **Quicks
 ```bash
 git clone https://github.com/pzwt4cc/aeonshell
 cd aeonshell
+chmod +x install.sh
 ./install.sh
 ```
 
