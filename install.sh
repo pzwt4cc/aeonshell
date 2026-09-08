@@ -475,7 +475,7 @@ install_pacman_deps() {
         pipewire pipewire-pulse pipewire-alsa wireplumber pavucontrol \
         wl-clipboard cliphist grim slurp swappy \
         jq curl python zenity inotify-tools udiskie \
-        fastfetch fzf yazi tty-clock
+        fastfetch fzf yazi
     ok "$(t pacman_deps_done)"
 }
 
@@ -486,7 +486,7 @@ install_aur_deps() {
         quickshell-git awww python-pywal \
         zen-browser-bin bibata-cursor-theme \
         otf-font-awesome ttf-jetbrains-mono-nerd zsh-antidote \
-        kvantum gpu-screen-recorder-ui peazip xfce4-mousepad
+        kvantum gpu-screen-recorder-ui peazip xfce4-mousepad tty-clock
     AUR_IN_PROGRESS=0
     ok "$(t aur_deps_done)"
 }
