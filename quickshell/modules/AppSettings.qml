@@ -26,7 +26,10 @@ Item {
     readonly property int normalGapsIn: 5
     readonly property int normalGapsOut: 10
     readonly property int normalBorderSize: 2
-    readonly property int normalRounding: 10
+    readonly property int normalRounding: 15
+
+    readonly property int edgeGapsIn: 2
+    readonly property int edgeGapsOut: 2
 
     property bool _applying: false
     property bool _dirReady: false
@@ -116,6 +119,7 @@ Item {
                "    wallpaperDir = \"" + root.wallpaperDir + "\",\n" +
                "    edgeToEdge = " + (root.edgeToEdge ? "true" : "false") + ",\n" +
                "}\n";
+
     }
 
     property bool _writing: false
@@ -127,15 +131,15 @@ Item {
     }
 
     function _applyGaps() {
-        const gIn = root.edgeToEdge ? 0 : root.normalGapsIn;
-        const gOut = root.edgeToEdge ? 0 : root.normalGapsOut;
+        const gIn = root.edgeToEdge ? root.edgeGapsIn : root.normalGapsIn;
+        const gOut = root.edgeToEdge ? root.edgeGapsOut : root.normalGapsOut;
         const border = root.edgeToEdge ? 0 : root.normalBorderSize;
         const rounding = root.edgeToEdge ? 0 : root.normalRounding;
-        gapsProc.command = ["hyprctl", "--batch",
-            "keyword general:gaps_in " + gIn +
-            " ; keyword general:gaps_out " + gOut +
-            " ; keyword general:border_size " + border +
-            " ; keyword decoration:rounding " + rounding];
+        const luaExpr = "hl.config({ general = { gaps_in = " + gIn +
+            ", gaps_out = " + gOut +
+            ", border_size = " + border +
+            " }, decoration = { rounding = " + rounding + " } })";
+        gapsProc.command = ["hyprctl", "eval", luaExpr];
         gapsProc.running = true;
     }
 

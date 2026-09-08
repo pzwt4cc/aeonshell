@@ -1,39 +1,20 @@
 // Dock.qml
-//
-// macOS-style dock: a standalone floating panel anchored to the bottom
-// of the screen, showing pinned apps + open windows grouped by class.
-//
-// This is intentionally a separate PanelWindow from Bar.qml (not a widget
-// glued into the bar's layout) so it doesn't inherit the bar's position
-// setting — the dock always sits at the bottom, like on macOS, no matter
-// where AppSettings.barPosition puts the top bar.
-//
-// Window tracking + activate/minimize/restore logic is the same one that
-// used to live in OpenWindows.qml — moved here since the windows list is
-// no longer embedded in the bar itself. OpenWindows.qml is unused now and
-// can be deleted once you're happy with this.
-//
-// Toggle: AppSettings.barShowWindows (same setting as before — enables/
-// disables the dock). Rename later if "barShowWindows" stops making sense.
 
 import Quickshell
+import Quickshell.Hyprland
+import Quickshell.Wayland
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Controls
-import Quickshell.Io
-import Quickshell.Wayland
-import Quickshell.Widgets
-import Qt5Compat.GraphicalEffects
 import QtQuick.Effects
+import Quickshell.Widgets
 
 Scope {
     id: root
 
     readonly property bool dockEnabled: AppSettings.barShowWindows
 
-    property var windows: []
-    property string activeAddress: ""
-    property var activeWorkspace: ({ id: 1, name: "1" })
+    property int changeEpoch: 0
+
     property var _origWorkspace: ({})
 
     readonly property int btnSize: 44
@@ -41,7 +22,22 @@ Scope {
     readonly property int edgePadding: 8
     readonly property int dockMargin: 10
 
-    readonly property var groups: root.computeGroups()
+    readonly property string activeAddress: Hyprland.activeToplevel ? Hyprland.activeToplevel.address.toLowerCase() : ""
+
+    function addrEq(a, b) {
+        return !!a && !!b && a.toLowerCase() === b.toLowerCase();
+    }
+
+    function normAddr(a) {
+        return a ? a.toLowerCase() : "";
+    }
+
+    function fullAddr(a) {
+        if (!a) return a;
+        return a.indexOf("0x") === 0 ? a : "0x" + a;
+    }
+
+    readonly property var groups: (root.changeEpoch, root.computeGroups())
     readonly property var pinnedGroups: root.groups.filter(g => g.pinned)
     readonly property var runningGroups: root.groups.filter(g => !g.pinned)
 
@@ -54,41 +50,42 @@ Scope {
         return screen === screens[0];
     }
 
+    function isSpecial(win) {
+        return !!(win.workspace && win.workspace.name && win.workspace.name.indexOf("special") === 0);
+    }
+
     function computeGroups() {
-        const list = root.windows || [];
+        const list = Hyprland.toplevels.values;
         const map = {};
         const order = [];
         for (const w of list) {
-            const cls = w.cls || "unknown";
+            const cls = (w.lastIpcObject && w.lastIpcObject.class) || "unknown";
             if (!map[cls]) { map[cls] = []; order.push(cls); }
             map[cls].push(w);
         }
+        root.dbg("computeGroups: " + list.length + " toplevels -> classes [" + order.join(", ") + "]");
 
         const pinned = AppSettings.pinnedList();
         const groups = [];
         for (const cls of pinned) {
             groups.push({ cls: cls, windows: map[cls] || [], pinned: true });
         }
-        for (const cls of order) {
-            if (pinned.indexOf(cls) === -1) {
-                groups.push({ cls: cls, windows: map[cls], pinned: false });
-            }
+
+        const runningOrder = order.filter(cls => pinned.indexOf(cls) === -1);
+        runningOrder.sort((a, b) => {
+            const addrA = (map[a][0] && map[a][0].address) || "";
+            const addrB = (map[b][0] && map[b][0].address) || "";
+            return addrA < addrB ? -1 : addrA > addrB ? 1 : 0;
+        });
+        for (const cls of runningOrder) {
+            groups.push({ cls: cls, windows: map[cls], pinned: false });
         }
         return groups;
     }
 
     function findAppForClass(cls) {
         if (!cls) return null;
-        const apps = DesktopEntries.applications.values;
-        const lc = cls.toLowerCase();
-        for (let i = 0; i < apps.length; i++) {
-            if (apps[i].id && apps[i].id.toLowerCase() === lc) return apps[i];
-        }
-        for (let i = 0; i < apps.length; i++) {
-            const id = apps[i].id ? apps[i].id.toLowerCase() : "";
-            if (id && (id.indexOf(lc) !== -1 || lc.indexOf(id) !== -1)) return apps[i];
-        }
-        return null;
+        return DesktopEntries.heuristicLookup(cls);
     }
 
     function activateGroup(group) {
@@ -97,49 +94,78 @@ Scope {
             if (app) app.execute();
             return;
         }
-        const focused = group.windows.find(w => w.address === root.activeAddress);
+        const focused = group.windows.find(w => w.activated || root.addrEq(w.address, root.activeAddress));
         if (focused) {
             root.minimize(focused);
             return;
         }
-        const hidden = group.windows.find(w => w.workspaceName && w.workspaceName.indexOf("special") === 0);
+        const hidden = group.windows.find(w => root.isSpecial(w));
         root.bringToCurrentWorkspace(hidden || group.windows[0]);
     }
 
-    function minimize(win) {
-        root._origWorkspace[win.address] = win.workspaceId;
-        Quickshell.execDetached(["hyprctl", "dispatch", "movetoworkspacesilent", "special:minimized,address:" + win.address]);
+    function dbg(msg) { console.log("[Dock]", msg); }
+
+    readonly property bool usingLua: true
+
+    function dispatch(legacy, lua) {
+        const req = root.usingLua ? lua : legacy;
+        root.dbg("usingLua=" + root.usingLua + " dispatch: " + req);
+        Hyprland.dispatch(req);
     }
 
-    // Un-minimizes / focuses a window on the workspace the user is
-    // currently viewing, rather than switching the user's view to
-    // wherever the window happens to live. That's the whole point of
-    // clicking a dock icon: the app comes to you.
-    function bringToCurrentWorkspace(win) {
-        const weMinimizedIt = root._origWorkspace[win.address] !== undefined;
-        delete root._origWorkspace[win.address];
+    function luaWinSel(addr) {
+        return 'hl.get_windows({ address = "' + root.fullAddr(addr) + '" })[1]';
+    }
 
-        const isOtherSpecial = !weMinimizedIt && win.workspaceName && win.workspaceName.indexOf("special") === 0;
+    function focusAddress(addr) {
+        root.dispatch(
+            "focuswindow address:" + root.fullAddr(addr),
+            'hl.dsp.focus({ window = ' + root.luaWinSel(addr) + ' })'
+        );
+    }
+
+    function minimize(win) {
+        root._origWorkspace[root.normAddr(win.address)] = win.workspace ? win.workspace.id : 0;
+        root.dispatch(
+            "movetoworkspacesilent special:minimized,address:" + root.fullAddr(win.address),
+            'hl.dsp.window.move({ workspace = "special:minimized", window = ' + root.luaWinSel(win.address) + ', follow = false })'
+        );
+    }
+
+    function bringToCurrentWorkspace(win) {
+        const key = root.normAddr(win.address);
+        const weMinimizedIt = root._origWorkspace[key] !== undefined;
+        delete root._origWorkspace[key];
+
+        const isOtherSpecial = !weMinimizedIt && root.isSpecial(win);
         if (isOtherSpecial) {
-            // A special workspace we didn't put it in ourselves (e.g. your
-            // own scratchpad) — toggling it visible already overlays the
-            // current view rather than switching workspace, so no jump.
-            const name = win.workspaceName === "special" ? "" : win.workspaceName.replace("special:", "");
-            Quickshell.execDetached(["bash", "-c",
-                "hyprctl dispatch togglespecialworkspace " + name +
-                " && hyprctl dispatch focuswindow address:" + win.address]);
+            const wsName = (win.workspace && win.workspace.name) || "";
+            const name = wsName === "special" ? "" : wsName.replace("special:", "");
+            root.dispatch(
+                "togglespecialworkspace " + name,
+                'hl.dsp.workspace.toggle_special("' + name + '")'
+            );
+            root.focusAddress(win.address);
             return;
         }
 
-        const target = root.activeWorkspace.id;
-        Quickshell.execDetached(["bash", "-c",
-            "hyprctl dispatch movetoworkspacesilent " + target + ",address:" + win.address +
-            " && hyprctl dispatch focuswindow address:" + win.address]);
+        const target = (Hyprland.focusedMonitor && Hyprland.focusedMonitor.activeWorkspace)
+            ? Hyprland.focusedMonitor.activeWorkspace.id
+            : (Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : 1);
+        root.dispatch(
+            "movetoworkspacesilent " + target + ",address:" + root.fullAddr(win.address),
+            'hl.dsp.window.move({ workspace = ' + target + ', window = ' + root.luaWinSel(win.address) + ', follow = false })'
+        );
+        root.focusAddress(win.address);
     }
 
     function closeGroup(group) {
         for (const w of group.windows) {
-            Quickshell.execDetached(["hyprctl", "dispatch", "closewindow", "address:" + w.address]);
+            if (w.wayland) w.wayland.close();
+            else root.dispatch(
+                "closewindow address:" + root.fullAddr(w.address),
+                'hl.dsp.window.close({ window = ' + root.luaWinSel(w.address) + ' })'
+            );
         }
     }
 
@@ -148,62 +174,29 @@ Scope {
         if (group) root.closeGroup(group);
     }
 
-    Process {
-        id: winProc
-        running: true
-        command: [
-            "bash", "-c",
-            "get_state() { " +
-            "  clients=$(hyprctl clients -j 2>/dev/null | tr -d '\\n'); " +
-            "  active=$(hyprctl activewindow -j 2>/dev/null | tr -d '\\n'); " +
-            "  aws=$(hyprctl activeworkspace -j 2>/dev/null | tr -d '\\n'); " +
-            "  printf '%s\\t\\t\\t%s\\t\\t\\t%s\\n' \"$clients\" \"$active\" \"$aws\"; " +
-            "}; " +
-            "get_state; " +
-            "stdbuf -oL socat -U - UNIX-CONNECT:$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock 2>/dev/null | " +
-            "stdbuf -oL grep --line-buffered -E 'openwindow>>|closewindow>>|activewindow>>|movewindow>>|windowtitlev2>>|workspace>>' | " +
-            "while read -r line; do get_state; done"
-        ]
-        stdout: SplitParser {
-            onRead: text => {
-                const clean = text.trim();
-                if (!clean) return;
-                const parts = clean.split("\t\t\t");
-                if (parts.length < 3) return;
-                const clientsStr = parts[0];
-                const activeStr = parts[1];
-                const awsStr = parts[2];
+    Component.onCompleted: {
+        root.dbg("started, usingLua=" + Hyprland.usingLua);
+        Hyprland.refreshToplevels();
+    }
 
-                try {
-                    const parsed = JSON.parse(clientsStr || "[]");
-                    root.windows = parsed.map(c => ({
-                        // Addresses are normalized to lowercase everywhere they're
-                        // read/compared (here and in activeAddress below) because
-                        // `hyprctl activewindow -j` and `hyprctl clients -j` don't
-                        // reliably agree on hex casing. Without this, comparing
-                        // w.address === root.activeAddress could silently fail for
-                        // the currently focused window, which meant clicking its
-                        // dock icon never matched the "minimize" branch below and
-                        // always fell through to the "bring to front" branch
-                        // instead (looks like nothing happens, since it's already
-                        // in front).
-                        address: (c.address || "").toLowerCase(),
-                        cls: c.class,
-                        title: c.title,
-                        workspaceId: c.workspace ? c.workspace.id : 0,
-                        workspaceName: c.workspace ? c.workspace.name : ""
-                    }));
-                } catch (e) { }
-
-                try {
-                    const act = JSON.parse(activeStr || "{}");
-                    root.activeAddress = (act.address || "").toLowerCase();
-                } catch (e) { }
-
-                try {
-                    const aws = JSON.parse(awsStr || "{}");
-                    if (aws.id !== undefined) root.activeWorkspace = aws;
-                } catch (e) { }
+    Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            root.dbg("event: " + event.name);
+            switch (event.name) {
+            case "openwindow":
+            case "closewindow":
+            case "activewindow":
+            case "activewindowv2":
+            case "movewindow":
+            case "movewindowv2":
+            case "windowtitlev2":
+            case "workspace":
+            case "workspacev2":
+            case "focusedmon":
+                root.changeEpoch++;
+                root.dbg("changeEpoch -> " + root.changeEpoch + ", toplevels=" + Hyprland.toplevels.values.length);
+                break;
             }
         }
     }
@@ -250,7 +243,6 @@ Scope {
 
                 Behavior on implicitWidth { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
 
-                // Subtle top highlight, like a hairline of light catching the glass edge
                 Rectangle {
                     anchors.top: parent.top
                     anchors.left: parent.left
@@ -297,10 +289,10 @@ Scope {
                     height: root.btnSize
                     radius: 11
 
-                    readonly property bool isFocused: modelData.windows.some(w => w.address === root.activeAddress)
+                    readonly property bool isFocused: modelData.windows.some(w => w.activated || root.addrEq(w.address, root.activeAddress))
                     readonly property bool hasWindows: modelData.windows.length > 0
                     readonly property bool isMinimized: hasWindows && !isFocused &&
-                        modelData.windows.every(w => w.workspaceName && w.workspaceName.indexOf("special") === 0)
+                        modelData.windows.every(w => root.isSpecial(w))
                     readonly property var app: root.findAppForClass(modelData.cls)
 
                     color: isFocused
@@ -335,7 +327,6 @@ Scope {
                         color: Colors.surfaceText
                     }
 
-                    // Running indicator dot, macOS-dock style
                     Rectangle {
                         visible: modelData.windows.length > 0
                         anchors.bottom: parent.bottom
@@ -347,7 +338,6 @@ Scope {
                         color: btn.isFocused ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.6)
                     }
 
-                    // Pinned marker for single-window / not-running pinned apps
                     Rectangle {
                         visible: modelData.pinned && modelData.windows.length <= 1
                         anchors.top: parent.top
@@ -365,9 +355,6 @@ Scope {
                         onTapped: root.activateGroup(modelData)
                     }
 
-                    // Middle-click closes the group's windows directly — the
-                    // usual dock shortcut, so you don't need the right-click
-                    // menu just to close a running app.
                     TapHandler {
                         acceptedButtons: Qt.MiddleButton
                         onTapped: if (btn.hasWindows) root.closeGroup(modelData)
@@ -386,8 +373,6 @@ Scope {
                         }
                     }
 
-                    // Small floating label, macOS-dock style, instead of the
-                    // generic system ToolTip control.
                     Rectangle {
                         id: tip
                         anchors.bottom: parent.top
