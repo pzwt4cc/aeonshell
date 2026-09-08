@@ -84,11 +84,15 @@ declare -A T_EN=(
 
     [installing_pacman]="Installing official-repo packages"
     [pacman_deps_done]="Official-repo packages installed."
+    [pacman_deps_already]="All official-repo packages are already installed — skipping."
 
+    [checking_aur_needed]="Checking AUR packages"
+    [aur_deps_already]="All AUR packages are already installed — skipping the AUR step entirely."
     [installing_aur]="Installing AUR packages"
     [aur_deps_done]="AUR packages installed."
 
     [optional_step]="Optional extras"
+    [optional_already]="All optional extras are already installed — skipping."
     [optional_prompt]="Install optional extras (openrgb, codium, thunderbird, localsend)? [y/N] "
     [optional_done]="Optional extras installed."
     [optional_skip]="Skipping optional extras."
@@ -100,8 +104,6 @@ declare -A T_EN=(
     [shell_kept]="Keeping %s as-is — skipping zsh setup."
 
     [copying_configs]="Copying configs into %s"
-    [local_conf_created]="Created hypr/conf/local.conf from the example — edit it for your machine."
-    [local_conf_exists]="hypr/conf/local.conf already exists, leaving it as-is."
     [configs_copied]="Configs copied."
     [zsh_dotfiles_copied]="zsh dotfiles copied to %s."
     [chsh_prompt]="Switch your login shell from %s to zsh now? [y/N] "
@@ -111,7 +113,7 @@ declare -A T_EN=(
     [done_step]="Done"
     [all_done]="aeonshell is installed."
     [next_steps_title]="Next steps:"
-    [next_step_1]="Edit %s~/.config/hypr/conf/local.conf%s for your monitors/GPU."
+    [next_step_1]="Edit %s~/.config/hypr/conf/local.lua%s for your monitors/GPU."
     [next_step_2]="Drop some wallpapers into %s~/Pictures/Wallpapers%s."
     [next_step_3]="Log into Hyprland, open the launcher, type %s>wallpaper%s to pick one"
     [next_step_3b]="and generate your first pywal theme."
@@ -168,11 +170,15 @@ declare -A T_RU=(
 
     [installing_pacman]="Установка пакетов из официальных репозиториев"
     [pacman_deps_done]="Пакеты из официальных репозиториев установлены."
+    [pacman_deps_already]="Все пакеты из официальных репозиториев уже установлены — пропускаю."
 
+    [checking_aur_needed]="Проверка пакетов из AUR"
+    [aur_deps_already]="Все пакеты из AUR уже установлены — полностью пропускаю AUR-шаг."
     [installing_aur]="Установка пакетов из AUR"
     [aur_deps_done]="Пакеты из AUR установлены."
 
     [optional_step]="Опциональные пакеты"
+    [optional_already]="Все опциональные пакеты уже установлены — пропускаю."
     [optional_prompt]="Установить опциональные пакеты (openrgb, codium, thunderbird, localsend)? [y/N] "
     [optional_done]="Опциональные пакеты установлены."
     [optional_skip]="Пропускаю опциональные пакеты."
@@ -184,8 +190,6 @@ declare -A T_RU=(
     [shell_kept]="Оставляю %s как есть — пропускаю настройку zsh."
 
     [copying_configs]="Копирование конфигов в %s"
-    [local_conf_created]="Создан hypr/conf/local.conf из примера — отредактируйте его под свою машину."
-    [local_conf_exists]="hypr/conf/local.conf уже существует, оставляю как есть."
     [configs_copied]="Конфиги скопированы."
     [zsh_dotfiles_copied]="Дотфайлы zsh скопированы в %s."
     [chsh_prompt]="Сменить логин-шелл с %s на zsh прямо сейчас? [y/N] "
@@ -195,7 +199,7 @@ declare -A T_RU=(
     [done_step]="Готово"
     [all_done]="aeonshell установлен."
     [next_steps_title]="Дальнейшие шаги:"
-    [next_step_1]="Отредактируйте %s~/.config/hypr/conf/local.conf%s под свои мониторы/GPU."
+    [next_step_1]="Отредактируйте %s~/.config/hypr/conf/local.lua%s под свои мониторы/GPU."
     [next_step_2]="Скиньте несколько обоев в %s~/Pictures/Wallpapers%s."
     [next_step_3]="Войдите в Hyprland, откройте лаунчер, наберите %s>wallpaper%s, чтобы выбрать обои"
     [next_step_3b]="и сгенерировать первую тему pywal."
@@ -465,41 +469,102 @@ ensure_yay() {
 # ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------
+PACMAN_DEPS=(
+    hyprland hyprlock xdg-desktop-portal-hyprland xdg-desktop-portal
+    qt6-wayland qt6ct qt6-5compat gtk3 kitty pcmanfm-qt xorg-xrandr
+    networkmanager network-manager-applet nm-connection-editor
+    bluez bluez-utils blueman
+    pipewire pipewire-pulse pipewire-alsa wireplumber pavucontrol
+    wl-clipboard cliphist grim slurp swappy
+    jq curl python zenity inotify-tools udiskie
+    fastfetch fzf yazi
+)
+
+AUR_DEPS=(
+    quickshell-git awww python-pywal
+    zen-browser-bin bibata-cursor-theme
+    otf-font-awesome ttf-jetbrains-mono-nerd zsh-antidote
+    kvantum gpu-screen-recorder-ui peazip xfce4-mousepad tty-clock
+)
+
+OPTIONAL_PACMAN_DEPS=(openrgb)
+OPTIONAL_AUR_DEPS=(codium thunderbird localsend)
+
+# pkg_installed <name> — true if a package is already installed (works for
+# both official-repo and AUR packages, pacman -Qi covers both once installed).
+pkg_installed() {
+    pacman -Qi "$1" >/dev/null 2>&1
+}
+
+# missing_pkgs <name...> — prints, one per line, the subset of the given
+# packages that are NOT currently installed.
+missing_pkgs() {
+    local pkg
+    for pkg in "$@"; do
+        pkg_installed "$pkg" || printf '%s\n' "$pkg"
+    done
+}
+
 install_pacman_deps() {
     step "$(t installing_pacman)"
-    sudo pacman -S --needed --noconfirm \
-        hyprland hyprlock xdg-desktop-portal-hyprland xdg-desktop-portal \
-        qt6-wayland qt6ct qt6-5compat gtk3 kitty pcmanfm-qt xorg-xrandr \
-        networkmanager network-manager-applet nm-connection-editor \
-        bluez bluez-utils blueman \
-        pipewire pipewire-pulse pipewire-alsa wireplumber pavucontrol \
-        wl-clipboard cliphist grim slurp swappy \
-        jq curl python zenity inotify-tools udiskie \
-        fastfetch fzf yazi
+    local missing=()
+    mapfile -t missing < <(missing_pkgs "${PACMAN_DEPS[@]}")
+    if [ "${#missing[@]}" -eq 0 ]; then
+        ok "$(t pacman_deps_already)"
+        return
+    fi
+    sudo pacman -S --needed --noconfirm "${missing[@]}"
     ok "$(t pacman_deps_done)"
+}
+
+# install_aur_stage — wraps the AUR confirmation notice, ensure_yay, and the
+# actual AUR install behind a single "is there anything left to do?" check,
+# so re-running the installer after an earlier failure (or just to pick up
+# new dotfiles) doesn't re-download yay, re-show the AUR notice, or ask you
+# to type CONFIRM again when every AUR package is already installed.
+install_aur_stage() {
+    step "$(t checking_aur_needed)"
+    local missing=()
+    mapfile -t missing < <(missing_pkgs "${AUR_DEPS[@]}")
+    if [ "${#missing[@]}" -eq 0 ]; then
+        ok "$(t aur_deps_already)"
+        return
+    fi
+
+    confirm_aur
+    ensure_yay
+    install_aur_deps "${missing[@]}"
 }
 
 install_aur_deps() {
     step "$(t installing_aur)"
     AUR_IN_PROGRESS=1
-    yay -S --needed --noconfirm \
-        quickshell-git awww python-pywal \
-        zen-browser-bin bibata-cursor-theme \
-        otf-font-awesome ttf-jetbrains-mono-nerd zsh-antidote \
-        kvantum gpu-screen-recorder-ui peazip xfce4-mousepad tty-clock
+    yay -S --needed --noconfirm "$@"
     AUR_IN_PROGRESS=0
     ok "$(t aur_deps_done)"
 }
 
 install_optional_deps() {
     step "$(t optional_step)"
+
+    local missing_pacman=() missing_aur=()
+    mapfile -t missing_pacman < <(missing_pkgs "${OPTIONAL_PACMAN_DEPS[@]}")
+    mapfile -t missing_aur < <(missing_pkgs "${OPTIONAL_AUR_DEPS[@]}")
+
+    if [ "${#missing_pacman[@]}" -eq 0 ] && [ "${#missing_aur[@]}" -eq 0 ]; then
+        ok "$(t optional_already)"
+        return
+    fi
+
     read -rp "$(t optional_prompt)" reply
     case "$reply" in
         y|Y)
-            sudo pacman -S --needed --noconfirm openrgb
-            AUR_IN_PROGRESS=1
-            yay -S --needed --noconfirm codium thunderbird localsend
-            AUR_IN_PROGRESS=0
+            [ "${#missing_pacman[@]}" -gt 0 ] && sudo pacman -S --needed --noconfirm "${missing_pacman[@]}"
+            if [ "${#missing_aur[@]}" -gt 0 ]; then
+                AUR_IN_PROGRESS=1
+                yay -S --needed --noconfirm "${missing_aur[@]}"
+                AUR_IN_PROGRESS=0
+            fi
             ok "$(t optional_done)"
             ;;
         *)
@@ -541,13 +606,6 @@ copy_configs() {
     cp -r "$REPO_DIR/fastfetch/." "$CONFIG_DIR/fastfetch/"
     cp -r "$REPO_DIR/kitty/." "$CONFIG_DIR/kitty/"
 
-    if [ ! -f "$CONFIG_DIR/hypr/conf/local.conf" ]; then
-        cp "$REPO_DIR/hypr/conf/local.conf.example" "$CONFIG_DIR/hypr/conf/local.conf"
-        info "$(t local_conf_created)"
-    else
-        info "$(t local_conf_exists)"
-    fi
-
     chmod +x "$CONFIG_DIR"/hypr/script/*.sh
     ok "$(t configs_copied)"
 
@@ -582,9 +640,7 @@ main() {
     require_arch
     handle_existing_configs
     install_pacman_deps
-    confirm_aur
-    ensure_yay
-    install_aur_deps
+    install_aur_stage
     install_optional_deps
     copy_configs
     mkdir_wallpapers
