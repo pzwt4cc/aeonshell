@@ -166,13 +166,13 @@ a hotkey script — open it from its tray icon or app launcher entry.
 
 Bar position, tray/player visibility, notification grouping, and
 edge-to-edge mode are all changeable from the settings window and save
-automatically to `~/.config/hypr/conf/quickshell.conf` — it's fully
+automatically to `~/.config/hypr/conf/quickshell.lua` — it's fully
 rewritten on every change, so there's no need to edit it by hand. If you
 want future custom keybinds to live in the same file, source it once from
 `hyprland.conf`:
 
 ```
-source = ~/.config/hypr/conf/quickshell.conf
+source = ~/.config/hypr/conf/quickshell.lua
 ```
 
 As with any setup, your default file manager, browser, and so on can be
@@ -336,7 +336,7 @@ yay -S codium thunderbird localsend
 
 Положение панели, видимость трея/плеера, группировка уведомлений и
 режим edge-to-edge меняются прямо из окна настроек и сохраняются
-автоматически в `~/.config/hypr/conf/quickshell.conf` — файл полностью
+автоматически в `~/.config/hypr/conf/quickshell.lua` — файл полностью
 перезаписывается при каждом изменении, редактировать его руками НЕ
 нужно. Этот файл уже прописан в `hyprland.conf`:
 
