@@ -99,7 +99,7 @@ sudo pacman -S --needed \
   bluez bluez-utils blueman \
   pipewire pipewire-pulse pipewire-alsa wireplumber pavucontrol \
   wl-clipboard cliphist grim slurp swappy \
-  jq curl python zenity inotify-tools udiskie \
+  jq curl python zenity inotify-tools udiskie ffmpeg \
   fastfetch fzf yazi tty-clock
 ```
 
@@ -122,7 +122,7 @@ yay -S --needed \
   quickshell-git awww python-pywal \
   zen-browser-bin bibata-cursor-theme \
   otf-font-awesome ttf-jetbrains-mono-nerd zsh-antidote \
-  kvantum gpu-screen-recorder-ui peazip mousepad \ mvppaper
+  kvantum gpu-screen-recorder-ui peazip mousepad \ mpvpaper
 ```
 
 > `awww` is the wallpaper daemon the launcher's `>wallpaper` picker drives
@@ -274,7 +274,7 @@ sudo pacman -S --needed \
   bluez bluez-utils blueman \
   pipewire pipewire-pulse pipewire-alsa wireplumber pavucontrol \
   wl-clipboard cliphist grim slurp swappy \
-  jq curl python zenity inotify-tools udiskie \
+  jq curl python zenity inotify-tools udiskie ffmpeg \
   fastfetch fzf yazi tty-clock
 ```
 
@@ -296,7 +296,7 @@ yay -S --needed \
   quickshell-git awww python-pywal \
   zen-browser-bin bibata-cursor-theme \
   otf-font-awesome ttf-jetbrains-mono-nerd zsh-antidote \
-  kvantum gpu-screen-recorder-ui peazip mousepad \ mvppaper
+  kvantum gpu-screen-recorder-ui peazip mousepad \ mpvpaper
 ```
 
 > `awww` (он же swww, теперь awww) — демон обоев, которым лаунчер напрямую управляет через `>wallpaper`
