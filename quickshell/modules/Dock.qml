@@ -105,7 +105,7 @@ Scope {
 
     function dbg(msg) { console.log("[Dock]", msg); }
 
-    readonly property bool usingLua: true
+    readonly property bool usingLua: Hyprland.usingLua
 
     function dispatch(legacy, lua) {
         const req = root.usingLua ? lua : legacy;

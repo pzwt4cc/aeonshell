@@ -3,6 +3,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell.Io
+import Quickshell.Hyprland
 
 Rectangle {
     id: root
@@ -142,11 +143,13 @@ Rectangle {
         HoverHandler { id: ghostHover }
 
         TapHandler {
-            onTapped: {
-                switchProc.command = ["hyprctl", "dispatch", "togglespecialworkspace"];
-                switchProc.running = true;
-            }
-        }
+	    onTapped: {
+		switchProc.command = Hyprland.usingLua
+		    ? ["hyprctl", "dispatch", "hl.dsp.workspace.toggle_special()"]
+		    : ["hyprctl", "dispatch", "togglespecialworkspace"];
+		switchProc.running = true;
+	    }
+	}
     }
 
     component Dot: Rectangle {
@@ -164,11 +167,14 @@ Rectangle {
         HoverHandler { id: dotHover }
 
         TapHandler {
-            onTapped: {
-                switchProc.command = ["hyprctl", "dispatch", "workspace", (index + 1).toString()];
-                switchProc.running = true;
-            }
-        }
+	    onTapped: {
+		const ws = index + 1;
+		switchProc.command = Hyprland.usingLua
+		    ? ["hyprctl", "dispatch", "hl.dsp.focus({ workspace = " + ws + " })"]
+		    : ["hyprctl", "dispatch", "workspace", ws.toString()];
+		switchProc.running = true;
+	    }
+	}
     }
 
     Row {

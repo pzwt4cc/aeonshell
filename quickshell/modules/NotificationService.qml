@@ -4,6 +4,7 @@ pragma Singleton
 import QtQuick
 import Quickshell.Io
 import Quickshell.Services.Notifications
+import Quickshell.Hyprland
 
 Item {
     id: service
@@ -88,7 +89,9 @@ done
                 }
 
                 if (found && found.address) {
-                    focusProc.command = ["hyprctl", "dispatch", "focuswindow", "address:" + found.address];
+                    focusProc.command = Hyprland.usingLua
+                        ? ["hyprctl", "dispatch", "hl.dsp.focus({ window = hl.get_windows({ address = \"" + found.address + "\" })[1] })"]
+                        : ["hyprctl", "dispatch", "focuswindow", "address:" + found.address];
                     focusProc.running = true;
                 } else {
                     const launchName = alias ? alias.launch : (rawDesktop || rawName);
