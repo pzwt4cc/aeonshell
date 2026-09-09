@@ -341,7 +341,7 @@ yay -S codium thunderbird localsend
 нужно. Этот файл уже прописан в `hyprland.conf`:
 
 ```
-source = ~/.config/hypr/conf/quickshell.conf
+source = ~/.config/hypr/conf/quickshell.lua
 ```
 
 Как и в обычных сборках, настроить по-умолчанию файловый менеджер, браузер и прочее

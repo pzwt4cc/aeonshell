@@ -93,7 +93,8 @@ declare -A T_EN=(
 
     [optional_step]="Optional extras"
     [optional_already]="All optional extras are already installed — skipping."
-    [optional_prompt]="Install optional extras (openrgb, codium, thunderbird, localsend)? [y/N] "
+    [optional_prompt]="Install optional extras (openrgb, thunderbird, codium, localsend)? [y/N] "
+    [optional_aur_warning]="Some of these come from the AUR (community-maintained, unreviewed build scripts) — same trust model explained earlier."
     [optional_done]="Optional extras installed."
     [optional_skip]="Skipping optional extras."
 
@@ -179,7 +180,8 @@ declare -A T_RU=(
 
     [optional_step]="Опциональные пакеты"
     [optional_already]="Все опциональные пакеты уже установлены — пропускаю."
-    [optional_prompt]="Установить опциональные пакеты (openrgb, codium, thunderbird, localsend)? [y/N] "
+    [optional_prompt]="Установить опциональные пакеты (openrgb, thunderbird, codium, localsend)? [y/N] "
+    [optional_aur_warning]="Часть из них — из AUR (скрипты сборки от сообщества, без проверки) — тот же уровень доверия, что описан выше."
     [optional_done]="Опциональные пакеты установлены."
     [optional_skip]="Пропускаю опциональные пакеты."
 
@@ -330,8 +332,8 @@ handle_existing_configs() {
             b|B)
                 mkdir -p "$BACKUP_DIR"
                 for c in "${conflicts[@]}"; do
-                    mkdir -p "$BACKUP_DIR/$(dirname "${c#$HOME/}")"
-                    mv "$c" "$BACKUP_DIR/${c#$HOME/}"
+                    mkdir -p "$BACKUP_DIR/$(dirname "${c#"$HOME"/}")"
+                    mv "$c" "$BACKUP_DIR/${c#"$HOME"/}"
                 done
                 ok "$(t backed_up "$BACKUP_DIR")"
                 break
@@ -387,35 +389,31 @@ aur_sigint_handler() {
 }
 trap aur_sigint_handler SIGINT
 
-AUR_NOTICE_EN='The AUR (Arch User Repository) hosts build scripts (PKGBUILDs) submitted
+AUR_NOTICE_EN_HEAD='The AUR (Arch User Repository) hosts build scripts (PKGBUILDs) submitted
 by the community - they are not reviewed or vetted by Arch or by us.
 Installing from the AUR means downloading and running someone elses
 build script with your privileges (via sudo). Its widely used and
 generally safe, but it isnt the same trust level as official repo
 packages - youre relying on each packages maintainer.
 
-This step installs: yay (AUR helper, if not already present),
-quickshell-git, awww, python-pywal, zen-browser-bin, bibata-cursor-theme,
-otf-font-awesome, ttf-jetbrains-mono-nerd, zsh-antidote, kvantum,
-gpu-screen-recorder-ui, peazip, xfce4-mousepad.
+This step installs: yay (AUR helper, if not already present),'
 
+AUR_NOTICE_EN_TAIL='
 If you want to inspect a package first, each one can be reviewed at:
   https://aur.archlinux.org/packages/<name>
 
 Once you confirm, the whole AUR step runs without further prompts.'
 
-AUR_NOTICE_RU='AUR (Arch User Repository) хранит скрипты сборки (PKGBUILD),
+AUR_NOTICE_RU_HEAD='AUR (Arch User Repository) хранит скрипты сборки (PKGBUILD),
 присланные сообществом — их не проверяет ни Arch, ни мы. Установка
 из AUR означает скачивание и запуск чужого скрипта сборки с вашими
 правами (через sudo). Это широко используется и в целом безопасно,
 но это не тот же уровень доверия, что официальные репозитории — вы
 полагаетесь на мейнтейнера каждого пакета.
 
-Этот шаг установит: yay (AUR-хелпер, если его ещё нет),
-quickshell-git, awww, python-pywal, zen-browser-bin, bibata-cursor-theme,
-otf-font-awesome, ttf-jetbrains-mono-nerd, zsh-antidote, kvantum,
-gpu-screen-recorder-ui, peazip, xfce4-mousepad.
+Этот шаг установит: yay (AUR-хелпер, если его ещё нет),'
 
+AUR_NOTICE_RU_TAIL='
 Если хотите посмотреть пакет заранее, каждый можно проверить тут:
   https://aur.archlinux.org/packages/<name>
 
@@ -424,10 +422,12 @@ gpu-screen-recorder-ui, peazip, xfce4-mousepad.
 confirm_aur() {
     step "$(t aur_notice_title)"
     printf "%s" "$C_YELLOW$C_BOLD$C_RESET"
+    local pkglist
+    pkglist="$(IFS=', '; echo "${AUR_DEPS[*]}")"
     if [ "$LANG_CHOICE" = "ru" ]; then
-        printf "%s\n" "$AUR_NOTICE_RU"
+        printf "%s\n%s.\n%s\n" "$AUR_NOTICE_RU_HEAD" "$pkglist" "$AUR_NOTICE_RU_TAIL"
     else
-        printf "%s\n" "$AUR_NOTICE_EN"
+        printf "%s\n%s.\n%s\n" "$AUR_NOTICE_EN_HEAD" "$pkglist" "$AUR_NOTICE_EN_TAIL"
     fi
     local confirm
     read -rp "$(t aur_confirm_prompt)" confirm
@@ -477,18 +477,18 @@ PACMAN_DEPS=(
     pipewire pipewire-pulse pipewire-alsa wireplumber pavucontrol
     wl-clipboard cliphist grim slurp swappy
     jq curl python zenity inotify-tools udiskie
-    fastfetch fzf yazi
+    fastfetch fzf yazi ffmpeg socat mousepad
 )
 
 AUR_DEPS=(
-    quickshell-git awww python-pywal
+    quickshell-git awww python-pywal mpvpaper
     zen-browser-bin bibata-cursor-theme
     otf-font-awesome ttf-jetbrains-mono-nerd zsh-antidote
-    kvantum gpu-screen-recorder-ui peazip xfce4-mousepad tty-clock
+    kvantum gpu-screen-recorder-ui peazip tty-clock
 )
 
-OPTIONAL_PACMAN_DEPS=(openrgb)
-OPTIONAL_AUR_DEPS=(codium thunderbird localsend)
+OPTIONAL_PACMAN_DEPS=(openrgb thunderbird)
+OPTIONAL_AUR_DEPS=(codium localsend)
 
 # pkg_installed <name> — true if a package is already installed (works for
 # both official-repo and AUR packages, pacman -Qi covers both once installed).
@@ -561,6 +561,8 @@ install_optional_deps() {
         y|Y)
             [ "${#missing_pacman[@]}" -gt 0 ] && sudo pacman -S --needed --noconfirm "${missing_pacman[@]}"
             if [ "${#missing_aur[@]}" -gt 0 ]; then
+                warn "$(t optional_aur_warning)"
+                ensure_yay
                 AUR_IN_PROGRESS=1
                 yay -S --needed --noconfirm "${missing_aur[@]}"
                 AUR_IN_PROGRESS=0

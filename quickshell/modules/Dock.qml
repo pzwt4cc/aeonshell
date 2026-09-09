@@ -103,7 +103,7 @@ Scope {
         root.bringToCurrentWorkspace(hidden || group.windows[0]);
     }
 
-    function dbg(msg) { console.log("[Dock]", msg); }
+    function dbg(msg) {}
 
     readonly property bool usingLua: Hyprland.usingLua
 

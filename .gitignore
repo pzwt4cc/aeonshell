@@ -9,3 +9,5 @@ quickshell/weather_city.conf
 
 # Your own wallpapers, if you keep them inside the repo folder
 wallpapers/
+
+hypr/conf/quickshell.lua
