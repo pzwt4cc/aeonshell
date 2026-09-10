@@ -17,13 +17,6 @@ ShellRoot {
     }
 
     LazyLoader {
-        id: dockLoader
-        active: true
-        onItemChanged: if (item) console.log("[shell] Dock: ok")
-        Dock {}
-    }
-
-    LazyLoader {
         id: notificationToastsLoader
         active: true
         onItemChanged: if (item) console.log("[shell] NotificationToasts: ok")
