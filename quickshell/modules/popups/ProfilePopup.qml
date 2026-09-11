@@ -53,7 +53,7 @@ PopupWindow {
     readonly property int shadowMargin: 14
 
     implicitWidth: 700 + shadowMargin * 2
-    implicitHeight: 980 + shadowMargin * 2
+    implicitHeight: bg.height + shadowMargin * 2
     color: "transparent"
     visible: popup.open || hideTimer.running
 
@@ -184,7 +184,9 @@ echo "$p|$a|$f|$s|$b"
     Process {
         id: shellTermReader
         command: ["bash", "-c", `
-sh=$(basename "$SHELL" 2>/dev/null); echo "\${sh:-sh}"
+sh="$SHELL"
+[ -z "$sh" ] && sh=$(getent passwd "\${USER:-$(whoami)}" 2>/dev/null | cut -d: -f7)
+sh=$(basename "\${sh:-sh}" 2>/dev/null); echo "\${sh:-sh}"
 
 term=""
 if [ -n "$TERMINAL" ]; then
@@ -495,8 +497,11 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
 
     Rectangle {
         id: bg
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
         anchors.margins: popup.shadowMargin
+        height: mainColumn.implicitHeight + 52
         radius: 26
         color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.96)
         border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18)
@@ -542,7 +547,10 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
         }
 
         ColumnLayout {
-            anchors.fill: parent
+            id: mainColumn
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
             anchors.margins: 26
             spacing: 16
 
@@ -805,6 +813,19 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
                     font.bold: true
                 }
 
+                Flickable {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Math.min(disksColumn.implicitHeight, 280)
+                    contentWidth: width
+                    contentHeight: disksColumn.implicitHeight
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+
+                    ColumnLayout {
+                        id: disksColumn
+                        width: parent.width
+                        spacing: 8
+
                 Repeater {
                     model: popup.diskList
                     delegate: Rectangle {
@@ -883,6 +904,8 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
                     text: "No mounted storage drives detected"
                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
                     font.pixelSize: 13
+                }
+                    }
                 }
             }
         }

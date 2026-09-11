@@ -13,8 +13,8 @@ PopupWindow {
         popup.open = !popup.open;
     }
     readonly property int shadowMargin: 12
-    implicitWidth: 330 + shadowMargin * 2
-    implicitHeight: 78 + shadowMargin * 2
+    implicitWidth: 312 + shadowMargin * 2
+    implicitHeight: 210 + shadowMargin * 2
     color: "transparent"
     visible: popup.open || hideTimer.running
     Timer {
@@ -92,34 +92,52 @@ PopupWindow {
                 }
             }
         }
-        RowLayout {
+        ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 14
-            spacing: 10
-            PowerMenuAction {
-                glyph: "󰌾"
-                command: ["hyprlock"]
-                onActivated: popup.open = false
+            anchors.margins: 18
+            spacing: 14
+
+            RowLayout {
+                Layout.alignment: Qt.AlignHCenter
+                spacing: 12
+                PowerMenuAction {
+                    glyph: "󰌾"
+                    label: "Lock"
+                    command: ["hyprlock"]
+                    onActivated: popup.open = false
+                }
+                PowerMenuAction {
+                    glyph: "󰤄"
+                    label: "Suspend"
+                    command: ["sh", "-c", "hyprlock & systemctl suspend"]
+                    onActivated: popup.open = false
+                }
+                PowerMenuAction {
+                    glyph: "󰍃"
+                    label: "Logout"
+                    command: ["sudo", "systemctl", "restart", "sddm"]
+                    onActivated: popup.open = false
+                }
             }
-            PowerMenuAction {
-                glyph: "󰍃"
-                command: ["sudo", "systemctl", "restart", "sddm"]
-                onActivated: popup.open = false
-            }
-            PowerMenuAction {
-                glyph: "󰤄"
-                command: ["sh", "-c", "hyprlock & systemctl suspend"]
-                onActivated: popup.open = false
-            }
-            PowerMenuAction {
-                glyph: "󰜉"
-                command: ["systemctl", "reboot"]
-                onActivated: popup.open = false
-            }
-            PowerMenuAction {
-                glyph: "󰐥"
-                command: ["systemctl", "poweroff"]
-                onActivated: popup.open = false
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+                PowerMenuAction {
+                    stretched: true
+                    glyph: "󰜉"
+                    label: "Reboot"
+                    command: ["systemctl", "reboot"]
+                    onActivated: popup.open = false
+                }
+                PowerMenuAction {
+                    stretched: true
+                    glyph: "󰐥"
+                    label: "Power Off"
+                    danger: true
+                    command: ["systemctl", "poweroff"]
+                    onActivated: popup.open = false
+                }
             }
         }
     }
