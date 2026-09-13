@@ -292,7 +292,7 @@ FloatingWindow {
                         spacing: 10
 
                         Text {
-                            text: "KEYBINDS (read-only, edit bind.conf to change)"
+                            text: "KEYBINDS (read-only, edit bind.lua to change)"
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
                             font.pixelSize: 11
                             font.bold: true
@@ -301,7 +301,7 @@ FloatingWindow {
 
                         FileView {
                             id: bindFile
-                            path: Quickshell.env("HOME") + "/.config/hypr/conf/bind.conf"
+                            path: Quickshell.env("HOME") + "/.config/hypr/conf/bind.lua"
                             watchChanges: true
                             printErrors: false
                             onLoaded: keybindsModel.parse(bindFile.text())
@@ -315,7 +315,7 @@ FloatingWindow {
                             function dirName(d) {
                                 const m = { l: "left", r: "right", u: "up", d: "down",
                                             left: "left", right: "right", up: "up", down: "down" };
-                                return m[d.toLowerCase()] || d;
+                                return m[(d + "").toLowerCase()] || d;
                             }
 
                             function keyLabel(key) {
@@ -325,54 +325,184 @@ FloatingWindow {
                                 return key;
                             }
 
-                            function describe(dispatcher, argsStr) {
-                                const d = dispatcher.toLowerCase();
-                                if (d === "exec") {
-                                    if (/set-volume.*5%\+/.test(argsStr)) return "Volume up (+5%)";
-                                    if (/set-volume.*5%-/.test(argsStr)) return "Volume down (−5%)";
-                                    if (/set-mute/.test(argsStr)) return "Mute / unmute volume";
-                                    if (/screenshot full/.test(argsStr)) return "Screenshot — full screen";
-                                    if (/screenshot region/.test(argsStr)) return "Screenshot — select region";
-                                    if (/clipboard toggle/.test(argsStr)) return "Toggle clipboard history";
-                                    if (/launcher toggle/.test(argsStr)) return "Toggle app launcher";
-                                    if (/toggle_special_focus/.test(argsStr)) return "Toggle special workspace focus";
-                                    return "Launch " + argsStr;
+                            function stripComments(t) {
+                                return t.replace(/--[^\n]*/g, "");
+                            }
+
+                            function expandLoops(t) {
+                                const loopRe = /for\s+(\w+)\s*=\s*(\d+)\s*,\s*(\d+)\s*do([\s\S]*?)end/g;
+                                return t.replace(loopRe, (full, varName, startStr, endStr, body) => {
+                                    const start = parseInt(startStr, 10);
+                                    const end = parseInt(endStr, 10);
+                                    const wordRe = new RegExp("\\b" + varName + "\\b", "g");
+                                    let out = "";
+                                    for (let i = start; i <= end; i++) {
+                                        out += body.replace(wordRe, String(i)) + "\n";
+                                    }
+                                    return out;
+                                });
+                            }
+
+                            function extractLocals(t) {
+                                const vars = {};
+                                const re = /local\s+(\w+)\s*=\s*"([^"]*)"/g;
+                                let m;
+                                while ((m = re.exec(t)) !== null) vars[m[1]] = m[2];
+                                return vars;
+                            }
+
+                            function findCalls(t, name) {
+                                const calls = [];
+                                const marker = name + "(";
+                                let idx = 0;
+                                while (true) {
+                                    const start = t.indexOf(marker, idx);
+                                    if (start === -1) break;
+                                    let depth = 1;
+                                    let i = start + marker.length;
+                                    let inStr = false, strCh = "";
+                                    while (i < t.length && depth > 0) {
+                                        const c = t[i];
+                                        if (inStr) {
+                                            if (c === strCh) inStr = false;
+                                        } else if (c === '"' || c === "'") {
+                                            inStr = true; strCh = c;
+                                        } else if (c === "(") depth++;
+                                        else if (c === ")") depth--;
+                                        i++;
+                                    }
+                                    calls.push(t.slice(start + marker.length, i - 1));
+                                    idx = i;
                                 }
-                                if (d === "killactive") return "Close active window";
-                                if (d === "togglefloating") return "Toggle floating";
-                                if (d === "fullscreen") return "Toggle fullscreen";
-                                if (d === "workspace") return "Switch to workspace " + argsStr;
-                                if (d === "movetoworkspace") return argsStr === "special"
-                                    ? "Move window to special workspace" : "Move window to workspace " + argsStr;
-                                if (d === "movefocus") return "Focus " + keybindsModel.dirName(argsStr) + " window";
-                                if (d === "movewindow") return argsStr ? "Move window " + keybindsModel.dirName(argsStr) : "Move window (drag)";
-                                if (d === "resizewindow") return "Resize window (drag)";
-                                return dispatcher + (argsStr ? " " + argsStr : "");
+                                return calls;
+                            }
+
+                            function splitTopLevel(s) {
+                                const parts = [];
+                                let depth = 0, cur = "", inStr = false, strCh = "";
+                                for (let i = 0; i < s.length; i++) {
+                                    const c = s[i];
+                                    if (inStr) {
+                                        cur += c;
+                                        if (c === strCh) inStr = false;
+                                        continue;
+                                    }
+                                    if (c === '"' || c === "'") { inStr = true; strCh = c; cur += c; continue; }
+                                    if (c === "(" || c === "{" || c === "[") { depth++; cur += c; continue; }
+                                    if (c === ")" || c === "}" || c === "]") { depth--; cur += c; continue; }
+                                    if (c === "," && depth === 0) { parts.push(cur.trim()); cur = ""; continue; }
+                                    cur += c;
+                                }
+                                if (cur.trim() !== "") parts.push(cur.trim());
+                                return parts;
+                            }
+
+                            function evalCombo(expr, vars) {
+                                const tokens = expr.split(/\.\./).map(t => t.trim());
+                                let out = "";
+                                for (const tok of tokens) {
+                                    if (/^".*"$/.test(tok)) out += tok.slice(1, -1);
+                                    else if (/^\d+$/.test(tok)) out += tok;
+                                    else if (vars[tok] !== undefined) out += vars[tok];
+                                    else out += tok;
+                                }
+                                return out;
+                            }
+
+                            function parseTable(s) {
+                                const obj = {};
+                                if (!s) return obj;
+                                const inner = s.trim().replace(/^\{/, "").replace(/\}$/, "");
+                                const re = /(\w+)\s*=\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false)/g;
+                                let m;
+                                while ((m = re.exec(inner)) !== null) {
+                                    let v = m[2];
+                                    if (/^".*"$/.test(v)) v = v.slice(1, -1);
+                                    else if (v === "true") v = true;
+                                    else if (v === "false") v = false;
+                                    else v = parseFloat(v);
+                                    obj[m[1]] = v;
+                                }
+                                return obj;
+                            }
+
+                            function parseDispatch(expr) {
+                                const m = expr.match(/^([\w.]+)\s*\(([\s\S]*)\)\s*$/);
+                                if (!m) return { path: expr, argRaw: "" };
+                                return { path: m[1], argRaw: m[2].trim() };
+                            }
+
+                            function dispatchArgs(argRaw, vars) {
+                                if (argRaw === "") return { type: "none" };
+                                if (/^".*"$/.test(argRaw)) return { type: "string", value: argRaw.slice(1, -1) };
+                                if (/^\{[\s\S]*\}$/.test(argRaw)) return { type: "table", value: parseTable(argRaw) };
+                                if (/^\w+$/.test(argRaw) && vars[argRaw] !== undefined) return { type: "string", value: vars[argRaw] };
+                                return { type: "raw", value: argRaw };
+                            }
+
+                            function describeDispatch(path, argRaw, vars) {
+                                const a = keybindsModel.dispatchArgs(argRaw, vars);
+                                const t = a.value;
+                                switch (path) {
+                                    case "hl.dsp.exec_cmd": {
+                                        const cmd = (a.type === "string" ? t : argRaw) || "";
+                                        if (/set-volume.*5%\+/.test(cmd)) return "Volume up (+5%)";
+                                        if (/set-volume.*5%-/.test(cmd)) return "Volume down (−5%)";
+                                        if (/set-mute/.test(cmd)) return "Mute / unmute volume";
+                                        if (/screenshot full/.test(cmd)) return "Screenshot — full screen";
+                                        if (/screenshot region/.test(cmd)) return "Screenshot — select region";
+                                        if (/clipboard toggle/.test(cmd)) return "Toggle clipboard history";
+                                        if (/launcher toggle/.test(cmd)) return "Toggle app launcher";
+                                        return "Launch " + cmd;
+                                    }
+                                    case "hl.dsp.window.close": return "Close active window";
+                                    case "hl.dsp.window.float": return "Toggle floating";
+                                    case "hl.dsp.window.fullscreen": return "Toggle fullscreen";
+                                    case "hl.dsp.window.resize": return "Resize window (drag)";
+                                    case "hl.dsp.window.drag": return "Move window (drag)";
+                                    case "hl.dsp.workspace.toggle_special": return "Toggle special workspace focus";
+                                    case "hl.dsp.focus": {
+                                        if (t && t.workspace !== undefined) return "Switch to workspace " + t.workspace;
+                                        if (t && t.direction !== undefined) return "Focus " + keybindsModel.dirName(t.direction) + " window";
+                                        return path;
+                                    }
+                                    case "hl.dsp.window.move": {
+                                        if (t && t.workspace !== undefined) {
+                                            return t.workspace === "special"
+                                                ? "Move window to special workspace"
+                                                : "Move window to workspace " + t.workspace;
+                                        }
+                                        if (t && t.direction !== undefined) return "Move window " + keybindsModel.dirName(t.direction);
+                                        return path;
+                                    }
+                                    default:
+                                        return path.replace(/^hl\.dsp\./, "") + (argRaw ? " " + argRaw : "");
+                                }
                             }
 
                             function parse(text) {
-                                const vars = {};
-                                const lines = text.split("\n");
-                                for (const raw of lines) {
-                                    const vm = raw.match(/^\s*\$(\w+)\s*=\s*(.+?)\s*$/);
-                                    if (vm && !/^bind/i.test(raw.trim())) vars[vm[1]] = vm[2];
-                                }
-                                function sub(s) {
-                                    return s.replace(/\$(\w+)/g, (m, name) => vars[name] !== undefined ? vars[name] : m);
-                                }
+                                let t = keybindsModel.stripComments(text);
+                                t = keybindsModel.expandLoops(t);
+                                const vars = keybindsModel.extractLocals(t);
+                                const calls = keybindsModel.findCalls(t, "hl.bind");
+
                                 const out = [];
-                                for (const raw of lines) {
-                                    const bm = raw.match(/^\s*(bind[a-z]*)\s*=\s*(.+?)\s*$/i);
-                                    if (!bm) continue;
-                                    const parts = bm[2].split(",").map(p => sub(p.trim()));
-                                    const mod = parts[0] || "";
-                                    const key = keybindsModel.keyLabel(parts[1] || "");
-                                    const rawAction = parts.slice(2).join(", ");
-                                    const dispatcher = (parts[2] || "").trim();
-                                    const argsStr = parts.slice(3).join(", ");
+                                for (const callArgs of calls) {
+                                    const parts = keybindsModel.splitTopLevel(callArgs);
+                                    if (parts.length < 2) continue;
+
+                                    const comboRaw = keybindsModel.evalCombo(parts[0], vars);
+                                    const comboParts = comboRaw.split(/\s*\+\s*/).map(p => p.trim()).filter(Boolean);
+                                    if (comboParts.length === 0) continue;
+                                    const keyPart = comboParts.pop();
+                                    const combo = (comboParts.length ? comboParts.join(" + ") + " + " : "")
+                                        + keybindsModel.keyLabel(keyPart);
+
+                                    const { path, argRaw } = keybindsModel.parseDispatch(parts[1]);
+
                                     out.push({
-                                        combo: (mod ? mod + " + " : "") + key,
-                                        action: keybindsModel.describe(dispatcher, argsStr) || rawAction
+                                        combo: combo,
+                                        action: keybindsModel.describeDispatch(path, argRaw, vars)
                                     });
                                 }
                                 keybindsModel.rows = out;
