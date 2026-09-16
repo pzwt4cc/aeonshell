@@ -40,6 +40,8 @@ https://github.com/user-attachments/assets/5c14767b-d2c9-4ad7-b5de-51701005499c
 
 - `hypr/` — Hyprland config (compositor, keybinds, autostart)
 - `quickshell/` — the shell itself (bar, popups, everything you see)
+- `cava/` — cava (audio visualizer) config, shaders/themes, and the pywal
+  template that recolors it
 - `fastfetch/`, `kitty/` — terminal setup (banner, terminal)
 - `zsh/` — optional, feel free to keep your own shell instead
 
@@ -47,40 +49,24 @@ https://github.com/user-attachments/assets/5c14767b-d2c9-4ad7-b5de-51701005499c
 
 ## Install
 
-### Option A: automated install script
-
-Try this first — it checks you're on Arch, installs everything below
-(pacman + AUR via `yay`, installing `yay` itself if you don't have it),
-copies the configs into place, and offers to back up any existing
-`~/.config/hypr` (etc.) it finds before touching anything.
-
-```bash
-git clone https://github.com/pzwt4cc/aeonshell
-cd aeonshell
-chmod +x install.sh
-./install.sh
-```
-
-It's interactive — it'll ask before overwriting existing configs and
-before installing optional extras, so it's safe to just run and follow
-the prompts.
-
-### Option B: manual install
-
-If you'd rather see exactly what's happening, or the script doesn't fit
-your setup, here's the same thing done by hand.
-
 ```bash
 git clone https://github.com/pzwt4cc/aeonshell
 cd aeonshell
 
-mkdir -p ~/.config/{hypr,quickshell,fastfetch,kitty}
+mkdir -p ~/.config/{hypr,quickshell,fastfetch,kitty,cava}
 cp -r hypr/. ~/.config/hypr/
 cp -r quickshell/. ~/.config/quickshell/
 cp -r fastfetch/. ~/.config/fastfetch/
 cp -r kitty/. ~/.config/kitty/
-cp hypr/conf/local.conf.example ~/.config/hypr/conf/local.conf
+cp -r cava/. ~/.config/cava/
+cp hypr/conf/local.lua ~/.config/hypr/conf/local.lua
 cp zsh/.zshrc zsh/.p10k.zsh zsh/.zsh_plugins.txt ~/
+
+# cava.conf here is a pywal template, not the cava app config itself — it
+# needs to live in wal's templates dir so `wal` regenerates cava's colors
+# (~/.cache/wal/cava.conf) on every wallpaper change.
+mkdir -p ~/.config/wal/templates
+cp ~/.config/cava/cava.conf ~/.config/wal/templates/cava.conf
 
 # Hyprland calls these scripts directly (exec/bind), so they need the
 # executable bit.
@@ -100,13 +86,18 @@ sudo pacman -S --needed \
   pipewire pipewire-pulse pipewire-alsa wireplumber pavucontrol \
   wl-clipboard cliphist grim slurp swappy \
   jq curl python zenity inotify-tools udiskie ffmpeg \
-  fastfetch fzf yazi tty-clock
+  fastfetch fzf yazi tty-clock cava
 ```
 
 > `qt6-5compat` provides the `Qt5Compat.GraphicalEffects` QML module the shell
 > uses for shadows/blur, and `gtk3` provides `gtk-launch`, which the app
 > launcher uses to start apps. Neither is pulled in automatically by
 > `quickshell-git`, so they need to be installed explicitly.
+
+> `cava` won't recolor itself on its own — `colors_in_wallpaper.sh` (started
+> automatically by Hyprland) watches `~/.cache/wal/colors` and rewrites
+> `~/.config/cava/config` for you every time the wallpaper changes, as long
+> as `cava.conf` was copied into wal's templates dir as shown above.
 
 Want zsh as your shell? Install it separately — skip this if you'd rather
 keep your current shell:
@@ -136,16 +127,15 @@ sudo pacman -S openrgb
 ```
 
 ```bash
-yay -S codium thunderbird localsend
+yay -S codium zed thunderbird localsend
 ```
 
 ---
 
 ## Set up
 
-1. Copy `hypr/conf/local.conf.example` → `hypr/conf/local.conf` and edit it
-   for your machine (monitors, GPU, autostart entries — comments inside
-   explain each part).
+1. Edit `~/.config/hypr/conf/local.lua` for your machine (monitors, GPU,
+   autostart entries — comments inside explain each part).
 2. Drop a few images into `~/Pictures/Wallpapers` — it's created
    automatically on first launch if it doesn't exist.
 3. Open the **app launcher**, type `>` to enter command mode, then
@@ -169,14 +159,14 @@ edge-to-edge mode are all changeable from the settings window and save
 automatically to `~/.config/hypr/conf/quickshell.lua` — it's fully
 rewritten on every change, so there's no need to edit it by hand. If you
 want future custom keybinds to live in the same file, source it once from
-`hyprland.conf`:
+`hyprland.lua`:
 
 ```
 source = ~/.config/hypr/conf/quickshell.lua
 ```
 
 As with any setup, your default file manager, browser, and so on can be
-set once near the top of `~/.config/hypr/conf/bind.conf`.
+set once near the top of `~/.config/hypr/conf/bind.lua`.
 
 ---
 
@@ -214,6 +204,8 @@ Wayland-окружение для **Hyprland**, собранное на **Quicks
 
 - `hypr/` — конфиг Hyprland (компоситор, биндинги, автозапуск)
 - `quickshell/` — сама оболочка (панель, попапы, всё, что видно на экране)
+- `cava/` — конфиг cava (аудио-визуализатор), шейдеры/темы и шаблон pywal,
+  которым она перекрашивается
 - `fastfetch/`, `kitty/` — настройка терминала
 - `zsh/` - опционально, можно оставить ваш шелл
 
@@ -221,41 +213,24 @@ Wayland-окружение для **Hyprland**, собранное на **Quicks
 
 ## Установка
 
-### Вариант А: автоустановка скриптом
-
-Попробуйте сначала это — скрипт проверяет, что система на Arch,
-ставит все зависимости ниже (pacman + AUR через `yay`, при этом сам
-`yay` тоже поставит, если его нет), копирует конфиги на место и
-предлагает забэкапить уже существующий `~/.config/hypr` (и т.д.),
-прежде чем что-либо трогать.
-
-```bash
-git clone https://github.com/pzwt4cc/aeonshell
-cd aeonshell
-chmod +x install.sh
-./install.sh
-```
-
-Скрипт интерактивный — спросит перед перезаписью существующих
-конфигов и перед установкой опциональных пакетов, так что его можно
-просто запустить и следовать подсказкам.
-
-### Вариант Б: ручная установка
-
-Если хотите видеть каждый шаг своими глазами, или скрипт не подошёл
-под вашу систему — вот то же самое руками.
-
 ```bash
 git clone https://github.com/pzwt4cc/aeonshell
 cd aeonshell
 
-mkdir -p ~/.config/{hypr,quickshell,fastfetch,kitty}
+mkdir -p ~/.config/{hypr,quickshell,fastfetch,kitty,cava}
 cp -r hypr/. ~/.config/hypr/
 cp -r quickshell/. ~/.config/quickshell/
 cp -r fastfetch/. ~/.config/fastfetch/
 cp -r kitty/. ~/.config/kitty/
-cp hypr/conf/local.conf.example ~/.config/hypr/conf/local.conf
+cp -r cava/. ~/.config/cava/
+cp hypr/conf/local.lua ~/.config/hypr/conf/local.lua
 cp zsh/.zshrc zsh/.p10k.zsh zsh/.zsh_plugins.txt ~/
+
+# cava.conf здесь — это шаблон pywal, а не конфиг самой cava — его нужно
+# положить в папку шаблонов wal, чтобы `wal` пересобирал цвета cava
+# (~/.cache/wal/cava.conf) при каждой смене обоев.
+mkdir -p ~/.config/wal/templates
+cp ~/.config/cava/cava.conf ~/.config/wal/templates/cava.conf
 
 # Hyprland вызывает эти скрипты напрямую (exec/bind), поэтому им нужен
 # бит исполнения.
@@ -275,13 +250,19 @@ sudo pacman -S --needed \
   pipewire pipewire-pulse pipewire-alsa wireplumber pavucontrol \
   wl-clipboard cliphist grim slurp swappy \
   jq curl python zenity inotify-tools udiskie ffmpeg \
-  fastfetch fzf yazi tty-clock
+  fastfetch fzf yazi tty-clock cava
 ```
 
 > `qt6-5compat` даёт QML-модуль `Qt5Compat.GraphicalEffects`, которым оболочка
 > рисует тени/блюр, а `gtk3` даёт `gtk-launch`, через который лаунчер
 > запускает приложения. Ни то, ни другое `quickshell-git` не тянет
 > автоматически, так что их нужно ставить отдельно.
+
+> Сама по себе `cava` не перекрашивается — скрипт `colors_in_wallpaper.sh`
+> (стартует автоматически вместе с Hyprland) следит за
+> `~/.cache/wal/colors` и переписывает `~/.config/cava/config` при каждой
+> смене обоев, но только если `cava.conf` был скопирован в папку шаблонов
+> wal, как показано выше.
 
 Установка zsh, если не нужен - пропустите
 
@@ -308,15 +289,15 @@ sudo pacman -S openrgb
 ```
 
 ```bash
-yay -S codium thunderbird localsend
+yay -S codium zed thunderbird localsend
 ```
 
 ---
 
 ## Настройка
 
-1. Скопируй `hypr/conf/local.conf.example` (шаблон) → `hypr/conf/local.conf` (конфигурация которую загружает Hyprland)
-   и отредактируй под себя (мониторы, GPU, автозапуск — внутри есть комментарии и прмиеры к каждой части).
+1. Отредактируй `~/.config/hypr/conf/local.lua` под себя (мониторы, GPU,
+   автозапуск — внутри есть комментарии и примеры к каждой части).
 2. Скинь несколько изображений в `~/Pictures/Wallpapers` — при первом
    запуске папка создаётся автоматически, если её нет.
 3. Открой **лаунчер приложений**, набери `>`, чтобы войти в командный
@@ -338,14 +319,14 @@ yay -S codium thunderbird localsend
 режим edge-to-edge меняются прямо из окна настроек и сохраняются
 автоматически в `~/.config/hypr/conf/quickshell.lua` — файл полностью
 перезаписывается при каждом изменении, редактировать его руками НЕ
-нужно. Этот файл уже прописан в `hyprland.conf`:
+нужно. Этот файл уже прописан в `hyprland.lua`:
 
 ```
 source = ~/.config/hypr/conf/quickshell.lua
 ```
 
 Как и в обычных сборках, настроить по-умолчанию файловый менеджер, браузер и прочее
-можно один раз в `~/.config/hypr/conf/bind.conf` в самом начале.
+можно один раз в `~/.config/hypr/conf/bind.lua` в самом начале.
 
 ---
 

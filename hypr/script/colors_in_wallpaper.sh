@@ -5,6 +5,9 @@ HOME="${HOME:-/home/$(id -un)}"
 TARGET_FILE="$HOME/.cache/wal/colors"
 OUT_LUA="$HOME/.config/hypr/conf/colors-wal.lua"
 
+CAVA_CONF="$HOME/.config/cava/config"
+WAL_CAVA="$HOME/.cache/wal/cava.conf"
+
 DEBUG_LOG="/tmp/colors-debug.log"
 MAX_LOG_SIZE=$((1024 * 1024))
 
@@ -21,6 +24,22 @@ rotate_log_if_needed() {
             : > "$DEBUG_LOG"
         fi
     fi
+}
+
+update_cava_colors() {
+    [ -f "$WAL_CAVA" ] || return 0
+    [ -f "$CAVA_CONF" ] || return 0
+
+    sed -i '/^\[color\]/,$d' "$CAVA_CONF"
+    {
+        echo '[color]'
+        echo 'gradient = 1'
+        cat "$WAL_CAVA"
+        echo "background = 'default'"
+    } >> "$CAVA_CONF"
+
+    pkill -USR2 cava 2>/dev/null
+    echo "$(date): cava colors updated" >> "$DEBUG_LOG"
 }
 
 generate_colors() {
@@ -44,19 +63,21 @@ generate_colors() {
     rotate_log_if_needed
     echo "$(date): Color1=$color1, Color2=$color2" >> "$DEBUG_LOG"
 
-    cat <<EOF > "$OUT_LUA"
+    cat <<LUA > "$OUT_LUA"
 -- colors-wal.lua
 return {
   active_1 = "0xff${color1}",
   active_2 = "0xff${color2}",
 }
-EOF
+LUA
 
     if [ -x "$HYPRCTL_BIN" ]; then
         "$HYPRCTL_BIN" reload
     else
         echo "$(date): hyprctl not found, cannot reload" >> "$DEBUG_LOG"
     fi
+
+    update_cava_colors
 }
 
 generate_colors
