@@ -18,8 +18,12 @@ PopupWindow {
 
     readonly property int shadowMargin: 16
 
+    readonly property int maxVisibleRows: 5
+    readonly property real estRowHeight: 92
+    readonly property real listCapHeight: maxVisibleRows * estRowHeight - list.spacing
+
     implicitWidth: 480 + shadowMargin * 2
-    implicitHeight: 740 + shadowMargin * 2
+    implicitHeight: contentCol.implicitHeight + 32 + shadowMargin * 2
     color: "transparent"
     visible: popup.open
 
@@ -106,6 +110,7 @@ PopupWindow {
         }
 
         ColumnLayout {
+            id: contentCol
             anchors.fill: parent
             anchors.margins: 16 
             spacing: 12
@@ -248,7 +253,8 @@ PopupWindow {
             ListView {
                 id: list
                 Layout.fillWidth: true
-                Layout.fillHeight: true
+                Layout.preferredHeight: Math.min(contentHeight, popup.listCapHeight)
+                Layout.maximumHeight: popup.listCapHeight
                 clip: true
                 spacing: 10 
                 model: popup.notificationModel()

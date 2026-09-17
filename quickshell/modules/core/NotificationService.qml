@@ -18,8 +18,8 @@ Item {
 
     readonly property string _chatAppsRegex: "discord|vesktop|telegram"
 
-    function _setChatSoundsMuted(mute) {
-        chatMuteProc.command = ["bash", "-c", `
+    function _muteMatchingSinkInputs(mute) {
+        chatMuteOnceProc.command = ["bash", "-c", `
 pactl list sink-inputs | grep -E 'Sink Input #|application\\.name' | paste -d'|' - - |
 while IFS='|' read -r idxline nameline; do
     idx=$(echo "$idxline" | grep -oE '[0-9]+')
@@ -29,12 +29,41 @@ while IFS='|' read -r idxline nameline; do
     fi
 done
 `];
-        chatMuteProc.running = true;
+        chatMuteOnceProc.running = true;
     }
 
-    Process { id: chatMuteProc }
+    Process { id: chatMuteOnceProc }
 
-    onDndChanged: service._setChatSoundsMuted(service.dnd)
+    Process {
+        id: chatMuteWatcher
+        command: ["bash", "-c", `
+mute_matching() {
+    pactl list sink-inputs | grep -E 'Sink Input #|application\\.name' | paste -d'|' - - |
+    while IFS='|' read -r idxline nameline; do
+        idx=$(echo "$idxline" | grep -oE '[0-9]+')
+        name=$(echo "$nameline" | sed -E 's/.*application\\.name = "(.*)"/\\1/')
+        if echo "$name" | grep -qiE '` + service._chatAppsRegex + `'; then
+            pactl set-sink-input-mute "$idx" 1
+        fi
+    done
+}
+mute_matching
+pactl subscribe 2>/dev/null | while read -r line; do
+    case "$line" in
+        *sink-input*) mute_matching ;;
+    esac
+done
+`]
+    }
+
+    onDndChanged: {
+        if (service.dnd) {
+            chatMuteWatcher.running = true;
+        } else {
+            chatMuteWatcher.running = false;
+            service._muteMatchingSinkInputs(false);
+        }
+    }
 
     readonly property var appAliases: ({
         "discord": { classMatch: ["discord", "vesktop"], launch: "vesktop" },
@@ -207,11 +236,12 @@ done
                 }
             });
 
+            let harr = service.history.slice();
+            harr.unshift(entry);
+            if (harr.length > 50) harr.pop();
+            service.history = harr;
+
             if (!service.dnd) {
-                let harr = service.history.slice();
-                harr.unshift(entry);
-                if (harr.length > 50) harr.pop();
-                service.history = harr;
                 service.unreadCount += 1;
 
                 let aarr = service.active.slice();
@@ -219,7 +249,7 @@ done
                 service.active = aarr;
                 console.log("Successfully added! Active count: " + service.active.length);
             } else {
-                console.log("Notification ignored (DND mode enabled).");
+                console.log("Notification stored silently (DND mode enabled): toast/sound suppressed.");
             }
         }
     }
