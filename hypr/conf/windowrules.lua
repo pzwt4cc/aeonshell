@@ -19,9 +19,3 @@ for _, r in ipairs(rules) do
         size = r.size,
     })
 end
-
-hl.window_rule({
-    name = "center-all-floating",
-    match = { float = true },
-    center = true,
-})
