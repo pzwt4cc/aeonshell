@@ -12,10 +12,13 @@ Workspaces 1.0 bar/Workspaces.qml
 Clock 1.0 bar/Clock.qml
 Tray 1.0 bar/Tray.qml
 Separator 1.0 bar/Separator.qml
+AudioButton 1.0 bar/AudioButton.qml
+NetworkButton 1.0 bar/NetworkButton.qml
 SettingsButton 1.0 bar/SettingsButton.qml
 
 CenterPopup 1.0 popups/CenterPopup.qml
-ControlCenter 1.0 popups/ControlCenter.qml
+AudioPopup 1.0 popups/AudioPopup.qml
+NetworkPopup 1.0 popups/NetworkPopup.qml
 Launcher 1.0 popups/Launcher.qml
 NotificationCenter 1.0 popups/NotificationCenter.qml
 ProfilePopup 1.0 popups/ProfilePopup.qml

@@ -120,11 +120,13 @@ Scope {
             implicitHeight: 48
             color: "transparent"
             WlrLayershell.layer: root.specialActive ? WlrLayer.Overlay : WlrLayer.Top
-            WlrLayershell.keyboardFocus: (barWindow.controlOpen && controlCenterLoader.item && controlCenterLoader.item.pendingSsid !== "") ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: (barWindow.audioOpen || barWindow.networkOpen) ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
             property bool profileOpen: false
             property bool powerOpen: false
-            property bool controlOpen: false
+            property bool audioOpen: false
+            property bool networkOpen: false
+            property string networkInitialTab: "wifi"
             property bool centerOpen: false
             property bool notifOpen: false
 
@@ -144,13 +146,21 @@ Scope {
                 if (powerLoader.item)
                     powerLoader.item.open = powerOpen;
             }
-            onControlOpenChanged: {
-                if (!controlOpen)
-                    controlLinger.restart();
+            onAudioOpenChanged: {
+                if (!audioOpen)
+                    audioLinger.restart();
                 else
-                    controlLinger.stop();
-                if (controlCenterLoader.item)
-                    controlCenterLoader.item.open = controlOpen;
+                    audioLinger.stop();
+                if (audioLoader.item)
+                    audioLoader.item.open = audioOpen;
+            }
+            onNetworkOpenChanged: {
+                if (!networkOpen)
+                    networkLinger.restart();
+                else
+                    networkLinger.stop();
+                if (networkLoader.item)
+                    networkLoader.item.open = networkOpen;
             }
             onCenterOpenChanged: {
                 if (!centerOpen)
@@ -180,8 +190,12 @@ Scope {
                 interval: 220
             }
             Timer {
-                id: controlLinger
-                interval: 280
+                id: audioLinger
+                interval: 230
+            }
+            Timer {
+                id: networkLinger
+                interval: 230
             }
             Timer {
                 id: centerLinger
@@ -197,8 +211,10 @@ Scope {
                     barWindow.profileOpen = false;
                 if (exceptName !== "power")
                     barWindow.powerOpen = false;
-                if (exceptName !== "control")
-                    barWindow.controlOpen = false;
+                if (exceptName !== "audio")
+                    barWindow.audioOpen = false;
+                if (exceptName !== "network")
+                    barWindow.networkOpen = false;
                 if (exceptName !== "notif")
                     barWindow.notifOpen = false;
                 if (exceptName !== "center")
@@ -376,6 +392,38 @@ Scope {
                             Layout.topMargin: root.vertical ? 4 : 0
                             Layout.bottomMargin: root.vertical ? 4 : 0
                         }
+
+                        AudioButton {
+                            vertical: root.vertical
+                            active: barWindow.audioOpen
+                            onClicked: {
+                                const willOpen = !barWindow.audioOpen;
+                                barWindow.closeOtherPopups("audio");
+                                barWindow.audioOpen = willOpen;
+                            }
+                        }
+
+                        NetworkButton {
+                            vertical: root.vertical
+                            active: barWindow.networkOpen
+                            onClicked: {
+                                const willOpen = !barWindow.networkOpen;
+                                if (willOpen)
+                                    barWindow.networkInitialTab = "wifi";
+                                barWindow.closeOtherPopups("network");
+                                barWindow.networkOpen = willOpen;
+                            }
+                            onBluetoothRequested: {
+                                if (barWindow.networkOpen && barWindow.networkInitialTab === "bluetooth") {
+                                    barWindow.networkOpen = false;
+                                } else {
+                                    barWindow.closeOtherPopups("network");
+                                    barWindow.networkInitialTab = "bluetooth";
+                                    barWindow.networkOpen = true;
+                                }
+                            }
+                        }
+
                         Notifications {
                             onToggleCenter: {
                                 const willOpen = !barWindow.notifOpen;
@@ -383,15 +431,16 @@ Scope {
                                 barWindow.notifOpen = willOpen;
                             }
                         }
+
                         SettingsButton {
                             id: settingsBtn
-                            active: barWindow.controlOpen
+                            active: ShellState.settingsWindowOpen
                             onClicked: {
-                                const willOpen = !barWindow.controlOpen;
-                                barWindow.closeOtherPopups("control");
-                                barWindow.controlOpen = willOpen;
+                                barWindow.closeOtherPopups("");
+                                ShellState.settingsWindowOpen = !ShellState.settingsWindowOpen;
                             }
                         }
+
                         PowerButton {
                             id: powerBtn
                             onClicked: {
@@ -431,12 +480,28 @@ Scope {
             }
 
             LazyLoader {
-                id: controlCenterLoader
-                active: barWindow.controlOpen || controlLinger.running
-                ControlCenter {
-                    open: barWindow.controlOpen
-                    onOpenChanged: if (open !== barWindow.controlOpen)
-                        barWindow.controlOpen = open
+                id: audioLoader
+                active: barWindow.audioOpen || audioLinger.running
+                AudioPopup {
+                    open: barWindow.audioOpen
+                    onOpenChanged: if (open !== barWindow.audioOpen)
+                        barWindow.audioOpen = open
+                    anchor.window: barWindow
+                    anchor.rect.x: root.vertical ? root.popupMainAxis(this, barWindow) : (barWindow.width - implicitWidth - 12)
+                    anchor.rect.y: root.vertical ? (barWindow.height - implicitHeight - 12) : root.popupMainAxis(this, barWindow)
+                }
+            }
+
+            LazyLoader {
+                id: networkLoader
+                active: barWindow.networkOpen || networkLinger.running
+                NetworkPopup {
+                    open: barWindow.networkOpen
+                    activeTab: barWindow.networkInitialTab
+                    onActiveTabChanged: if (activeTab !== barWindow.networkInitialTab)
+                        barWindow.networkInitialTab = activeTab
+                    onOpenChanged: if (open !== barWindow.networkOpen)
+                        barWindow.networkOpen = open
                     anchor.window: barWindow
                     anchor.rect.x: root.vertical ? root.popupMainAxis(this, barWindow) : (barWindow.width - implicitWidth - 12)
                     anchor.rect.y: root.vertical ? (barWindow.height - implicitHeight - 12) : root.popupMainAxis(this, barWindow)
