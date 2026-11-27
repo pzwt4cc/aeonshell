@@ -471,12 +471,45 @@ PopupWindow {
             anchors.margins: popup.panelMargin
             spacing: popup.cardSpacing
 
-            Text {
-                text: "Quick Settings"
-                color: Colors.surfaceText
-                font.pixelSize: 20
-                font.bold: true
+            RowLayout {
+                Layout.fillWidth: true
                 Layout.bottomMargin: 2
+
+                Text {
+                    text: "Quick Settings"
+                    color: Colors.surfaceText
+                    font.pixelSize: 20
+                    font.bold: true
+                    Layout.fillWidth: true
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: 32
+                    Layout.preferredHeight: 32
+                    radius: 9
+                    color: ccGearHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.09) : "transparent"
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: 120
+                        }
+                    }
+                    HoverHandler {
+                        id: ccGearHover
+                    }
+                    Text {
+                        anchors.centerIn: parent
+                        text: "󰒓"
+                        font.pixelSize: 16
+                        color: ccGearHover.hovered ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.65)
+                    }
+                    TapHandler {
+                        onTapped: {
+                            popup.open = false;
+                            ShellState.settingsSection = "panel";
+                            ShellState.settingsWindowOpen = true;
+                        }
+                    }
+                }
             }
 
             Rectangle {

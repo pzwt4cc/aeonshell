@@ -87,6 +87,17 @@ Scope {
         }
     }
 
+    Connections {
+        target: ShellState
+        function onOpenWallpaperRequestedChanged() {
+            if (ShellState.openWallpaperRequested) {
+                ShellState.openWallpaperRequested = false;
+                root.open = true;
+                root.openWallpaperPicker();
+            }
+        }
+    }
+
     function toggle() {
         if (!root.open) {
             const mon = Hyprland.focusedMonitor;
@@ -313,21 +324,21 @@ Scope {
             icon: "󰒓"
         },
         {
-            id: "settings-keybinds",
-            label: "Settings → Keybinds",
-            desc: "Jump straight to your keybinds",
-            icon: "󰌌"
+            id: "settings-launcher",
+            label: "Settings → Launcher",
+            desc: "Jump to launcher & wallpaper settings",
+            icon: "󰀻"
         },
         {
-            id: "settings-hyprlock",
-            label: "Settings → Hyprlock",
-            desc: "Jump straight to hyprlock settings",
-            icon: "󰌾"
+            id: "settings-behavior",
+            label: "Settings → Notifications & Media",
+            desc: "Jump to notifications and media behavior",
+            icon: "󰂚"
         },
         {
             id: "settings-about",
-            label: "Settings → About",
-            desc: "Jump straight to the about page",
+            label: "Settings → System & About",
+            desc: "Jump to storage, reset, and about",
             icon: "󰋼"
         },
         {
@@ -379,7 +390,7 @@ Scope {
             return;
         }
         if (cmd.id === "settings" || cmd.id.startsWith("settings-")) {
-            ShellState.settingsSection = cmd.id === "settings" ? "bar" : cmd.id.slice("settings-".length);
+            ShellState.settingsSection = cmd.id === "settings" ? "panel" : cmd.id.slice("settings-".length);
             ShellState.settingsWindowOpen = true;
             root.open = false;
             return;
