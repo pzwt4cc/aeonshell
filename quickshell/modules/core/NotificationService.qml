@@ -3,8 +3,9 @@
 pragma Singleton
 import "../"
 import QtQuick
-import Quickshell.Io
+import Quickshell
 import Quickshell.Services.Notifications
+import Quickshell.Services.Pipewire
 import Quickshell.Hyprland
 
 Item {
@@ -16,138 +17,121 @@ Item {
     property int unreadCount: 0
     property int nextLocalId: 1
 
-    readonly property string _chatAppsRegex: "discord|vesktop|telegram"
+    readonly property var _chatKeywords: ["discord", "vesktop", "telegram"]
 
-    function _muteMatchingSinkInputs(mute) {
-        chatMuteOnceProc.command = ["bash", "-c", `
-pactl list sink-inputs | grep -E 'Sink Input #|application\\.name' | paste -d'|' - - |
-while IFS='|' read -r idxline nameline; do
-    idx=$(echo "$idxline" | grep -oE '[0-9]+')
-    name=$(echo "$nameline" | sed -E 's/.*application\\.name = "(.*)"/\\1/')
-    if echo "$name" | grep -qiE '` + service._chatAppsRegex + `'; then
-        pactl set-sink-input-mute "$idx" ` + (mute ? "1" : "0") + `
-    fi
-done
-`];
-        chatMuteOnceProc.running = true;
+    readonly property var chatStreamNodes: {
+        const list = [...Pipewire.nodes.values];
+        return list.filter(function (n) {
+            if (!n || !n.isStream || !n.audio)
+                return false;
+            const props = n.properties || ({});
+            const appName = (props["application.name"] || props["application.process.binary"] || n.name || "").toLowerCase();
+            for (let i = 0; i < service._chatKeywords.length; i++) {
+                if (appName.indexOf(service._chatKeywords[i]) !== -1)
+                    return true;
+            }
+            return false;
+        });
     }
 
-    Process { id: chatMuteOnceProc }
-
-    Process {
-        id: chatMuteWatcher
-        command: ["bash", "-c", `
-mute_matching() {
-    pactl list sink-inputs | grep -E 'Sink Input #|application\\.name' | paste -d'|' - - |
-    while IFS='|' read -r idxline nameline; do
-        idx=$(echo "$idxline" | grep -oE '[0-9]+')
-        name=$(echo "$nameline" | sed -E 's/.*application\\.name = "(.*)"/\\1/')
-        if echo "$name" | grep -qiE '` + service._chatAppsRegex + `'; then
-            pactl set-sink-input-mute "$idx" 1
-        fi
-    done
-}
-mute_matching
-pactl subscribe 2>/dev/null | while read -r line; do
-    case "$line" in
-        *sink-input*) mute_matching ;;
-    esac
-done
-`]
+    PwObjectTracker {
+        objects: service.chatStreamNodes
     }
 
-    onDndChanged: {
-        if (service.dnd) {
-            chatMuteWatcher.running = true;
-        } else {
-            chatMuteWatcher.running = false;
-            service._muteMatchingSinkInputs(false);
+    function _syncChatMute() {
+        const nodes = service.chatStreamNodes;
+        for (let i = 0; i < nodes.length; i++) {
+            const n = nodes[i];
+            if (n && n.audio)
+                n.audio.muted = service.dnd;
         }
     }
+
+    onDndChanged: service._syncChatMute()
+    onChatStreamNodesChanged: if (service.dnd)
+        service._syncChatMute()
 
     readonly property var appAliases: ({
-        "discord": { classMatch: ["discord", "vesktop"], launch: "vesktop" },
-        "vesktop": { classMatch: ["discord", "vesktop"], launch: "vesktop" },
-        "telegram": { classMatch: ["telegram", "org.telegram.desktop"], launch: "telegram-desktop" },
-        "telegramdesktop": { classMatch: ["telegram", "org.telegram.desktop"], launch: "telegram-desktop" },
-        "org.telegram.desktop": { classMatch: ["telegram", "org.telegram.desktop"], launch: "telegram-desktop" }
-    })
-
-    property var pendingRaiseEntry: null
+            "discord": {
+                classMatch: ["discord", "vesktop"],
+                launch: "vesktop"
+            },
+            "vesktop": {
+                classMatch: ["discord", "vesktop"],
+                launch: "vesktop"
+            },
+            "telegram": {
+                classMatch: ["telegram", "org.telegram.desktop"],
+                launch: "telegram-desktop"
+            },
+            "telegramdesktop": {
+                classMatch: ["telegram", "org.telegram.desktop"],
+                launch: "telegram-desktop"
+            },
+            "org.telegram.desktop": {
+                classMatch: ["telegram", "org.telegram.desktop"],
+                launch: "telegram-desktop"
+            }
+        })
 
     function focusOrLaunchSource(entry) {
-        if (!entry) return;
-        service.pendingRaiseEntry = entry;
-        clientsProbe.running = true;
-    }
+        if (!entry)
+            return;
 
-    Process {
-        id: clientsProbe
-        command: ["hyprctl", "clients", "-j"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const entry = service.pendingRaiseEntry;
-                service.pendingRaiseEntry = null;
-                if (!entry) return;
+        const rawName = (entry.appName || "").toLowerCase();
+        const rawDesktop = (entry.desktopEntry || "").toLowerCase();
+        const alias = service.appAliases[rawName] || service.appAliases[rawDesktop] || null;
 
-                let clients = [];
-                try { clients = JSON.parse(this.text); } catch (e) { clients = []; }
+        let needles = [rawName, rawDesktop];
+        if (alias)
+            needles = needles.concat(alias.classMatch);
+        needles = needles.filter(function (s) {
+            return s && s.length > 0;
+        });
 
-                const rawName = (entry.appName || "").toLowerCase();
-                const rawDesktop = (entry.desktopEntry || "").toLowerCase();
-                const alias = service.appAliases[rawName] || service.appAliases[rawDesktop] || null;
+        function matches(str) {
+            if (!str)
+                return false;
+            const s = str.toLowerCase();
+            for (const n of needles) {
+                if (s.indexOf(n) !== -1 || n.indexOf(s) !== -1)
+                    return true;
+            }
+            return false;
+        }
 
-                let needles = [rawName, rawDesktop];
-                if (alias) needles = needles.concat(alias.classMatch);
-                needles = needles.filter(function (s) { return s && s.length > 0; });
-
-                function matches(str) {
-                    if (!str) return false;
-                    const s = str.toLowerCase();
-                    for (const n of needles) {
-                        if (s.indexOf(n) !== -1 || n.indexOf(s) !== -1) return true;
-                    }
-                    return false;
-                }
-
-                let found = null;
-                for (const c of clients) {
-                    if (matches(c.class) || matches(c.initialClass) || matches(c.title)) {
-                        found = c;
-                        break;
-                    }
-                }
-
-                if (found && found.address) {
-                    focusProc.command = Hyprland.usingLua
-                        ? ["hyprctl", "dispatch", "hl.dsp.focus({ window = hl.get_windows({ address = \"" + found.address + "\" })[1] })"]
-                        : ["hyprctl", "dispatch", "focuswindow", "address:" + found.address];
-                    focusProc.running = true;
-                } else {
-                    const launchName = alias ? alias.launch : (rawDesktop || rawName);
-                    if (!launchName) return;
-                    launchProc.fallbackCmd = [launchName];
-                    launchProc.command = ["gtk-launch", launchName];
-                    launchProc.running = true;
-                }
+        let found = null;
+        const toplevels = Hyprland.toplevels.values;
+        for (let i = 0; i < toplevels.length; i++) {
+            const t = toplevels[i];
+            const ipc = t.lastIpcObject || ({});
+            if (matches(ipc.class) || matches(ipc.initialClass) || matches(t.title)) {
+                found = t;
+                break;
             }
         }
-    }
 
-    Process { id: focusProc }
-
-    Process {
-        id: launchProc
-        property var fallbackCmd: []
-        onExited: (exitCode) => {
-            if (exitCode !== 0 && launchProc.fallbackCmd.length > 0) {
-                rawExecProc.command = launchProc.fallbackCmd;
-                rawExecProc.running = true;
+        if (found) {
+            const addr = (found.lastIpcObject && found.lastIpcObject.address) ? found.lastIpcObject.address : ("0x" + found.address);
+            if (Hyprland.usingLua) {
+                Hyprland.dispatch("hl.dsp.focus({ window = hl.get_windows({ address = \"" + addr + "\" })[1] })");
+            } else {
+                Hyprland.dispatch("focuswindow address:" + addr);
             }
+            return;
+        }
+
+        const launchName = alias ? alias.launch : (rawDesktop || rawName);
+        if (!launchName)
+            return;
+
+        const desktop = DesktopEntries.byId(launchName) || DesktopEntries.byId(rawDesktop);
+        if (desktop) {
+            desktop.execute();
+        } else {
+            Quickshell.execDetached([launchName]);
         }
     }
-
-    Process { id: rawExecProc }
 
     function clearAll() {
         history = [];
@@ -159,24 +143,28 @@ done
     }
 
     function dismissAt(idx) {
-        let arr = history.slice();
+        if (idx < 0 || idx >= history.length)
+            return;
+        const arr = history.slice();
         arr.splice(idx, 1);
         history = arr;
     }
 
-    function dismissActive(localId) {
-        active = active.filter(function (n) { return n.localId !== localId; });
-    }
-
     function dismissByLocalId(localId) {
-        active = active.filter(function (n) { return n.localId !== localId; });
-        history = history.filter(function (n) { return n.localId !== localId; });
+        active = active.filter(function (n) {
+            return n.localId !== localId;
+        });
+        history = history.filter(function (n) {
+            return n.localId !== localId;
+        });
     }
 
     function activateSource(entry) {
-        if (!entry || !entry.sourceNotif) return false;
+        if (!entry || !entry.sourceNotif)
+            return false;
         const actions = entry.sourceNotif.actions;
-        if (!actions || actions.length === 0) return false;
+        if (!actions || actions.length === 0)
+            return false;
 
         for (let i = 0; i < actions.length; i++) {
             if (actions[i].identifier === "default") {
@@ -200,11 +188,7 @@ done
         imageSupported: true
         actionsSupported: true
 
-        onNotification: (notification) => {
-            console.log("=== Notification received! ===");
-            console.log("From: " + notification.appName);
-            console.log("Title: " + notification.summary);
-
+        onNotification: notification => {
             notification.tracked = true;
             let durationMs = 5000;
             if (notification.expireTimeout && notification.expireTimeout > 0) {
@@ -230,38 +214,39 @@ done
                 expiresAt: Date.now() + durationMs
             };
 
-            notification.closed.connect(function(reason) {
+            notification.closed.connect(function (reason) {
                 if (reason === 2 || reason === 3) {
                     service.dismissByLocalId(entry.localId);
                 }
             });
 
-            let harr = service.history.slice();
+            const harr = service.history.slice();
             harr.unshift(entry);
-            if (harr.length > 50) harr.pop();
+            if (harr.length > 50)
+                harr.pop();
             service.history = harr;
 
             if (!service.dnd) {
                 service.unreadCount += 1;
-
-                let aarr = service.active.slice();
+                const aarr = service.active.slice();
                 aarr.push(entry);
                 service.active = aarr;
-                console.log("Successfully added! Active count: " + service.active.length);
-            } else {
-                console.log("Notification stored silently (DND mode enabled): toast/sound suppressed.");
             }
         }
     }
 
     Timer {
         interval: 400
-        running: true
+        running: service.active.length > 0
         repeat: true
         onTriggered: {
             const now = Date.now();
-            if (service.active.some(function (n) { return n.expiresAt <= now; })) {
-                service.active = service.active.filter(function (n) { return n.expiresAt > now; });
+            if (service.active.some(function (n) {
+                return n.expiresAt <= now;
+            })) {
+                service.active = service.active.filter(function (n) {
+                    return n.expiresAt > now;
+                });
             }
         }
     }
