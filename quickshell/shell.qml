@@ -3,7 +3,10 @@ import Quickshell
 import QtQuick
 import "./modules"
 
+pragma ComponentBehavior: Bound
+
 ShellRoot {
+    id: shellRoot
     readonly property bool launcherOnly: Quickshell.env("AEONSHELL_LAUNCHER_ONLY") === "1"
 
     // Keep fullscreen/watchdog active even while Launcher is lazy-unloaded
@@ -11,13 +14,13 @@ ShellRoot {
 
     LazyLoader {
         id: barLoader
-        active: !launcherOnly
+        active: !shellRoot.launcherOnly
         Bar {}
     }
 
     LazyLoader {
         id: notificationToastsLoader
-        active: !launcherOnly && NotificationService.active.length > 0
+        active: !shellRoot.launcherOnly && NotificationService.active.length > 0
         NotificationToasts {}
     }
 
@@ -25,31 +28,31 @@ ShellRoot {
         id: launcherLoader
         active: true
         Launcher {
-            open: launcherOnly
+            open: shellRoot.launcherOnly
         }
     }
 
     LazyLoader {
         id: screenshotLoader
-        active: !launcherOnly
+        active: !shellRoot.launcherOnly
         Screenshot {}
     }
 
     LazyLoader {
         id: clipboardLoader
-        active: !launcherOnly
+        active: !shellRoot.launcherOnly
         Clipboard {}
     }
 
     LazyLoader {
         id: settingsWindowLoader
-        active: !launcherOnly
+        active: !shellRoot.launcherOnly
         SettingsWindow {}
     }
 
     LazyLoader {
         id: volumeOsdLoader
-        active: !launcherOnly
+        active: !shellRoot.launcherOnly
         VolumeOSD {}
     }
 }

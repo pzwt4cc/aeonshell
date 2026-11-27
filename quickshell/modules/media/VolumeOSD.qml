@@ -1,5 +1,7 @@
 // VolumeOSD.qml
 
+pragma ComponentBehavior: Bound
+
 import "../"
 import Quickshell
 import Quickshell.Wayland
@@ -101,6 +103,7 @@ Scope {
         active: root.shown || closeLinger.running
 
         PanelWindow {
+            id: osdWin
             screen: root.activeScreen
 
             anchors {
@@ -130,7 +133,7 @@ Scope {
 
             property bool _animReady: false
             Component.onCompleted: Qt.callLater(function () {
-                _animReady = true;
+                osdWin._animReady = true;
             })
 
             Rectangle {
@@ -142,8 +145,8 @@ Scope {
                 border.color: Qt.rgba(1, 1, 1, 0.1)
                 border.width: 1
 
-                opacity: (root.shown && _animReady) ? 1.0 : 0.0
-                scale: (root.shown && _animReady) ? 1.0 : 0.9
+                opacity: (root.shown && osdWin._animReady) ? 1.0 : 0.0
+                scale: (root.shown && osdWin._animReady) ? 1.0 : 0.9
                 Behavior on opacity {
                     NumberAnimation {
                         duration: 150

@@ -5,6 +5,8 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 
+pragma ComponentBehavior: Bound
+
 PopupWindow {
     id: popup
     property bool open: false
@@ -32,7 +34,7 @@ PopupWindow {
         interval: 450
         onTriggered: {
             popup.open = false;
-            menuWasEntered = false;
+            popup.menuWasEntered = false;
         }
     }
     onOpenChanged: {
@@ -90,9 +92,9 @@ PopupWindow {
             id: menuHover
             onHoveredChanged: {
                 if (menuHover.hovered) {
-                    menuWasEntered = true;
+                    popup.menuWasEntered = true;
                     closeDelayTimer.stop();
-                } else if (menuWasEntered) {
+                } else if (popup.menuWasEntered) {
                     closeDelayTimer.start();
                 }
             }

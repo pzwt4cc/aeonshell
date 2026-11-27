@@ -1,5 +1,7 @@
 // Bar.qml
 
+pragma ComponentBehavior: Bound
+
 import "../"
 import Quickshell
 import QtQuick
@@ -129,46 +131,57 @@ Scope {
             property string networkInitialTab: "wifi"
             property bool centerOpen: false
             property bool notifOpen: false
+            readonly property var profileItem: profileLoader.item
+            readonly property var powerItem: powerLoader.item
+            readonly property var audioItem: audioLoader.item
+            readonly property var networkItem: networkLoader.item
+            readonly property var centerItem: centerPopupLoader.item
+            readonly property var notifItem: notifLoader.item
 
             onProfileOpenChanged: {
                 if (!profileOpen)
                     profileLinger.restart();
                 else
                     profileLinger.stop();
-                if (profileLoader.item)
-                    profileLoader.item.open = profileOpen;
+                const item = barWindow.profileItem;
+                if (item)
+                    item.open = barWindow.profileOpen;
             }
             onPowerOpenChanged: {
                 if (!powerOpen)
                     powerLinger.restart();
                 else
                     powerLinger.stop();
-                if (powerLoader.item)
-                    powerLoader.item.open = powerOpen;
+                const item = barWindow.powerItem;
+                if (item)
+                    item.open = barWindow.powerOpen;
             }
             onAudioOpenChanged: {
                 if (!audioOpen)
                     audioLinger.restart();
                 else
                     audioLinger.stop();
-                if (audioLoader.item)
-                    audioLoader.item.open = audioOpen;
+                const item = barWindow.audioItem;
+                if (item)
+                    item.open = barWindow.audioOpen;
             }
             onNetworkOpenChanged: {
                 if (!networkOpen)
                     networkLinger.restart();
                 else
                     networkLinger.stop();
-                if (networkLoader.item)
-                    networkLoader.item.open = networkOpen;
+                const item = barWindow.networkItem;
+                if (item)
+                    item.open = barWindow.networkOpen;
             }
             onCenterOpenChanged: {
                 if (!centerOpen)
                     centerLinger.restart();
                 else
                     centerLinger.stop();
-                if (centerPopupLoader.item)
-                    centerPopupLoader.item.open = centerOpen;
+                const item = barWindow.centerItem;
+                if (item)
+                    item.open = barWindow.centerOpen;
             }
             onNotifOpenChanged: {
                 if (!notifOpen) {
@@ -177,8 +190,9 @@ Scope {
                     notifLinger.stop();
                     NotificationService.markAllRead();
                 }
-                if (notifLoader.item)
-                    notifLoader.item.open = notifOpen;
+                const item = barWindow.notifItem;
+                if (item)
+                    item.open = barWindow.notifOpen;
             }
 
             Timer {
@@ -547,7 +561,7 @@ Scope {
             Timer {
                 id: profileHoverDelay
                 interval: 400
-                running: barWindow.profileOpen && !archHover.hovered && !(profileLoader.item && (profileLoader.item.isHovered || profileLoader.item.keepOpen))
+                running: barWindow.profileOpen && !archHover.hovered && !(barWindow.profileItem && (barWindow.profileItem.isHovered || barWindow.profileItem.keepOpen))
                 onTriggered: barWindow.profileOpen = false
             }
 
@@ -555,7 +569,7 @@ Scope {
                 id: popupHoverDelay
                 interval: 200
                 onTriggered: {
-                    if (!centerHover.hovered && !(centerPopupLoader.item && centerPopupLoader.item.isHovered)) {
+                    if (!centerHover.hovered && !(barWindow.centerItem && barWindow.centerItem.isHovered)) {
                         barWindow.centerOpen = false;
                     }
                 }

@@ -6,6 +6,8 @@ import QtQuick.Layouts
 import Quickshell.Networking
 import Quickshell.Bluetooth
 
+pragma ComponentBehavior: Bound
+
 Rectangle {
     id: root
 
@@ -19,7 +21,7 @@ Rectangle {
     readonly property var _btKeepAlive: Bluetooth.defaultAdapter
 
     readonly property var wifiDevice: {
-        const devs = Networking.devices ? Networking.devices.values : [];
+        const devs = root._netKeepAlive ? root._netKeepAlive.values : [];
         for (let i = 0; i < devs.length; i++) {
             if (devs[i] && devs[i].type === DeviceType.Wifi)
                 return devs[i];
@@ -28,7 +30,7 @@ Rectangle {
     }
 
     readonly property var wiredDevice: {
-        const devs = Networking.devices ? Networking.devices.values : [];
+        const devs = root._netKeepAlive ? root._netKeepAlive.values : [];
         for (let i = 0; i < devs.length; i++) {
             if (devs[i] && devs[i].type === DeviceType.Wired)
                 return devs[i];

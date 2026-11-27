@@ -1,5 +1,7 @@
 // Screenshot.qml
 
+pragma ComponentBehavior: Bound
+
 import "../"
 import Quickshell
 import Quickshell.Io

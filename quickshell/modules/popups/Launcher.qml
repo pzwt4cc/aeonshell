@@ -1,5 +1,7 @@
 // Launcher.qml
 
+pragma ComponentBehavior: Bound
+
 import "../"
 import Quickshell
 import Quickshell.Io
@@ -45,6 +47,7 @@ Scope {
     readonly property bool gridView: AppSettings.launcherViewMode === "grid"
 
     property var activeScreen: Quickshell.screens.length > 0 ? Quickshell.screens[0] : null
+    readonly property var winItem: winLoader.item
     property string targetScreenName: {
         if (Quickshell.screens.length === 0)
             return "";
@@ -118,9 +121,9 @@ Scope {
             root.wallpaperPickerOpen = false;
             root.hiddenAppsMode = false;
             root.open = true;
-            if (winLoader.item) {
-                winLoader.item.focusSearch();
-                winLoader.item.resetListScroll();
+            if (root.winItem) {
+                root.winItem.focusSearch();
+                root.winItem.resetListScroll();
             }
         } else {
             root.open = false;
@@ -180,8 +183,8 @@ Scope {
     function closeWallpaperPicker() {
         wallpaperPickerOpen = false;
         searchText = "";
-        if (winLoader.item)
-            winLoader.item.focusSearch();
+        if (root.winItem)
+            root.winItem.focusSearch();
     }
 
     function refreshWallpapers() {
@@ -376,8 +379,8 @@ Scope {
         if (cmd.id === "hidden-apps") {
             root.searchText = "";
             root.hiddenAppsMode = true;
-            if (winLoader.item)
-                winLoader.item.focusSearch();
+            if (root.winItem)
+                root.winItem.focusSearch();
             return;
         }
         if (cmd.id === "random-wallpaper") {
@@ -576,6 +579,8 @@ Scope {
             id: launcher
 
             property bool _animReady: false
+            readonly property var appsView: launcher.appsView
+            readonly property var commandsView: launcher.commandsView
             readonly property bool visualOpen: root.open && _animReady
 
             function focusSearch() {
@@ -583,8 +588,8 @@ Scope {
             }
 
             function resetListScroll() {
-                if (appsListLoader.item)
-                    appsListLoader.item.positionViewAtIndex(0, ListView.Contain);
+                if (launcher.appsView)
+                    launcher.appsView.positionViewAtIndex(0, ListView.Contain);
             }
 
             screen: root.activeScreen
@@ -636,12 +641,12 @@ Scope {
                         root.hiddenAppsMode = false;
                     root.selectedIndex = 0;
                     root.commandSelectedIndex = 0;
-                    if (appsListLoader.item)
-                        appsListLoader.item.positionViewAtIndex(0, ListView.Contain);
+                    if (launcher.appsView)
+                        launcher.appsView.positionViewAtIndex(0, ListView.Contain);
                 }
                 function onCommandSelectedIndexChanged() {
-                    if (commandsListLoader.item && root.commandSelectedIndex >= 0)
-                        commandsListLoader.item.positionViewAtIndex(root.commandSelectedIndex, ListView.Contain);
+                    if (launcher.commandsView && root.commandSelectedIndex >= 0)
+                        launcher.commandsView.positionViewAtIndex(root.commandSelectedIndex, ListView.Contain);
                 }
             }
 
@@ -829,10 +834,10 @@ Scope {
 
                                 Keys.onLeftPressed: event => {
                                     if (!root.wallpaperPickerOpen && root.gridView && !root.commandMode) {
-                                        if (root.gridApps.length === 0 || !appGridLoader.item)
+                                        if (root.gridApps.length === 0 || !launcher.appsGrid)
                                             return;
-                                        appGridLoader.item.moveCurrentIndexLeft();
-                                        root.selectedIndex = appGridLoader.item.currentIndex;
+                                        launcher.appsGrid.moveCurrentIndexLeft();
+                                        root.selectedIndex = launcher.appsGrid.currentIndex;
                                         return;
                                     }
                                     if (!root.wallpaperPickerOpen || root.wallpaperFiles.length === 0) {
@@ -856,10 +861,10 @@ Scope {
 
                                 Keys.onRightPressed: event => {
                                     if (!root.wallpaperPickerOpen && root.gridView && !root.commandMode) {
-                                        if (root.gridApps.length === 0 || !appGridLoader.item)
+                                        if (root.gridApps.length === 0 || !launcher.appsGrid)
                                             return;
-                                        appGridLoader.item.moveCurrentIndexRight();
-                                        root.selectedIndex = appGridLoader.item.currentIndex;
+                                        launcher.appsGrid.moveCurrentIndexRight();
+                                        root.selectedIndex = launcher.appsGrid.currentIndex;
                                         return;
                                     }
                                     if (!root.wallpaperPickerOpen || root.wallpaperFiles.length === 0) {
@@ -895,16 +900,16 @@ Scope {
                                         return;
                                     }
                                     if (root.gridView) {
-                                        if (root.gridApps.length === 0 || !appGridLoader.item)
+                                        if (root.gridApps.length === 0 || !launcher.appsGrid)
                                             return;
-                                        appGridLoader.item.moveCurrentIndexUp();
-                                        root.selectedIndex = appGridLoader.item.currentIndex;
+                                        launcher.appsGrid.moveCurrentIndexUp();
+                                        root.selectedIndex = launcher.appsGrid.currentIndex;
                                         return;
                                     }
-                                    if (root.appPositions.length === 0 || !appsListLoader.item)
+                                    if (root.appPositions.length === 0 || !launcher.appsView)
                                         return;
                                     root.selectedIndex = Math.max(0, root.selectedIndex - 1);
-                                    appsListLoader.item.positionViewAtIndex(root.selectedIndex === 0 ? 0 : root.appPositions[root.selectedIndex], ListView.Contain);
+                                    launcher.appsView.positionViewAtIndex(root.selectedIndex === 0 ? 0 : root.appPositions[root.selectedIndex], ListView.Contain);
                                 }
 
                                 Keys.onDownPressed: event => {
@@ -921,16 +926,16 @@ Scope {
                                         return;
                                     }
                                     if (root.gridView) {
-                                        if (root.gridApps.length === 0 || !appGridLoader.item)
+                                        if (root.gridApps.length === 0 || !launcher.appsGrid)
                                             return;
-                                        appGridLoader.item.moveCurrentIndexDown();
-                                        root.selectedIndex = appGridLoader.item.currentIndex;
+                                        launcher.appsGrid.moveCurrentIndexDown();
+                                        root.selectedIndex = launcher.appsGrid.currentIndex;
                                         return;
                                     }
-                                    if (root.appPositions.length === 0 || !appsListLoader.item)
+                                    if (root.appPositions.length === 0 || !launcher.appsView)
                                         return;
                                     root.selectedIndex = Math.min(root.appPositions.length - 1, root.selectedIndex + 1);
-                                    appsListLoader.item.positionViewAtIndex(root.appPositions[root.selectedIndex], ListView.Contain);
+                                    launcher.appsView.positionViewAtIndex(root.appPositions[root.selectedIndex], ListView.Contain);
                                 }
 
                                 Keys.onReturnPressed: event => {
@@ -1558,6 +1563,7 @@ Scope {
             currentIndex: root.commandSelectedIndex
 
             delegate: Item {
+                id: cmdDelegate
                 required property var modelData
                 required property int index
                 width: ListView.view.width
@@ -1570,8 +1576,8 @@ Scope {
                     anchors.leftMargin: 8
                     anchors.rightMargin: 8
                     radius: 12
-                    color: index === root.commandSelectedIndex ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.14) : (cmdHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06) : "transparent")
-                    border.color: index === root.commandSelectedIndex ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35) : "transparent"
+                    color: cmdDelegate.index === root.commandSelectedIndex ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.14) : (cmdHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06) : "transparent")
+                    border.color: cmdDelegate.index === root.commandSelectedIndex ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35) : "transparent"
                     border.width: 1
 
                     Behavior on color {
@@ -1597,7 +1603,7 @@ Scope {
                             color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.10)
                             Text {
                                 anchors.centerIn: parent
-                                text: modelData ? modelData.icon : ""
+                                text: cmdDelegate.modelData ? cmdDelegate.modelData.icon : ""
                                 color: Colors.primary
                                 font.pixelSize: 18
                             }
@@ -1607,7 +1613,7 @@ Scope {
                             Layout.fillWidth: true
                             spacing: 0
                             Text {
-                                text: modelData ? modelData.label : ""
+                                text: cmdDelegate.modelData ? cmdDelegate.modelData.label : ""
                                 color: Colors.surfaceText
                                 font.pixelSize: 15
                                 font.bold: true
@@ -1615,7 +1621,7 @@ Scope {
                                 elide: Text.ElideRight
                             }
                             Text {
-                                text: modelData ? modelData.desc : ""
+                                text: cmdDelegate.modelData ? cmdDelegate.modelData.desc : ""
                                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.45)
                                 font.pixelSize: 12
                                 Layout.fillWidth: true
@@ -1627,11 +1633,11 @@ Scope {
                     HoverHandler {
                         id: cmdHover
                         onHoveredChanged: if (hovered)
-                            root.commandSelectedIndex = index
+                            root.commandSelectedIndex = cmdDelegate.index
                     }
                     TapHandler {
                         onTapped: {
-                            root.commandSelectedIndex = index;
+                            root.commandSelectedIndex = cmdDelegate.index;
                             root.activateSelectedCommand();
                         }
                     }
@@ -1681,16 +1687,17 @@ Scope {
                     Repeater {
                         model: Quickshell.screens
                         delegate: Rectangle {
+                            id: monChip
                             required property var modelData
-                            readonly property bool isPrim: root.isScreenPrimary(modelData)
-                            readonly property bool isSel: root.targetScreenName === modelData.name
+                            readonly property bool isPrim: root.isScreenPrimary(monChip.modelData)
+                            readonly property bool isSel: root.targetScreenName === monChip.modelData.name
 
                             implicitWidth: monLayout.implicitWidth + 20
                             implicitHeight: 28
                             radius: 7
-                            color: isSel ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.2) : (monHover.hovered ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.04))
-                            border.color: (isSel || (root.wpFocusSection === 0 && monHover.hovered)) ? Colors.primary : Qt.rgba(1, 1, 1, 0.1)
-                            border.width: isSel ? 2 : 1
+                            color: monChip.isSel ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.2) : (monHover.hovered ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.04))
+                            border.color: (monChip.isSel || (root.wpFocusSection === 0 && monHover.hovered)) ? Colors.primary : Qt.rgba(1, 1, 1, 0.1)
+                            border.width: monChip.isSel ? 2 : 1
 
                             Behavior on color {
                                 ColorAnimation {
@@ -1710,13 +1717,13 @@ Scope {
                                 Text {
                                     text: "󰍹"
                                     font.pixelSize: 12
-                                    color: isSel ? Colors.primary : Colors.surfaceText
+                                    color: monChip.isSel ? Colors.primary : Colors.surfaceText
                                 }
                                 Text {
-                                    text: modelData.name + (isPrim ? " (Colors)" : " (Image only)")
+                                    text: monChip.modelData.name + (monChip.isPrim ? " (Colors)" : " (Image only)")
                                     font.pixelSize: 11
-                                    font.bold: isSel
-                                    color: isSel ? Colors.primary : Colors.surfaceText
+                                    font.bold: monChip.isSel
+                                    color: monChip.isSel ? Colors.primary : Colors.surfaceText
                                 }
                             }
 
@@ -1725,7 +1732,7 @@ Scope {
                             }
                             TapHandler {
                                 onTapped: {
-                                    root.targetScreenName = modelData.name;
+                                    root.targetScreenName = monChip.modelData.name;
                                     root.wpFocusSection = 0;
                                 }
                             }

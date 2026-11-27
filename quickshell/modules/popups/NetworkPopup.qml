@@ -8,6 +8,8 @@ import Quickshell
 import Quickshell.Networking
 import Quickshell.Bluetooth
 
+pragma ComponentBehavior: Bound
+
 PopupWindow {
     id: popup
 
@@ -34,7 +36,7 @@ PopupWindow {
 
     // --- Wi-Fi & Ethernet (Quickshell.Networking) ---
     readonly property var wifiDevice: {
-        const devs = Networking.devices ? Networking.devices.values : [];
+        const devs = popup._netKeepAlive ? popup._netKeepAlive.values : [];
         for (let i = 0; i < devs.length; i++) {
             if (devs[i] && devs[i].type === DeviceType.Wifi)
                 return devs[i];
@@ -43,7 +45,7 @@ PopupWindow {
     }
 
     readonly property var wiredDevice: {
-        const devs = Networking.devices ? Networking.devices.values : [];
+        const devs = popup._netKeepAlive ? popup._netKeepAlive.values : [];
         for (let i = 0; i < devs.length; i++) {
             if (devs[i] && devs[i].type === DeviceType.Wired)
                 return devs[i];
@@ -1006,16 +1008,17 @@ PopupWindow {
                             }
 
                             delegate: Item {
+                                id: btEntry
                                 required property var modelData
                                 width: btList.width
-                                height: modelData.kind === "header" ? 20 : 48
+                                height: btEntry.modelData.kind === "header" ? 20 : 48
 
                                 Text {
-                                    visible: modelData.kind === "header"
+                                    visible: btEntry.modelData.kind === "header"
                                     anchors.verticalCenter: parent.verticalCenter
                                     anchors.left: parent.left
                                     anchors.leftMargin: 4
-                                    text: modelData.title || ""
+                                    text: btEntry.modelData.title || ""
                                     font.pixelSize: 10
                                     font.bold: true
                                     font.letterSpacing: 1
@@ -1023,10 +1026,10 @@ PopupWindow {
                                 }
 
                                 BtRow {
-                                    visible: modelData.kind === "device"
+                                    visible: btEntry.modelData.kind === "device"
                                     anchors.fill: parent
-                                    device: modelData.device || null
-                                    pairedRow: Boolean(modelData.paired)
+                                    device: btEntry.modelData.device || null
+                                    pairedRow: Boolean(btEntry.modelData.paired)
                                 }
                             }
                         }

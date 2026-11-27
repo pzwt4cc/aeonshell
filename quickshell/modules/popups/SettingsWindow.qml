@@ -9,6 +9,8 @@ import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Services.Pipewire
 
+pragma ComponentBehavior: Bound
+
 Scope {
     id: root
 
@@ -16,6 +18,9 @@ Scope {
     property bool confirmReset: false
     property bool editingWpDir: false
     property var targetScreen: _resolveActiveScreen()
+    property bool hasCustomPos: false
+    property real cardX: 0
+    property real cardY: 0
 
     function _normalizeSection(sec) {
         if (sec === "launcher" || sec === "behavior" || sec === "about" || sec === "panel")
@@ -84,8 +89,7 @@ Scope {
                 root.confirmReset = false;
                 root.editingWpDir = false;
                 root.currentSection = root._normalizeSection(ShellState.settingsSection);
-                if (overlayLoader.item)
-                    overlayLoader.item.hasCustomPos = false;
+                root.hasCustomPos = false;
             } else {
                 hideTimer.start();
             }
@@ -118,23 +122,19 @@ Scope {
             visible: true
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: ShellState.settingsWindowOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
-            property bool hasCustomPos: false
-            property real cardX: 0
-            property real cardY: 0
-
             function beginDrag() {
-                if (!overlay.hasCustomPos) {
-                    overlay.cardX = cardFrame.x;
-                    overlay.cardY = cardFrame.y;
-                    overlay.hasCustomPos = true;
+                if (!root.hasCustomPos) {
+                    root.cardX = cardFrame.x;
+                    root.cardY = cardFrame.y;
+                    root.hasCustomPos = true;
                 }
             }
 
             function moveCardTo(newX, newY) {
                 const maxX = Math.max(0, overlay.width - cardFrame.width);
                 const maxY = Math.max(0, overlay.height - cardFrame.height);
-                overlay.cardX = Math.max(0, Math.min(maxX, Math.round(newX)));
-                overlay.cardY = Math.max(0, Math.min(maxY, Math.round(newY)));
+                root.cardX = Math.max(0, Math.min(maxX, Math.round(newX)));
+                root.cardY = Math.max(0, Math.min(maxY, Math.round(newY)));
             }
 
             mask: ShellState.settingsWindowOpen ? cardMask : emptyMask
@@ -165,8 +165,8 @@ Scope {
                 id: cardFrame
                 width: Math.round(Math.min(parent.width - 64, Math.max(720, parent.width * 0.6)))
                 height: Math.round(Math.min(parent.height - 64, Math.max(520, parent.height * 0.6)))
-                x: overlay.hasCustomPos ? Math.min(overlay.cardX, Math.max(0, parent.width - width)) : Math.round((parent.width - width) / 2)
-                y: overlay.hasCustomPos ? Math.min(overlay.cardY, Math.max(0, parent.height - height)) : Math.round((parent.height - height) / 2)
+                x: root.hasCustomPos ? Math.min(root.cardX, Math.max(0, parent.width - width)) : Math.round((parent.width - width) / 2)
+                y: root.hasCustomPos ? Math.min(root.cardY, Math.max(0, parent.height - height)) : Math.round((parent.height - height) / 2)
 
                 scale: overlay.visualOpen ? 1.0 : 0.96
                 opacity: overlay.visualOpen ? 1.0 : 0.0
@@ -235,8 +235,8 @@ Scope {
                                             startMouseX = pt.x;
                                             startMouseY = pt.y;
                                             overlay.beginDrag();
-                                            startCardX = overlay.cardX;
-                                            startCardY = overlay.cardY;
+                                            startCardX = root.cardX;
+                                            startCardY = root.cardY;
                                         }
                                         onPositionChanged: mouse => {
                                             if (!pressed)
@@ -244,7 +244,7 @@ Scope {
                                             const pt = mapToItem(overlay, mouse.x, mouse.y);
                                             overlay.moveCardTo(startCardX + (pt.x - startMouseX), startCardY + (pt.y - startMouseY));
                                         }
-                                        onDoubleClicked: overlay.hasCustomPos = false
+                                        onDoubleClicked: root.hasCustomPos = false
                                     }
 
                                     RowLayout {
@@ -416,8 +416,8 @@ Scope {
                                         startMouseX = pt.x;
                                         startMouseY = pt.y;
                                         overlay.beginDrag();
-                                        startCardX = overlay.cardX;
-                                        startCardY = overlay.cardY;
+                                        startCardX = root.cardX;
+                                        startCardY = root.cardY;
                                     }
                                     onPositionChanged: mouse => {
                                         if (!pressed)
@@ -425,7 +425,7 @@ Scope {
                                         const pt = mapToItem(overlay, mouse.x, mouse.y);
                                         overlay.moveCardTo(startCardX + (pt.x - startMouseX), startCardY + (pt.y - startMouseY));
                                     }
-                                    onDoubleClicked: overlay.hasCustomPos = false
+                                    onDoubleClicked: root.hasCustomPos = false
                                 }
 
                                 RowLayout {
@@ -1099,6 +1099,7 @@ Scope {
                     Repeater {
                         model: ["Quickshell", "Hyprland", "PipeWire", "matugen", "ColorQuantizer", "awww", "mpvpaper"]
                         delegate: Rectangle {
+                            id: techChip
                             required property string modelData
                             radius: 7
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06)
@@ -1110,7 +1111,7 @@ Scope {
                             Text {
                                 id: chipTxt
                                 anchors.centerIn: parent
-                                text: modelData
+                                text: techChip.modelData
                                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.85)
                                 font.pixelSize: 11
                                 font.bold: true

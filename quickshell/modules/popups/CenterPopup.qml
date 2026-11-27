@@ -1,5 +1,7 @@
 // CenterPopup.qml
 
+pragma ComponentBehavior: Bound
+
 import "../"
 import QtQuick
 import QtQuick.Layouts
@@ -154,7 +156,9 @@ PopupWindow {
                     Layout.fillWidth: true
                     locale: grid.locale
                     delegate: Text {
-                        text: model.shortName
+                        id: dowText
+                        required property var model
+                        text: dowText.model.shortName
                         font.pixelSize: 12
                         color: Qt.rgba(1, 1, 1, 0.4)
                         horizontalAlignment: Text.AlignHCenter
@@ -168,12 +172,14 @@ PopupWindow {
                     Layout.preferredHeight: popup.stacked ? 180 : -1
                     locale: Qt.locale()
                     delegate: Text {
+                        id: dayText
+                        required property var model
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
-                        text: model.day
+                        text: dayText.model.day
                         font.pixelSize: 13
-                        font.bold: model.today
-                        color: model.today ? Colors.primary : (model.month === grid.month ? "#ffffff" : Qt.rgba(1, 1, 1, 0.2))
+                        font.bold: dayText.model.today
+                        color: dayText.model.today ? Colors.primary : (dayText.model.month === grid.month ? "#ffffff" : Qt.rgba(1, 1, 1, 0.2))
 
                         Rectangle {
                             anchors.centerIn: parent
@@ -181,7 +187,7 @@ PopupWindow {
                             height: width
                             radius: width / 2
                             color: Colors.primary
-                            opacity: model.today ? 0.25 : 0.0
+                            opacity: dayText.model.today ? 0.25 : 0.0
                             z: -1
                         }
                     }

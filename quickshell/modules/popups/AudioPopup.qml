@@ -7,6 +7,8 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Services.Pipewire
 
+pragma ComponentBehavior: Bound
+
 PopupWindow {
     id: popup
 
@@ -29,6 +31,7 @@ PopupWindow {
     visible: popup.open || hideTimer.running
 
     // --- PipeWire State ---
+    readonly property var _pwNodes: Pipewire.nodes
     readonly property var defaultSink: Pipewire.defaultAudioSink
     readonly property var defaultSource: Pipewire.defaultAudioSource
     readonly property var activeMasterNode: popup.activeTab === "input" ? popup.defaultSource : popup.defaultSink
@@ -36,15 +39,15 @@ PopupWindow {
     readonly property real masterVol: (activeMasterNode && activeMasterNode.audio) ? activeMasterNode.audio.volume : 0
 
     readonly property var audioSinks: {
-        const list = Pipewire.nodes ? [...Pipewire.nodes.values] : [];
+        const list = popup._pwNodes ? [...popup._pwNodes.values] : [];
         return list.filter(n => n && n.isSink && !n.isStream && n.audio);
     }
     readonly property var audioSources: {
-        const list = Pipewire.nodes ? [...Pipewire.nodes.values] : [];
+        const list = popup._pwNodes ? [...popup._pwNodes.values] : [];
         return list.filter(n => n && !n.isSink && !n.isStream && n.audio);
     }
     readonly property var audioStreams: {
-        const list = Pipewire.nodes ? [...Pipewire.nodes.values] : [];
+        const list = popup._pwNodes ? [...popup._pwNodes.values] : [];
         return list.filter(n => n && n.isStream && n.audio);
     }
 

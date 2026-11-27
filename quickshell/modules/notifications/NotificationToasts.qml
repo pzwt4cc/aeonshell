@@ -1,5 +1,7 @@
 // NotificationToasts.qml
 
+pragma ComponentBehavior: Bound
+
 import "../"
 import Quickshell
 import Quickshell.Wayland
@@ -54,7 +56,9 @@ PanelWindow {
         Repeater {
             model: NotificationService.active
             delegate: ToastCard {
-                notif: modelData
+                id: toastCardItem
+                required property var modelData
+                notif: toastCardItem.modelData
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignRight
             }

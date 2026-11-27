@@ -1,5 +1,7 @@
 // FilePicker.qml
 
+pragma ComponentBehavior: Bound
+
 import "../"
 import QtQuick
 import QtQuick.Layouts
@@ -196,6 +198,7 @@ FloatingWindow {
                 ScrollBar.vertical: ScrollBar {}
 
                 delegate: Item {
+                    id: fpItem
                     width: grid.cellWidth
                     height: grid.cellHeight
 
@@ -204,15 +207,15 @@ FloatingWindow {
                     required property string fileName
                     required property url fileURL
 
-                    readonly property bool isDir: fileIsDir
-                    readonly property bool isSelected: !isDir && picker.selectedPath === filePath
+                    readonly property bool isDir: fpItem.fileIsDir
+                    readonly property bool isSelected: !fpItem.isDir && picker.selectedPath === fpItem.filePath
 
                     Rectangle {
                         anchors.fill: parent
                         anchors.margins: 6
                         radius: 12
-                        color: isSelected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.22) : itemHover.hovered ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.1) : "transparent"
-                        border.color: isSelected ? Colors.primary : "transparent"
+                        color: fpItem.isSelected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.22) : itemHover.hovered ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.1) : "transparent"
+                        border.color: fpItem.isSelected ? Colors.primary : "transparent"
                         border.width: 1.5
                         Behavior on color {
                             ColorAnimation {
@@ -234,9 +237,10 @@ FloatingWindow {
                                 Layout.fillHeight: true
 
                                 Image {
+                                    id: fpThumb
                                     anchors.fill: parent
-                                    visible: !isDir && status === Image.Ready
-                                    source: isDir ? "" : fileURL
+                                    visible: !fpItem.isDir && fpThumb.status === Image.Ready
+                                    source: fpItem.isDir ? "" : fpItem.fileURL
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true
                                     smooth: true
@@ -254,7 +258,7 @@ FloatingWindow {
 
                                 Text {
                                     anchors.centerIn: parent
-                                    visible: isDir
+                                    visible: fpItem.isDir
                                     text: "󰉋"
                                     font.pixelSize: 32
                                     color: Colors.primary
@@ -263,7 +267,7 @@ FloatingWindow {
 
                             Text {
                                 Layout.fillWidth: true
-                                text: fileName
+                                text: fpItem.fileName
                                 color: Colors.surfaceText
                                 font.pixelSize: 11
                                 horizontalAlignment: Text.AlignHCenter
@@ -275,18 +279,18 @@ FloatingWindow {
 
                     TapHandler {
                         onTapped: (eventPoint, button) => {
-                            if (!isDir) {
-                                picker.selectedPath = filePath;
-                                picker.selectedName = fileName;
+                            if (!fpItem.isDir) {
+                                picker.selectedPath = fpItem.filePath;
+                                picker.selectedName = fpItem.fileName;
                             }
                         }
                         onDoubleTapped: {
-                            if (isDir) {
-                                picker.currentDir = filePath;
+                            if (fpItem.isDir) {
+                                picker.currentDir = fpItem.filePath;
                                 picker.selectedPath = "";
                                 picker.selectedName = "";
                             } else {
-                                picker.acceptPath(filePath);
+                                picker.acceptPath(fpItem.filePath);
                             }
                         }
                     }

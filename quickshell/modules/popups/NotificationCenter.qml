@@ -7,6 +7,8 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Widgets
 
+pragma ComponentBehavior: Bound
+
 PopupWindow {
     id: popup
 
@@ -306,6 +308,8 @@ PopupWindow {
                 section.property: AppSettings.groupNotificationsBySource ? "appName" : ""
                 section.criteria: ViewSection.FullString
                 section.delegate: Item {
+                    id: sectionDelegate
+                    required property string section
                     width: list.width
                     height: sectionLabel.implicitHeight + 16
                     Text {
@@ -313,7 +317,7 @@ PopupWindow {
                         anchors.left: parent.left
                         anchors.bottom: parent.bottom
                         anchors.bottomMargin: 2
-                        text: section
+                        text: sectionDelegate.section
                         color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.45)
                         font.pixelSize: 12
                         font.bold: true

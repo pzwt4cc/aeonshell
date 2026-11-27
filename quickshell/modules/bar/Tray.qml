@@ -7,6 +7,8 @@ import Quickshell.Widgets
 import Quickshell.Services.SystemTray
 import QtCore
 
+pragma ComponentBehavior: Bound
+
 GridLayout {
     id: trayRoot
 
@@ -63,7 +65,7 @@ GridLayout {
         required property var modelData
         property bool isPinnedSlot: false
 
-        visible: !!modelData && (isPinnedSlot ? isPinned(modelData.id) : !isPinned(modelData.id))
+        visible: !!iconDelegate.modelData && (iconDelegate.isPinnedSlot ? trayRoot.isPinned(iconDelegate.modelData.id) : !trayRoot.isPinned(iconDelegate.modelData.id))
         Layout.preferredWidth: visible ? 28 : 0
         Layout.preferredHeight: visible ? 28 : 0
         radius: 6
@@ -86,7 +88,7 @@ GridLayout {
             anchors.centerIn: parent
             width: 18
             height: 18
-            source: modelData ? modelData.icon : ""
+            source: iconDelegate.modelData ? iconDelegate.modelData.icon : ""
         }
 
         HoverHandler {
@@ -96,24 +98,24 @@ GridLayout {
         TapHandler {
             acceptedButtons: Qt.LeftButton
             onTapped: {
-                if (modelData && modelData.activate)
-                    modelData.activate();
+                if (iconDelegate.modelData && iconDelegate.modelData.activate)
+                    iconDelegate.modelData.activate();
             }
         }
 
         TapHandler {
             acceptedButtons: Qt.RightButton
             onTapped: eventPoint => {
-                if (modelData)
-                    trayRoot.showContextMenu(modelData, iconDelegate, eventPoint);
+                if (iconDelegate.modelData)
+                    trayRoot.showContextMenu(iconDelegate.modelData, iconDelegate, eventPoint);
             }
         }
 
         TapHandler {
             acceptedButtons: Qt.MiddleButton
             onTapped: {
-                if (modelData && modelData.secondaryActivate)
-                    modelData.secondaryActivate();
+                if (iconDelegate.modelData && iconDelegate.modelData.secondaryActivate)
+                    iconDelegate.modelData.secondaryActivate();
             }
         }
 
@@ -123,16 +125,16 @@ GridLayout {
             target: null
 
             onActiveChanged: {
-                if (active || !modelData)
+                if (dragHandler.active || !iconDelegate.modelData)
                     return;
                 if (iconDelegate.isPinnedSlot) {
                     const overshoot = trayRoot.vertical ? dragHandler.centroid.position.y > pinnedLayout.height + 40 : dragHandler.centroid.position.x > pinnedLayout.width + 40;
                     if (overshoot)
-                        unpinItem(modelData.id);
+                        trayRoot.unpinItem(iconDelegate.modelData.id);
                 } else {
                     const overshoot = trayRoot.vertical ? dragHandler.centroid.position.y < 0 : dragHandler.centroid.position.x < 0;
                     if (overshoot)
-                        pinItem(modelData.id);
+                        trayRoot.pinItem(iconDelegate.modelData.id);
                 }
             }
         }
