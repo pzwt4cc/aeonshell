@@ -15,6 +15,8 @@ Scope {
 
     property string currentSection: _normalizeSection(ShellState.settingsSection)
     property bool confirmReset: false
+    property bool editingWpDir: false
+    property var targetScreen: _resolveActiveScreen()
 
     function _normalizeSection(sec) {
         if (sec === "launcher" || sec === "behavior" || sec === "about" || sec === "panel")
@@ -26,12 +28,7 @@ Scope {
         return "panel";
     }
 
-    function _close() {
-        root.confirmReset = false;
-        ShellState.settingsWindowOpen = false;
-    }
-
-    readonly property var activeScreen: {
+    function _resolveActiveScreen() {
         const mon = Hyprland.focusedMonitor;
         if (mon) {
             const screens = Quickshell.screens;
@@ -41,6 +38,17 @@ Scope {
             }
         }
         return Quickshell.screens.length > 0 ? Quickshell.screens[0] : null;
+    }
+
+    function _close() {
+        root.confirmReset = false;
+        root.editingWpDir = false;
+        ShellState.settingsWindowOpen = false;
+    }
+
+    onCurrentSectionChanged: {
+        root.confirmReset = false;
+        root.editingWpDir = false;
     }
 
     Timer {
@@ -53,7 +61,9 @@ Scope {
         function onSettingsWindowOpenChanged() {
             if (ShellState.settingsWindowOpen) {
                 hideTimer.stop();
+                root.targetScreen = root._resolveActiveScreen();
                 root.confirmReset = false;
+                root.editingWpDir = false;
                 root.currentSection = root._normalizeSection(ShellState.settingsSection);
             } else {
                 hideTimer.start();
@@ -75,7 +85,7 @@ Scope {
             property bool _animReady: false
             readonly property bool visualOpen: ShellState.settingsWindowOpen && overlay._animReady
 
-            screen: root.activeScreen
+            screen: root.targetScreen
             anchors {
                 top: true
                 bottom: true
@@ -98,7 +108,12 @@ Scope {
             Shortcut {
                 sequence: "Escape"
                 enabled: ShellState.settingsWindowOpen
-                onActivated: root._close()
+                onActivated: {
+                    if (root.editingWpDir)
+                        root.editingWpDir = false;
+                    else
+                        root._close();
+                }
             }
 
             Rectangle {
@@ -112,8 +127,10 @@ Scope {
                     }
                 }
 
-                TapHandler {
-                    onTapped: root._close()
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: root._close()
                 }
             }
 
@@ -123,12 +140,12 @@ Scope {
                 width: Math.min(660, parent.width - 48)
                 height: Math.min(520, parent.height - 48)
 
-                scale: overlay.visualOpen ? 1.0 : 0.93
+                scale: overlay.visualOpen ? 1.0 : 0.96
                 opacity: overlay.visualOpen ? 1.0 : 0.0
 
                 Behavior on scale {
                     NumberAnimation {
-                        duration: 210
+                        duration: 200
                         easing.type: Easing.OutCubic
                     }
                 }
@@ -158,8 +175,13 @@ Scope {
                     border.width: 1
                     clip: true
 
-                    TapHandler {
-                        onTapped: {}
+                    // Absorb all clicks inside the settings card so backdrop never closes on inner interaction
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.AllButtons
+                        hoverEnabled: true
+                        onPressed: mouse => mouse.accepted = true
+                        onClicked: mouse => mouse.accepted = true
                     }
 
                     ColumnLayout {
@@ -208,25 +230,26 @@ Scope {
                                 Layout.preferredWidth: 32
                                 Layout.preferredHeight: 32
                                 radius: 10
-                                color: closeHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.1) : "transparent"
+                                color: closeMa.containsMouse ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.1) : "transparent"
                                 Behavior on color {
                                     ColorAnimation {
                                         duration: 120
                                     }
                                 }
 
-                                HoverHandler {
-                                    id: closeHover
-                                }
                                 Text {
                                     anchors.centerIn: parent
                                     text: "󰅖"
                                     font.pixelSize: 14
                                     color: Colors.surfaceText
-                                    opacity: closeHover.hovered ? 1.0 : 0.65
+                                    opacity: closeMa.containsMouse ? 1.0 : 0.65
                                 }
-                                TapHandler {
-                                    onTapped: root._close()
+                                MouseArea {
+                                    id: closeMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root._close()
                                 }
                             }
                         }
@@ -448,7 +471,6 @@ Scope {
             contentHeight: launcherCol.implicitHeight
             boundsBehavior: Flickable.StopAtBounds
 
-            property bool editingWpDir: false
             readonly property int hiddenCount: AppSettings.launcherHiddenApps.length ? AppSettings.launcherHiddenApps.split(",").filter(Boolean).length : 0
 
             ColumnLayout {
@@ -504,11 +526,11 @@ Scope {
                         }
 
                         ActionPill {
-                            label: launcherFlick.editingWpDir ? "Cancel" : "Edit"
-                            icon: launcherFlick.editingWpDir ? "󰅖" : "󰏫"
+                            label: root.editingWpDir ? "Cancel" : "Edit"
+                            icon: root.editingWpDir ? "󰅖" : "󰏫"
                             onClicked: {
-                                launcherFlick.editingWpDir = !launcherFlick.editingWpDir;
-                                if (launcherFlick.editingWpDir) {
+                                root.editingWpDir = !root.editingWpDir;
+                                if (root.editingWpDir) {
                                     wpDirField.text = AppSettings.wallpaperDir;
                                     Qt.callLater(() => wpDirField.forceActiveFocus());
                                 }
@@ -520,14 +542,14 @@ Scope {
                             visible: AppSettings.wallpaperDir !== AppSettings.defaultWallpaperDir
                             onClicked: {
                                 AppSettings.wallpaperDir = AppSettings.defaultWallpaperDir;
-                                launcherFlick.editingWpDir = false;
+                                root.editingWpDir = false;
                             }
                         }
                     }
 
                     RowLayout {
                         Layout.fillWidth: true
-                        visible: launcherFlick.editingWpDir
+                        visible: root.editingWpDir
                         spacing: 8
 
                         Rectangle {
@@ -550,11 +572,15 @@ Scope {
                                 selectByMouse: true
                                 placeholderText: "~/Pictures/Wallpapers"
                                 placeholderTextColor: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
+                                Keys.onEscapePressed: event => {
+                                    root.editingWpDir = false;
+                                    event.accepted = true;
+                                }
                                 onAccepted: {
                                     const t = text.trim();
                                     if (t.length > 0)
                                         AppSettings.wallpaperDir = t;
-                                    launcherFlick.editingWpDir = false;
+                                    root.editingWpDir = false;
                                 }
                             }
                         }
@@ -567,7 +593,7 @@ Scope {
                                 const t = wpDirField.text.trim();
                                 if (t.length > 0)
                                     AppSettings.wallpaperDir = t;
-                                launcherFlick.editingWpDir = false;
+                                root.editingWpDir = false;
                             }
                         }
                     }
@@ -1005,8 +1031,10 @@ Scope {
                 }
             }
 
-            TapHandler {
-                onTapped: swRow.toggled()
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: swRow.toggled()
             }
         }
     }
@@ -1021,17 +1049,13 @@ Scope {
         Layout.fillWidth: true
         Layout.fillHeight: true
         radius: 9
-        color: tabRoot.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18) : (tabHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06) : "transparent")
+        color: tabRoot.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18) : (tabMa.containsMouse ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06) : "transparent")
         border.color: tabRoot.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35) : "transparent"
         border.width: 1
         Behavior on color {
             ColorAnimation {
                 duration: 120
             }
-        }
-
-        HoverHandler {
-            id: tabHover
         }
 
         RowLayout {
@@ -1050,8 +1074,12 @@ Scope {
             }
         }
 
-        TapHandler {
-            onTapped: tabRoot.clicked()
+        MouseArea {
+            id: tabMa
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: tabRoot.clicked()
         }
     }
 
@@ -1065,17 +1093,13 @@ Scope {
         Layout.fillWidth: true
         Layout.preferredHeight: 68
         radius: 12
-        color: pChip.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16) : (pHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.03))
+        color: pChip.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16) : (pMa.containsMouse ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.03))
         border.color: pChip.selected ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.1)
         border.width: pChip.selected ? 1.5 : 1
         Behavior on color {
             ColorAnimation {
                 duration: 120
             }
-        }
-
-        HoverHandler {
-            id: pHover
         }
 
         ColumnLayout {
@@ -1115,8 +1139,12 @@ Scope {
             }
         }
 
-        TapHandler {
-            onTapped: pChip.clicked()
+        MouseArea {
+            id: pMa
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: pChip.clicked()
         }
     }
 
@@ -1130,17 +1158,13 @@ Scope {
         Layout.fillWidth: true
         Layout.preferredHeight: 46
         radius: 11
-        color: mChip.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16) : (mHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.03))
+        color: mChip.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16) : (mMa.containsMouse ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.03))
         border.color: mChip.selected ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.1)
         border.width: mChip.selected ? 1.5 : 1
         Behavior on color {
             ColorAnimation {
                 duration: 120
             }
-        }
-
-        HoverHandler {
-            id: mHover
         }
 
         RowLayout {
@@ -1159,8 +1183,12 @@ Scope {
             }
         }
 
-        TapHandler {
-            onTapped: mChip.clicked()
+        MouseArea {
+            id: mMa
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: mChip.clicked()
         }
     }
 
@@ -1174,17 +1202,13 @@ Scope {
         implicitWidth: pillRow.implicitWidth + 20
         Layout.preferredHeight: 30
         radius: 9
-        color: actPill.accent ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, actHover.hovered ? 0.28 : 0.18) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, actHover.hovered ? 0.12 : 0.07)
+        color: actPill.accent ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, actMa.containsMouse ? 0.28 : 0.18) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, actMa.containsMouse ? 0.12 : 0.07)
         border.color: actPill.accent ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.45) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.12)
         border.width: 1
         Behavior on color {
             ColorAnimation {
                 duration: 120
             }
-        }
-
-        HoverHandler {
-            id: actHover
         }
 
         RowLayout {
@@ -1205,8 +1229,12 @@ Scope {
             }
         }
 
-        TapHandler {
-            onTapped: actPill.clicked()
+        MouseArea {
+            id: actMa
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: actPill.clicked()
         }
     }
 
