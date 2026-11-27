@@ -6,16 +6,11 @@ singleton ShellState 1.0 core/ShellState.qml
 singleton NotificationService 1.0 core/NotificationService.qml
 singleton MprisService 1.0 core/MprisService.qml
 singleton MpvFullscreenWatcher 1.0 core/MpvFullscreenWatcher.qml
-singleton BluetoothService 1.0 core/BluetoothService.qml
-singleton NetworkService 1.0 core/NetworkService.qml
 
 Bar 1.0 bar/Bar.qml
 Workspaces 1.0 bar/Workspaces.qml
 Clock 1.0 bar/Clock.qml
 Tray 1.0 bar/Tray.qml
-MetricPill 1.0 bar/MetricPill.qml
-GpuStat 1.0 bar/GpuStat.qml
-SysInfo 1.0 bar/SysInfo.qml
 Separator 1.0 bar/Separator.qml
 SettingsButton 1.0 bar/SettingsButton.qml
 
@@ -34,11 +29,8 @@ NotificationToasts 1.0 notifications/NotificationToasts.qml
 ToastCard 1.0 notifications/ToastCard.qml
 
 Player 1.0 media/Player.qml
-Audio 1.0 media/Audio.qml
 VolumeOSD 1.0 media/VolumeOSD.qml
 
-Bluetooth 1.0 system/Bluetooth.qml
-Network 1.0 system/Network.qml
 PowerButton 1.0 system/PowerButton.qml
 PowerMenuAction 1.0 system/PowerMenuAction.qml
 
