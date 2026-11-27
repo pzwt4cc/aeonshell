@@ -97,7 +97,7 @@ yay -S --needed \
 
 ## Set up
 
-1. Edit `~/.config/hypr/conf/local.lua` for your machine (monitors, autostart entries, window rules — comments inside explain each part).
+1. Adjust `~/.config/hypr/conf/` (`monitor.lua`, `keyboard.lua`, `autostart.lua`, `windowrules.lua`) for your machine if needed.
 2. Drop a few images or videos into `~/Pictures/Wallpapers` — it's created automatically on first launch if it doesn't exist.
 3. Open the **app launcher**, type `>` to enter command mode, then `wallpaper` to browse and apply one. Quickshell generates the palette directly and saves it to `~/.cache/aeonshell/colors.json`.
 4. Set your avatar and weather city from aeonshell's popups/settings (optional) — saved to `~/.config/aeonshell/avatar.png` and `~/.config/aeonshell/weather_city.conf` respectively.
@@ -200,7 +200,7 @@ yay -S --needed \
 
 ## Настройка
 
-1. Отредактируй `~/.config/hypr/conf/local.lua` под себя (мониторы, автозапуск, правила окон — внутри есть комментарии).
+1. При необходимости подстрой под себя файлы в `~/.config/hypr/conf/` (`monitor.lua`, `keyboard.lua`, `autostart.lua`, `windowrules.lua`).
 2. Скинь несколько изображений или видео в `~/Pictures/Wallpapers` — при первом запуске папка создаётся автоматически, если её нет.
 3. Открой **лаунчер приложений**, набери `>`, чтобы войти в командный режим, затем `wallpaper` — выбери и примени обои. Quickshell сам сгенерирует палитру и сохранит её в `~/.cache/aeonshell/colors.json`.
 4. Задай аватар и город для погоды в интерфейсе aeonshell (по желанию) — они сохраняются в `~/.config/aeonshell/avatar.png` и `~/.config/aeonshell/weather_city.conf`.
