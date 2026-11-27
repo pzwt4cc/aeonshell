@@ -3,20 +3,27 @@
 import "../"
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 
 GridLayout {
     id: root
-    
+
     property bool vertical: false
     property bool rightSide: true
     property bool hovered: false
-    property color accentColor: "#ffffff"
+    property bool showSeconds: false
     property color defaultColor: "#ffffff"
-    property string timeStr: ""
-    property string dateStr: ""
-    property string timeSecStr: ""
 
     readonly property int rotationAngle: root.rightSide ? 90 : -90
+
+    SystemClock {
+        id: sysClock
+        precision: root.showSeconds ? SystemClock.Seconds : SystemClock.Minutes
+    }
+
+    readonly property string timeStr: Qt.formatDateTime(sysClock.date, "hh:mm")
+    readonly property string dateStr: Qt.formatDateTime(sysClock.date, root.vertical ? "ddd, d MMM" : "dddd, MMM d")
+    readonly property string timeSecStr: root.showSeconds ? Qt.formatDateTime(sysClock.date, "hh:mm:ss") : ""
 
     Layout.alignment: root.vertical ? Qt.AlignHCenter : Qt.AlignVCenter
 
@@ -24,8 +31,6 @@ GridLayout {
     columns: root.vertical ? 1 : -1
     rowSpacing: 10
     columnSpacing: 10
-
-    onVerticalChanged: root.update()
 
     component RotatedLabel: Item {
         id: wrap
@@ -43,7 +48,11 @@ GridLayout {
             font.pixelSize: 14
             font.bold: true
             rotation: root.vertical ? root.rotationAngle : 0
-            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on color {
+                ColorAnimation {
+                    duration: 150
+                }
+            }
         }
     }
 
@@ -68,20 +77,5 @@ GridLayout {
         textColor: root.hovered ? "#ffb4ab" : root.defaultColor
         Layout.row: root.vertical ? root.dateRow : 0
         Layout.column: root.vertical ? 0 : 2
-    }
-
-    function update() {
-        const now = new Date();
-        root.timeStr = Qt.formatDateTime(now, "hh:mm");
-        root.dateStr = Qt.formatDateTime(now, root.vertical ? "ddd, d MMM" : "dddd, MMM d");
-        root.timeSecStr = Qt.formatDateTime(now, "hh:mm:ss");
-    }
-
-    Timer {
-        interval: 1000
-        running: true
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: root.update()
     }
 }

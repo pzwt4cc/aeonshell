@@ -4,6 +4,11 @@ import QtQuick
 import "./modules"
 
 ShellRoot {
+    readonly property bool launcherOnly: Quickshell.env("AEONSHELL_LAUNCHER_ONLY") === "1"
+
+    // Keep fullscreen/watchdog active even while Launcher is lazy-unloaded
+    readonly property var _mpvWatcherKeepAlive: launcherOnly ? null : MpvFullscreenWatcher
+
     FontLoader {
         id: materialSymbols
         source: "./assets/MaterialSymbolsRounded.ttf"
@@ -11,50 +16,45 @@ ShellRoot {
 
     LazyLoader {
         id: barLoader
-        active: true
-        onItemChanged: if (item) console.log("[shell] Bar: ok")
+        active: !launcherOnly
         Bar {}
     }
 
     LazyLoader {
         id: notificationToastsLoader
-        active: true
-        onItemChanged: if (item) console.log("[shell] NotificationToasts: ok")
+        active: !launcherOnly && NotificationService.active.length > 0
         NotificationToasts {}
     }
 
     LazyLoader {
         id: launcherLoader
         active: true
-        onItemChanged: if (item) console.log("[shell] Launcher: ok")
-        Launcher {}
+        Launcher {
+            open: launcherOnly
+        }
     }
 
     LazyLoader {
         id: screenshotLoader
-        active: true
-        onItemChanged: if (item) console.log("[shell] Screenshot: ok")
+        active: !launcherOnly
         Screenshot {}
     }
 
     LazyLoader {
         id: clipboardLoader
-        active: true
-        onItemChanged: if (item) console.log("[shell] Clipboard: ok")
+        active: !launcherOnly
         Clipboard {}
     }
 
     LazyLoader {
         id: settingsWindowLoader
-        active: true
-        onItemChanged: if (item) console.log("[shell] SettingsWindow: ok")
+        active: !launcherOnly && ShellState.settingsWindowOpen
         SettingsWindow {}
     }
 
     LazyLoader {
         id: volumeOsdLoader
-        active: true
-        onItemChanged: if (item) console.log("[shell] VolumeOSD: ok")
+        active: !launcherOnly
         VolumeOSD {}
     }
 }

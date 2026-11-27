@@ -3,7 +3,7 @@
 import "../"
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Io
+import Quickshell
 
 Item {
     id: root
@@ -130,13 +130,9 @@ Item {
     TapHandler {
         id: tap
         onTapped: {
-            proc.running = true;
+            if (root.command && root.command.length > 0)
+                Quickshell.execDetached(root.command);
             root.activated();
         }
-    }
-
-    Process {
-        id: proc
-        command: root.command
     }
 }

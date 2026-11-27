@@ -4,9 +4,9 @@ import "../"
 import Quickshell
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Io
+import QtQuick.Effects
 import Quickshell.Wayland
-import Qt5Compat.GraphicalEffects
+import Quickshell.Hyprland
 
 Scope {
     id: root
@@ -14,48 +14,68 @@ Scope {
     readonly property string barMode: "primary"
 
     property bool specialActive: false
+    readonly property var _hyKeepAlive: Hyprland.monitors
 
-    Process {
-        id: specialWatcher
-        running: true
-        command: [
-            "bash", "-c",
-            "get_state() { hyprctl monitors -j 2>/dev/null | tr -d '\\n'; echo; }; " +
-            "get_state; " +
-            "stdbuf -oL socat -U - UNIX-CONNECT:$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock 2>/dev/null | " +
-            "stdbuf -oL grep --line-buffered -E 'activespecial>>' | " +
-            "while read -r line; do get_state; done"
-        ]
-        stdout: SplitParser {
-            onRead: text => {
-                const clean = text.trim();
-                if (!clean) return;
-                try {
-                    const monitorsArr = JSON.parse(clean);
-                    let hasActiveSpecial = false;
-                    for (let i = 0; i < monitorsArr.length; i++) {
-                        if (monitorsArr[i].specialWorkspace && monitorsArr[i].specialWorkspace.id !== 0) {
-                            hasActiveSpecial = true;
-                            break;
-                        }
-                    }
-                    root.specialActive = hasActiveSpecial;
-                } catch (err) { }
+    function syncSpecialState() {
+        let hasActiveSpecial = false;
+        const mons = Hyprland.monitors.values;
+        for (let i = 0; i < mons.length; i++) {
+            const m = mons[i];
+            const sw = m && m.lastIpcObject ? m.lastIpcObject.specialWorkspace : null;
+            if (sw && ((sw.id !== undefined && sw.id !== 0) || (sw.name || "") !== "")) {
+                hasActiveSpecial = true;
+                break;
+            }
+        }
+        root.specialActive = hasActiveSpecial;
+    }
+
+    Timer {
+        id: specialDebounce
+        interval: 25
+        onTriggered: root.syncSpecialState()
+    }
+
+    Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            const n = event.name;
+            if (n === "activespecial" || n === "activespecialv2" || n === "focusedmon" || n === "focusedmonv2" || n === "monitoradded" || n === "monitorremoved") {
+                Hyprland.refreshMonitors();
+                specialDebounce.restart();
             }
         }
     }
 
+    Component.onCompleted: {
+        Hyprland.refreshMonitors();
+        syncSpecialState();
+    }
+
     function shouldShow(screen) {
-        if (barMode === "all") return true;
+        if (barMode === "all")
+            return true;
         if (barMode === "primary") {
-            if (screen.isPrimary) return true;
+            if (screen.isPrimary)
+                return true;
             const screens = Quickshell.screens;
             for (let i = 0; i < screens.length; i++) {
-                if (screens[i].x === 0 && screens[i].y === 0) return screen === screens[i];
+                if (screens[i].x === 0 && screens[i].y === 0)
+                    return screen === screens[i];
             }
             return screen === screens[0];
         }
         return screen.name === barMode;
+    }
+
+    readonly property var activeScreens: {
+        const out = [];
+        const screens = Quickshell.screens;
+        for (let i = 0; i < screens.length; i++) {
+            if (shouldShow(screens[i]))
+                out.push(screens[i]);
+        }
+        return out;
     }
 
     readonly property string barPosition: AppSettings.barPosition
@@ -64,30 +84,27 @@ Scope {
     readonly property bool atRight: barPosition === "right"
 
     readonly property int barMargin: AppSettings.edgeToEdge ? 0 : 8
-
     readonly property int popupShadowMargin: 14
 
     function popupMainAxis(win, barWin) {
+        if (!win)
+            return 0;
         if (root.vertical) {
-            return root.atRight
-                ? -win.implicitWidth - 6 + root.popupShadowMargin
-                : barWin.width + 6 - root.popupShadowMargin;
+            return root.atRight ? -win.implicitWidth - 6 + root.popupShadowMargin : barWin.width + 6 - root.popupShadowMargin;
         }
-        return root.atBottom
-            ? -win.implicitHeight - 6 + root.popupShadowMargin
-            : barWin.height + 6 - root.popupShadowMargin;
+        return root.atBottom ? -win.implicitHeight - 6 + root.popupShadowMargin : barWin.height + 6 - root.popupShadowMargin;
     }
 
     Variants {
-        model: Quickshell.screens
+        model: root.activeScreens
 
         PanelWindow {
             id: barWindow
             required property var modelData
             screen: modelData
 
-            visible: root.shouldShow(modelData)
-            exclusiveZone: visible ? (48 + root.barMargin) : 0
+            visible: true
+            exclusiveZone: 48 + root.barMargin
 
             anchors {
                 top: root.vertical ? true : !root.atBottom
@@ -103,16 +120,89 @@ Scope {
             implicitHeight: 48
             color: "transparent"
             WlrLayershell.layer: root.specialActive ? WlrLayer.Overlay : WlrLayer.Top
-            WlrLayershell.keyboardFocus: (controlCenter.open && controlCenter.pendingSsid !== "")
-                ? WlrKeyboardFocus.OnDemand
-                : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: (barWindow.controlOpen && controlCenterLoader.item && controlCenterLoader.item.pendingSsid !== "") ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
-            function closeOtherPopups(except) {
-                if (profilePopup !== except) profilePopup.open = false
-                if (powerMenu !== except) powerMenu.open = false
-                if (controlCenter !== except) controlCenter.open = false
-                if (notificationCenter !== except) notificationCenter.open = false
-                if (centerPopup !== except) centerPopup.open = false
+            property bool profileOpen: false
+            property bool powerOpen: false
+            property bool controlOpen: false
+            property bool centerOpen: false
+            property bool notifOpen: false
+
+            onProfileOpenChanged: {
+                if (!profileOpen)
+                    profileLinger.restart();
+                else
+                    profileLinger.stop();
+                if (profileLoader.item)
+                    profileLoader.item.open = profileOpen;
+            }
+            onPowerOpenChanged: {
+                if (!powerOpen)
+                    powerLinger.restart();
+                else
+                    powerLinger.stop();
+                if (powerLoader.item)
+                    powerLoader.item.open = powerOpen;
+            }
+            onControlOpenChanged: {
+                if (!controlOpen)
+                    controlLinger.restart();
+                else
+                    controlLinger.stop();
+                if (controlCenterLoader.item)
+                    controlCenterLoader.item.open = controlOpen;
+            }
+            onCenterOpenChanged: {
+                if (!centerOpen)
+                    centerLinger.restart();
+                else
+                    centerLinger.stop();
+                if (centerPopupLoader.item)
+                    centerPopupLoader.item.open = centerOpen;
+            }
+            onNotifOpenChanged: {
+                if (!notifOpen) {
+                    notifLinger.restart();
+                } else {
+                    notifLinger.stop();
+                    NotificationService.markAllRead();
+                }
+                if (notifLoader.item)
+                    notifLoader.item.open = notifOpen;
+            }
+
+            Timer {
+                id: profileLinger
+                interval: 220
+            }
+            Timer {
+                id: powerLinger
+                interval: 220
+            }
+            Timer {
+                id: controlLinger
+                interval: 280
+            }
+            Timer {
+                id: centerLinger
+                interval: 220
+            }
+            Timer {
+                id: notifLinger
+                interval: 220
+            }
+
+            function closeOtherPopups(exceptName) {
+                if (exceptName !== "profile")
+                    barWindow.profileOpen = false;
+                if (exceptName !== "power")
+                    barWindow.powerOpen = false;
+                if (exceptName !== "control")
+                    barWindow.controlOpen = false;
+                if (exceptName !== "notif")
+                    barWindow.notifOpen = false;
+                if (exceptName !== "center")
+                    barWindow.centerOpen = false;
             }
 
             Rectangle {
@@ -146,10 +236,16 @@ Scope {
                             Layout.preferredWidth: 32
                             Layout.preferredHeight: 32
                             radius: 8
-                            color: archHover.hovered || profilePopup.open ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.12) : "transparent"
-                            Behavior on color { ColorAnimation { duration: 120 } }
+                            color: archHover.hovered || barWindow.profileOpen ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.12) : "transparent"
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: 120
+                                }
+                            }
 
-                            HoverHandler { id: archHover }
+                            HoverHandler {
+                                id: archHover
+                            }
 
                             Item {
                                 anchors.centerIn: parent
@@ -164,26 +260,35 @@ Scope {
                                     smooth: true
                                     visible: false
                                 }
-                                ColorOverlay {
+                                MultiEffect {
                                     anchors.fill: archLogoImg
                                     source: archLogoImg
-                                    color: archHover.hovered || profilePopup.open ? Colors.surfaceText : Colors.primary
-                                    Behavior on color { ColorAnimation { duration: 120 } }
+                                    colorization: 1.0
+                                    colorizationColor: archHover.hovered || barWindow.profileOpen ? Colors.surfaceText : Colors.primary
+                                    Behavior on colorizationColor {
+                                        ColorAnimation {
+                                            duration: 120
+                                        }
+                                    }
                                 }
                             }
 
                             TapHandler {
                                 onTapped: {
-                                    const willOpen = !profilePopup.open
-                                    barWindow.closeOtherPopups(profilePopup)
-                                    profilePopup.open = willOpen
+                                    const willOpen = !barWindow.profileOpen;
+                                    barWindow.closeOtherPopups("profile");
+                                    barWindow.profileOpen = willOpen;
                                 }
                             }
                         }
 
-                        Separator { barVertical: root.vertical }
+                        Separator {
+                            barVertical: root.vertical
+                        }
 
-                        Workspaces { vertical: root.vertical }
+                        Workspaces {
+                            vertical: root.vertical
+                        }
                     }
 
                     Rectangle {
@@ -194,9 +299,24 @@ Scope {
                         implicitHeight: root.vertical ? (centerLayout.implicitHeight + 24) : 32
                         radius: 8
                         color: centerHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.12) : "transparent"
-                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: 150
+                            }
+                        }
 
-                        HoverHandler { id: centerHover }
+                        HoverHandler {
+                            id: centerHover
+                            onHoveredChanged: {
+                                if (hovered) {
+                                    popupHoverDelay.stop();
+                                    barWindow.closeOtherPopups("center");
+                                    barWindow.centerOpen = true;
+                                } else {
+                                    popupHoverDelay.start();
+                                }
+                            }
+                        }
 
                         GridLayout {
                             id: centerLayout
@@ -227,6 +347,7 @@ Scope {
                                 id: mainClock
                                 vertical: root.vertical
                                 rightSide: root.atRight
+                                showSeconds: barWindow.centerOpen
                                 Layout.row: root.vertical ? (root.atRight ? 0 : 2) : 0
                                 Layout.column: root.vertical ? 0 : 0
                             }
@@ -242,7 +363,11 @@ Scope {
                         rowSpacing: 6
                         columnSpacing: 6
 
-                        Tray { anchorWindow: barWindow; vertical: root.vertical; visible: AppSettings.barShowTray }
+                        Tray {
+                            anchorWindow: barWindow
+                            vertical: root.vertical
+                            visible: AppSettings.barShowTray
+                        }
 
                         Separator {
                             barVertical: root.vertical
@@ -253,129 +378,120 @@ Scope {
                         }
                         Notifications {
                             onToggleCenter: {
-                                const willOpen = !notificationCenter.open
-                                barWindow.closeOtherPopups(notificationCenter)
-                                notificationCenter.open = willOpen
+                                const willOpen = !barWindow.notifOpen;
+                                barWindow.closeOtherPopups("notif");
+                                barWindow.notifOpen = willOpen;
                             }
                         }
                         SettingsButton {
                             id: settingsBtn
-                            active: controlCenter.open
+                            active: barWindow.controlOpen
                             onClicked: {
-                                const willOpen = !controlCenter.open
-                                barWindow.closeOtherPopups(controlCenter)
-                                controlCenter.open = willOpen
+                                const willOpen = !barWindow.controlOpen;
+                                barWindow.closeOtherPopups("control");
+                                barWindow.controlOpen = willOpen;
                             }
                         }
                         PowerButton {
                             id: powerBtn
                             onClicked: {
-                                const willOpen = !powerMenu.open
-                                barWindow.closeOtherPopups(powerMenu)
-                                powerMenu.open = willOpen
+                                const willOpen = !barWindow.powerOpen;
+                                barWindow.closeOtherPopups("power");
+                                barWindow.powerOpen = willOpen;
                             }
                         }
                     }
                 }
             }
 
-            ProfilePopup {
-                id: profilePopup
-                anchor.window: barWindow
-                anchor.rect.x: root.vertical
-                    ? root.popupMainAxis(profilePopup, barWindow)
-                    : (12 - profilePopup.shadowMargin)
-                anchor.rect.y: root.vertical
-                    ? (12 - profilePopup.shadowMargin)
-                    : root.popupMainAxis(profilePopup, barWindow)
+            LazyLoader {
+                id: profileLoader
+                active: barWindow.profileOpen || profileLinger.running
+                ProfilePopup {
+                    open: barWindow.profileOpen
+                    onOpenChanged: if (open !== barWindow.profileOpen)
+                        barWindow.profileOpen = open
+                    anchor.window: barWindow
+                    anchor.rect.x: root.vertical ? root.popupMainAxis(this, barWindow) : (12 - shadowMargin)
+                    anchor.rect.y: root.vertical ? (12 - shadowMargin) : root.popupMainAxis(this, barWindow)
+                }
             }
 
-            PowerMenu {
-                id: powerMenu
-                anchor.window: barWindow
-                anchor.rect.x: root.vertical
-                    ? root.popupMainAxis(powerMenu, barWindow)
-                    : (barWindow.width - implicitWidth - 12)
-                anchor.rect.y: root.vertical
-                    ? (barWindow.height - implicitHeight - 12)
-                    : root.popupMainAxis(powerMenu, barWindow)
+            LazyLoader {
+                id: powerLoader
+                active: barWindow.powerOpen || powerLinger.running
+                PowerMenu {
+                    open: barWindow.powerOpen
+                    onOpenChanged: if (open !== barWindow.powerOpen)
+                        barWindow.powerOpen = open
+                    anchor.window: barWindow
+                    anchor.rect.x: root.vertical ? root.popupMainAxis(this, barWindow) : (barWindow.width - implicitWidth - 12)
+                    anchor.rect.y: root.vertical ? (barWindow.height - implicitHeight - 12) : root.popupMainAxis(this, barWindow)
+                }
             }
 
-            ControlCenter {
-                id: controlCenter
-                anchor.window: barWindow
-                anchor.rect.x: root.vertical
-                    ? root.popupMainAxis(controlCenter, barWindow)
-                    : (barWindow.width - implicitWidth - 12)
-                anchor.rect.y: root.vertical
-                    ? (barWindow.height - implicitHeight - 12)
-                    : root.popupMainAxis(controlCenter, barWindow)
+            LazyLoader {
+                id: controlCenterLoader
+                active: barWindow.controlOpen || controlLinger.running
+                ControlCenter {
+                    open: barWindow.controlOpen
+                    onOpenChanged: if (open !== barWindow.controlOpen)
+                        barWindow.controlOpen = open
+                    anchor.window: barWindow
+                    anchor.rect.x: root.vertical ? root.popupMainAxis(this, barWindow) : (barWindow.width - implicitWidth - 12)
+                    anchor.rect.y: root.vertical ? (barWindow.height - implicitHeight - 12) : root.popupMainAxis(this, barWindow)
+                }
             }
 
-            CenterPopup {
-                id: centerPopup
-                anchor.window: barWindow
-                anchor.rect.x: root.vertical
-                    ? root.popupMainAxis(centerPopup, barWindow)
-                    : (barWindow.width / 2 - implicitWidth / 2)
-                anchor.rect.y: root.vertical
-                    ? (barWindow.height / 2 - implicitHeight / 2)
-                    : root.popupMainAxis(centerPopup, barWindow)
-                timeText: mainClock.timeSecStr
+            LazyLoader {
+                id: centerPopupLoader
+                active: barWindow.centerOpen || centerLinger.running
+                CenterPopup {
+                    open: barWindow.centerOpen
+                    onOpenChanged: if (open !== barWindow.centerOpen)
+                        barWindow.centerOpen = open
+                    onIsHoveredChanged: {
+                        if (isHovered) {
+                            popupHoverDelay.stop();
+                            barWindow.closeOtherPopups("center");
+                            barWindow.centerOpen = true;
+                        } else {
+                            popupHoverDelay.start();
+                        }
+                    }
+                    anchor.window: barWindow
+                    anchor.rect.x: root.vertical ? root.popupMainAxis(this, barWindow) : (barWindow.width / 2 - implicitWidth / 2)
+                    anchor.rect.y: root.vertical ? (barWindow.height / 2 - implicitHeight / 2) : root.popupMainAxis(this, barWindow)
+                    timeText: mainClock.timeSecStr
+                }
             }
 
-            NotificationCenter {
-                id: notificationCenter
-                anchor.window: barWindow
-                anchor.rect.x: root.vertical
-                    ? root.popupMainAxis(notificationCenter, barWindow)
-                    : (barWindow.width - implicitWidth - 12)
-                anchor.rect.y: root.vertical
-                    ? (barWindow.height - implicitHeight - 12)
-                    : root.popupMainAxis(notificationCenter, barWindow)
+            LazyLoader {
+                id: notifLoader
+                active: barWindow.notifOpen || notifLinger.running
+                NotificationCenter {
+                    open: barWindow.notifOpen
+                    onOpenChanged: if (open !== barWindow.notifOpen)
+                        barWindow.notifOpen = open
+                    anchor.window: barWindow
+                    anchor.rect.x: root.vertical ? root.popupMainAxis(this, barWindow) : (barWindow.width - implicitWidth - 12)
+                    anchor.rect.y: root.vertical ? (barWindow.height - implicitHeight - 12) : root.popupMainAxis(this, barWindow)
+                }
             }
 
             Timer {
                 id: profileHoverDelay
                 interval: 400
-                running: profilePopup.open && !archHover.hovered && !profilePopup.isHovered
-                onTriggered: {
-                    profilePopup.open = false;
-                }
+                running: barWindow.profileOpen && !archHover.hovered && !(profileLoader.item && (profileLoader.item.isHovered || profileLoader.item.keepOpen))
+                onTriggered: barWindow.profileOpen = false
             }
 
             Timer {
                 id: popupHoverDelay
                 interval: 200
                 onTriggered: {
-                    if (!centerHover.hovered && !centerPopup.isHovered) {
-                        centerPopup.open = false;
-                    }
-                }
-            }
-
-            Connections {
-                target: centerHover
-                function onHoveredChanged() {
-                    if (centerHover.hovered) {
-                        popupHoverDelay.stop();
-                        barWindow.closeOtherPopups(centerPopup)
-                        centerPopup.open = true;
-                    } else {
-                        popupHoverDelay.start();
-                    }
-                }
-            }
-
-            Connections {
-                target: centerPopup
-                function onIsHoveredChanged() {
-                    if (centerPopup.isHovered) {
-                        popupHoverDelay.stop();
-                        barWindow.closeOtherPopups(centerPopup)
-                        centerPopup.open = true;
-                    } else {
-                        popupHoverDelay.start();
+                    if (!centerHover.hovered && !(centerPopupLoader.item && centerPopupLoader.item.isHovered)) {
+                        barWindow.centerOpen = false;
                     }
                 }
             }

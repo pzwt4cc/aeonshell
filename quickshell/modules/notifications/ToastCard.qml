@@ -17,8 +17,10 @@ Rectangle {
     radius: 14
 
     readonly property color accentColor: {
-        if (!card.notif) return Colors.primary;
-        if (card.notif.urgency === NotificationUrgency.Critical) return Colors.error;
+        if (!card.notif)
+            return Colors.primary;
+        if (card.notif.urgency === NotificationUrgency.Critical)
+            return Colors.error;
         if (card.notif.urgency === NotificationUrgency.Low)
             return Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35);
         return Colors.primary;
@@ -30,7 +32,9 @@ Rectangle {
     clip: true
 
     Behavior on border.color {
-        ColorAnimation { duration: 150 }
+        ColorAnimation {
+            duration: 150
+        }
     }
 
     property bool shown: false
@@ -38,11 +42,17 @@ Rectangle {
     x: shown ? 0 : 40
 
     Behavior on opacity {
-        NumberAnimation { duration: 180; easing.type: Easing.OutQuad }
+        NumberAnimation {
+            duration: 180
+            easing.type: Easing.OutQuad
+        }
     }
 
     Behavior on x {
-        NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+        NumberAnimation {
+            duration: 220
+            easing.type: Easing.OutCubic
+        }
     }
 
     Component.onCompleted: shown = true
@@ -58,24 +68,28 @@ Rectangle {
             Layout.preferredHeight: 64
             Layout.alignment: Qt.AlignVCenter
 
+            readonly property bool hasValidImage: !!(card.notif && card.notif.image !== "" && toastImg.status !== Image.Error)
+
             Image {
+                id: toastImg
                 anchors.fill: parent
-                visible: card.notif && card.notif.image !== ""
+                visible: parent.hasValidImage
                 source: card.notif ? card.notif.image : ""
+                sourceSize: Qt.size(128, 128)
                 fillMode: Image.PreserveAspectCrop
                 smooth: true
                 asynchronous: true
             }
             IconImage {
                 anchors.fill: parent
-                visible: card.notif && card.notif.image === "" && card.notif.appIcon !== ""
+                visible: !!card.notif && !parent.hasValidImage && card.notif.appIcon !== ""
                 source: card.notif ? card.notif.appIcon : ""
             }
             Rectangle {
                 anchors.fill: parent
                 radius: 12
                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08)
-                visible: card.notif && card.notif.image === "" && card.notif.appIcon === ""
+                visible: !!card.notif && !parent.hasValidImage && card.notif.appIcon === ""
                 Text {
                     anchors.centerIn: parent
                     text: "󰂚"
@@ -99,7 +113,7 @@ Rectangle {
                     font.pixelSize: 17
                     font.bold: true
                     elide: Text.ElideRight
-                    Layout.fillWidth: true 
+                    Layout.fillWidth: true
                 }
 
                 Item {
@@ -109,7 +123,7 @@ Rectangle {
             }
 
             Text {
-                visible: card.notif && card.notif.body.length > 0
+                visible: !!card.notif && card.notif.body.length > 0
                 text: card.notif ? card.notif.body : ""
                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.75)
                 font.pixelSize: 14
@@ -127,41 +141,47 @@ Rectangle {
         anchors.bottom: card.bottom
         anchors.right: card.right
         width: 56
-        color: closeHover.hovered
-            ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.04)
-            : "transparent"
-        Behavior on color { ColorAnimation { duration: 100 } }
+        color: closeHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.04) : "transparent"
+        Behavior on color {
+            ColorAnimation {
+                duration: 100
+            }
+        }
 
         Rectangle {
             anchors.centerIn: parent
             width: 28
             height: 28
             radius: 8
-            color: closeHover.hovered
-                ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07)
-                : "transparent"
-            Behavior on color { ColorAnimation { duration: 100 } }
+            color: closeHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07) : "transparent"
+            Behavior on color {
+                ColorAnimation {
+                    duration: 100
+                }
+            }
 
             Text {
                 anchors.centerIn: parent
                 text: "󰅖"
-                color: closeHover.hovered
-                    ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.85)
-                    : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.55)
+                color: closeHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.85) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.55)
                 font.pixelSize: 14
             }
         }
 
-        HoverHandler { id: closeHover }
+        HoverHandler {
+            id: closeHover
+        }
         TapHandler {
-            onTapped: if (card.notif) NotificationService.dismissByLocalId(card.notif.localId)
+            onTapped: if (card.notif)
+                NotificationService.dismissByLocalId(card.notif.localId)
         }
     }
 
     TapHandler {
         enabled: !closeHover.hovered
         onTapped: {
-            if (!card.notif) return;
+            if (!card.notif)
+                return;
             NotificationService.openSource(card.notif);
             NotificationService.dismissByLocalId(card.notif.localId);
         }

@@ -3,7 +3,6 @@
 import "../"
 import QtQuick
 import QtQuick.Layouts
-import Quickshell.Io
 import Quickshell.Hyprland
 
 Rectangle {
@@ -37,6 +36,42 @@ Rectangle {
     property bool specialActive: false
     property bool specialOccupied: false
 
+    // Keep Hyprland IPC reactive
+    readonly property var _hyKeepAlive: Hyprland.monitors
+
+    function syncState() {
+        const fw = Hyprland.focusedWorkspace;
+        if (fw && fw.id >= 1 && fw.id <= root.totalWorkspaces) {
+            root.activeWorkspace = fw.id;
+        }
+
+        let hasActiveSpecial = false;
+        const mons = Hyprland.monitors.values;
+        for (let i = 0; i < mons.length; i++) {
+            const m = mons[i];
+            const sw = m && m.lastIpcObject ? m.lastIpcObject.specialWorkspace : null;
+            if (sw && ((sw.id !== undefined && sw.id !== 0) || (sw.name || "") !== "")) {
+                hasActiveSpecial = true;
+                break;
+            }
+        }
+        root.specialActive = hasActiveSpecial;
+
+        let hasOccupiedSpecial = false;
+        const wss = Hyprland.workspaces.values;
+        for (let i = 0; i < wss.length; i++) {
+            const w = wss[i];
+            const ipc = w ? w.lastIpcObject : null;
+            const name = w ? (w.name || (ipc && ipc.name) || "") : "";
+            const wins = ipc && ipc.windows !== undefined ? ipc.windows : 0;
+            if (name.indexOf("special") === 0 && wins > 0) {
+                hasOccupiedSpecial = true;
+                break;
+            }
+        }
+        root.specialOccupied = hasOccupiedSpecial;
+    }
+
     onActiveWorkspaceChanged: {
         if (activeWorkspace > lastWorkspace) {
             rotationAnimation.to = rotationAngle + 360;
@@ -47,66 +82,31 @@ Rectangle {
         lastWorkspace = activeWorkspace;
     }
 
-    Process {
-        id: wsProc
-        running: true
-        command: [
-            "bash", "-c",
-            "get_state() { " +
-            "  active=$(echo \"$(hyprctl activeworkspace -j 2>/dev/null || echo '{\"id\":1}')\" | tr -d '\\n'); " +
-            "  monitors=$(echo \"$(hyprctl monitors -j 2>/dev/null || echo '[]')\" | tr -d '\\n'); " +
-            "  workspaces=$(echo \"$(hyprctl workspaces -j 2>/dev/null || echo '[]')\" | tr -d '\\n'); " +
-            "  echo \"$active|$monitors|$workspaces\"; " +
-            "}; " +
-            "get_state; " +
-            "stdbuf -oL socat -U - UNIX-CONNECT:$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock 2>/dev/null | stdbuf -oL grep --line-buffered -E 'workspace>>|activespecial>>|createworkspace>>|destroyworkspace>>|movewindow>>|openwindow>>|closewindow>>' | " +
-            "while read -r line; do " +
-            "  get_state; " +
-            "done"
-        ]
+    Timer {
+        id: syncDebounce
+        interval: 25
+        onTriggered: root.syncState()
+    }
 
-        stdout: SplitParser {
-            onRead: text => {
-                let clean = text.trim();
-                if (!clean) return;
-                let parts = clean.split('|');
-                if (parts.length < 3) return;
-
-                try {
-                    let activeObj = JSON.parse(parts[0]);
-                    let val = parseInt(activeObj.id);
-                    if (!isNaN(val) && val >= 1 && val <= root.totalWorkspaces) {
-                        root.activeWorkspace = val;
-                    }
-                } catch (err) { }
-
-                try {
-                    let monitorsArr = JSON.parse(parts[1]);
-                    let hasActiveSpecial = false;
-                    for (let i = 0; i < monitorsArr.length; i++) {
-                        let mon = monitorsArr[i];
-                        if (mon.specialWorkspace && mon.specialWorkspace.id !== 0) {
-                            hasActiveSpecial = true;
-                            break;
-                        }
-                    }
-                    root.specialActive = hasActiveSpecial;
-                } catch (err) { }
-
-                try {
-                    let workspacesArr = JSON.parse(parts[2]);
-                    let hasOccupiedSpecial = false;
-                    for (let i = 0; i < workspacesArr.length; i++) {
-                        let ws = workspacesArr[i];
-                        if (ws.name && ws.name.indexOf("special") === 0 && ws.windows > 0) {
-                            hasOccupiedSpecial = true;
-                            break;
-                        }
-                    }
-                    root.specialOccupied = hasOccupiedSpecial;
-                } catch (err) { }
+    Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            const n = event.name;
+            if (n === "workspace" || n === "workspacev2" || n === "focusedmon" || n === "focusedmonv2" || n === "activespecial" || n === "activespecialv2" || n === "createworkspace" || n === "createworkspacev2" || n === "destroyworkspace" || n === "destroyworkspacev2" || n === "movewindow" || n === "movewindowv2" || n === "openwindow" || n === "closewindow") {
+                Hyprland.refreshMonitors();
+                Hyprland.refreshWorkspaces();
+                syncDebounce.restart();
             }
         }
+        function onFocusedWorkspaceChanged() {
+            syncDebounce.restart();
+        }
+    }
+
+    Component.onCompleted: {
+        Hyprland.refreshMonitors();
+        Hyprland.refreshWorkspaces();
+        syncState();
     }
 
     Text {
@@ -120,15 +120,21 @@ Rectangle {
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
 
-        color: root.specialActive
-            ? Colors.primary
-            : (root.specialOccupied ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.6) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.25))
+        color: root.specialActive ? Colors.primary : (root.specialOccupied ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.6) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.25))
 
         opacity: root.specialActive ? pulseAnim.value : (ghostHover.hovered ? 1.0 : 0.7)
 
         scale: ghostHover.hovered ? 1.15 : 1.0
-        Behavior on scale { NumberAnimation { duration: 100 } }
-        Behavior on color { ColorAnimation { duration: 180 } }
+        Behavior on scale {
+            NumberAnimation {
+                duration: 100
+            }
+        }
+        Behavior on color {
+            ColorAnimation {
+                duration: 180
+            }
+        }
 
         QtObject {
             id: pulseAnim
@@ -136,25 +142,31 @@ Rectangle {
             SequentialAnimation on value {
                 running: root.specialActive
                 loops: Animation.Infinite
-                NumberAnimation { to: 0.5; duration: 600; easing.type: Easing.InOutQuad }
-                NumberAnimation { to: 1.0; duration: 600; easing.type: Easing.InOutQuad }
+                NumberAnimation {
+                    to: 0.5
+                    duration: 600
+                    easing.type: Easing.InOutQuad
+                }
+                NumberAnimation {
+                    to: 1.0
+                    duration: 600
+                    easing.type: Easing.InOutQuad
+                }
             }
         }
 
-        HoverHandler { id: ghostHover }
+        HoverHandler {
+            id: ghostHover
+        }
 
         TapHandler {
-	    onTapped: {
-		switchProc.command = Hyprland.usingLua
-		    ? ["hyprctl", "dispatch", "hl.dsp.workspace.toggle_special()"]
-		    : ["hyprctl", "dispatch", "togglespecialworkspace"];
-		switchProc.running = true;
-	    }
-	}
+            onTapped: Hyprland.dispatch(Hyprland.usingLua ? "hl.dsp.workspace.toggle_special()" : "togglespecialworkspace")
+        }
     }
 
     component Dot: Rectangle {
         id: dot
+        required property int index
         width: root.dotSize
         height: root.dotSize
         radius: width / 2
@@ -163,39 +175,29 @@ Rectangle {
         readonly property bool isCurrent: (index + 1) === root.activeWorkspace
         opacity: isCurrent ? 0.0 : (dotHover.hovered ? 0.75 : 0.3)
 
-        Behavior on opacity { NumberAnimation { duration: 120 } }
+        Behavior on opacity {
+            NumberAnimation {
+                duration: 120
+            }
+        }
 
-        HoverHandler { id: dotHover }
+        HoverHandler {
+            id: dotHover
+        }
 
         TapHandler {
-	    onTapped: {
-		const ws = index + 1;
-		switchProc.command = Hyprland.usingLua
-		    ? ["hyprctl", "dispatch", "hl.dsp.focus({ workspace = " + ws + " })"]
-		    : ["hyprctl", "dispatch", "workspace", ws.toString()];
-		switchProc.running = true;
-	    }
-	}
-    }
-
-    Row {
-        visible: !root.vertical
-        enabled: !root.vertical
-        x: root.rowStart
-        anchors.verticalCenter: parent.verticalCenter
-        spacing: root.spacing
-
-        Repeater {
-            model: root.totalWorkspaces
-            delegate: Dot {}
+            onTapped: {
+                const ws = dot.index + 1;
+                Hyprland.dispatch(Hyprland.usingLua ? ("hl.dsp.focus({ workspace = " + ws + " })") : ("workspace " + ws));
+            }
         }
     }
 
-    Column {
-        visible: root.vertical
-        enabled: root.vertical
-        y: root.rowStart
-        anchors.horizontalCenter: parent.horizontalCenter
+    Grid {
+        x: root.vertical ? (parent.width - width) / 2 : root.rowStart
+        y: root.vertical ? root.rowStart : (parent.height - height) / 2
+        rows: root.vertical ? root.totalWorkspaces : 1
+        columns: root.vertical ? 1 : root.totalWorkspaces
         spacing: root.spacing
 
         Repeater {
@@ -214,18 +216,24 @@ Rectangle {
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
 
-        x: root.vertical
-            ? (parent.width - width) / 2
-            : root.rowStart + (root.activeWorkspace - 1) * (root.dotSize + root.spacing) + (root.dotSize / 2) - (width / 2)
-        y: root.vertical
-            ? root.rowStart + (root.activeWorkspace - 1) * (root.dotSize + root.spacing) + (root.dotSize / 2) - (height / 2)
-            : (parent.height - height) / 2
+        x: root.vertical ? (parent.width - width) / 2 : root.rowStart + (root.activeWorkspace - 1) * (root.dotSize + root.spacing) + (root.dotSize / 2) - (width / 2)
+        y: root.vertical ? root.rowStart + (root.activeWorkspace - 1) * (root.dotSize + root.spacing) + (root.dotSize / 2) - (height / 2) : (parent.height - height) / 2
 
         rotation: root.rotationAngle
         transformOrigin: Item.Center
 
-        Behavior on x { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-        Behavior on y { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+        Behavior on x {
+            NumberAnimation {
+                duration: 250
+                easing.type: Easing.OutCubic
+            }
+        }
+        Behavior on y {
+            NumberAnimation {
+                duration: 250
+                easing.type: Easing.OutCubic
+            }
+        }
     }
 
     NumberAnimation {
@@ -234,9 +242,5 @@ Rectangle {
         property: "rotationAngle"
         duration: 400
         easing.type: Easing.OutCubic
-    }
-
-    Process {
-        id: switchProc
     }
 }

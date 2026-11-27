@@ -13,24 +13,34 @@ PanelWindow {
     readonly property var activeScreen: {
         const mon = Hyprland.focusedMonitor;
         if (mon) {
-            for (const s of Quickshell.screens) {
-                if (s.name === mon.name) return s;
+            const screens = Quickshell.screens;
+            for (let i = 0; i < screens.length; i++) {
+                if (screens[i].name === mon.name)
+                    return screens[i];
             }
         }
-        return Quickshell.screens[0];
+        return Quickshell.screens[0] || null;
     }
     screen: toastWindow.activeScreen
 
-    anchors { top: true; right: true }
+    anchors {
+        top: true
+        right: true
+    }
     margins.top: 12
     margins.right: 12
 
     implicitWidth: 400
     implicitHeight: toastColumn.implicitHeight > 0 ? toastColumn.implicitHeight : 1
-    
-    visible: true
+
+    visible: NotificationService.active.length > 0
     exclusiveZone: 0
     color: "transparent"
+
+    mask: toastColumn.implicitHeight > 0 ? null : emptyMask
+    Region {
+        id: emptyMask
+    }
 
     WlrLayershell.layer: WlrLayer.Overlay
 
