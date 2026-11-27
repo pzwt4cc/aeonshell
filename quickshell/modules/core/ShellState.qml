@@ -8,7 +8,7 @@ QtObject {
     id: root
 
     property bool settingsWindowOpen: false
-    property string settingsSection: "panel"
+    property string settingsSection: "appearance"
     property bool openWallpaperRequested: false
     property bool launcherOpen: false
     property bool suppressVolumeOSD: false

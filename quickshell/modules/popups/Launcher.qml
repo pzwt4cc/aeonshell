@@ -394,7 +394,7 @@ Scope {
             return;
         }
         if (cmd.id === "settings" || cmd.id.startsWith("settings-")) {
-            ShellState.settingsSection = cmd.id === "settings" ? "panel" : cmd.id.slice("settings-".length);
+            ShellState.settingsSection = cmd.id === "settings" ? "appearance" : cmd.id.slice("settings-".length);
             ShellState.settingsWindowOpen = true;
             root.open = false;
             return;

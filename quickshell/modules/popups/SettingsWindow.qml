@@ -23,33 +23,57 @@ Scope {
     property real cardY: 0
 
     function _normalizeSection(sec) {
-        if (sec === "launcher" || sec === "behavior" || sec === "about" || sec === "panel")
+        if (sec === "appearance" || sec === "panel" || sec === "launcher" || sec === "language" || sec === "behavior" || sec === "about")
             return sec;
         if (sec === "bar")
             return "panel";
-        if (sec === "keybinds" || sec === "hyprlock")
+        if (sec === "media" || sec === "keybinds" || sec === "hyprlock")
             return "behavior";
-        return "panel";
+        if (sec === "system")
+            return "about";
+        return "appearance";
+    }
+
+    function _sectionIcon(sec) {
+        if (sec === "panel")
+            return "󰍜";
+        if (sec === "launcher")
+            return "󰀻";
+        if (sec === "language")
+            return "󰗊";
+        if (sec === "behavior")
+            return "󰂚";
+        if (sec === "about")
+            return "󰋼";
+        return "󰏘";
     }
 
     function _sectionTitle(sec) {
+        if (sec === "panel")
+            return Lang.t("settings.secPanelTitle");
         if (sec === "launcher")
             return Lang.t("settings.secLauncherTitle");
+        if (sec === "language")
+            return Lang.t("settings.secLanguageTitle");
         if (sec === "behavior")
             return Lang.t("settings.secBehaviorTitle");
         if (sec === "about")
             return Lang.t("settings.secAboutTitle");
-        return Lang.t("settings.secPanelTitle");
+        return Lang.t("settings.secAppearanceTitle");
     }
 
     function _sectionSubtitle(sec) {
+        if (sec === "panel")
+            return Lang.t("settings.secPanelSub");
         if (sec === "launcher")
             return Lang.t("settings.secLauncherSub");
+        if (sec === "language")
+            return Lang.t("settings.secLanguageSub");
         if (sec === "behavior")
             return Lang.t("settings.secBehaviorSub");
         if (sec === "about")
             return Lang.t("settings.secAboutSub");
-        return Lang.t("settings.secPanelSub");
+        return Lang.t("settings.secAppearanceSub");
     }
 
     function _resolveActiveScreen() {
@@ -122,20 +146,6 @@ Scope {
             visible: true
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: ShellState.settingsWindowOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
-            function beginDrag() {
-                if (!root.hasCustomPos) {
-                    root.cardX = cardFrame.x;
-                    root.cardY = cardFrame.y;
-                    root.hasCustomPos = true;
-                }
-            }
-
-            function moveCardTo(newX, newY) {
-                const maxX = Math.max(0, overlay.width - cardFrame.width);
-                const maxY = Math.max(0, overlay.height - cardFrame.height);
-                root.cardX = Math.max(0, Math.min(maxX, Math.round(newX)));
-                root.cardY = Math.max(0, Math.min(maxY, Math.round(newY)));
-            }
 
             mask: ShellState.settingsWindowOpen ? cardMask : emptyMask
 
@@ -162,107 +172,346 @@ Scope {
             }
 
             Item {
-                id: cardFrame
-                width: Math.round(Math.min(parent.width - 64, Math.max(720, parent.width * 0.6)))
-                height: Math.round(Math.min(parent.height - 64, Math.max(520, parent.height * 0.6)))
-                x: root.hasCustomPos ? Math.min(root.cardX, Math.max(0, parent.width - width)) : Math.round((parent.width - width) / 2)
-                y: root.hasCustomPos ? Math.min(root.cardY, Math.max(0, parent.height - height)) : Math.round((parent.height - height) / 2)
+                id: overlayCanvas
+                anchors.fill: parent
 
-                scale: overlay.visualOpen ? 1.0 : 0.96
-                opacity: overlay.visualOpen ? 1.0 : 0.0
-
-                Behavior on scale {
-                    NumberAnimation {
-                        duration: 200
-                        easing.type: Easing.OutCubic
-                    }
-                }
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: 160
-                        easing.type: Easing.OutQuad
+                function beginDrag() {
+                    if (!root.hasCustomPos) {
+                        root.cardX = cardFrame.x;
+                        root.cardY = cardFrame.y;
+                        root.hasCustomPos = true;
                     }
                 }
 
-                Rectangle {
-                    id: cardBg
-                    anchors.fill: parent
-                    radius: 22
-                    color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, AppSettings.popupOpacity)
-                    border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.34)
-                    border.width: 1
-                    clip: true
+                function moveCardTo(newX, newY) {
+                    const maxX = Math.max(0, overlayCanvas.width - cardFrame.width);
+                    const maxY = Math.max(0, overlayCanvas.height - cardFrame.height);
+                    root.cardX = Math.max(0, Math.min(maxX, Math.round(newX)));
+                    root.cardY = Math.max(0, Math.min(maxY, Math.round(newY)));
+                }
 
-                    // Absorb all clicks inside the settings card so outside MouseArea never fires
-                    MouseArea {
-                        anchors.fill: parent
-                        acceptedButtons: Qt.AllButtons
-                        hoverEnabled: true
-                        onPressed: mouse => mouse.accepted = true
-                        onClicked: mouse => mouse.accepted = true
+                Item {
+                    id: cardFrame
+                    width: Math.round(Math.min(overlayCanvas.width - 48, Math.max(760, overlayCanvas.width * 0.58)))
+                    height: Math.round(Math.min(overlayCanvas.height - 48, Math.max(540, overlayCanvas.height * 0.62)))
+                    x: root.hasCustomPos ? Math.min(root.cardX, Math.max(0, overlayCanvas.width - width)) : Math.round((overlayCanvas.width - width) / 2)
+                    y: root.hasCustomPos ? Math.min(root.cardY, Math.max(0, overlayCanvas.height - height)) : Math.round((overlayCanvas.height - height) / 2)
+
+                    scale: overlay.visualOpen ? 1.0 : 0.96
+                    opacity: overlay.visualOpen ? 1.0 : 0.0
+
+                    Behavior on scale {
+                        NumberAnimation {
+                            duration: 200
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: 160
+                            easing.type: Easing.OutQuad
+                        }
                     }
 
-                    RowLayout {
+                    Rectangle {
+                        id: cardBg
                         anchors.fill: parent
-                        spacing: 0
+                        radius: 20
+                        color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, AppSettings.popupOpacity)
+                        border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.30)
+                        border.width: 1
+                        clip: true
 
-                        // Left Sidebar Navigation
-                        Rectangle {
-                            Layout.preferredWidth: Math.round(Math.min(272, Math.max(210, cardBg.width * 0.23)))
-                            Layout.fillHeight: true
-                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.035)
+                        RowLayout {
+                            anchors.fill: parent
+                            spacing: 0
 
+                            // Left Sidebar Navigation
+                            Rectangle {
+                                Layout.preferredWidth: Math.round(Math.min(252, Math.max(216, cardBg.width * 0.24)))
+                                Layout.fillHeight: true
+                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.028)
+
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    spacing: 0
+
+                                    // Brand Header (drag handle)
+                                    Item {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 68
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            acceptedButtons: Qt.LeftButton
+                                            hoverEnabled: true
+                                            preventStealing: true
+                                            cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                                            property real startMouseX: 0
+                                            property real startMouseY: 0
+                                            property real startCardX: 0
+                                            property real startCardY: 0
+                                            onPressed: mouse => {
+                                                const pt = mapToItem(overlayCanvas, mouse.x, mouse.y);
+                                                startMouseX = pt.x;
+                                                startMouseY = pt.y;
+                                                overlayCanvas.beginDrag();
+                                                startCardX = root.cardX;
+                                                startCardY = root.cardY;
+                                            }
+                                            onPositionChanged: mouse => {
+                                                if (!pressed)
+                                                    return;
+                                                const pt = mapToItem(overlayCanvas, mouse.x, mouse.y);
+                                                overlayCanvas.moveCardTo(startCardX + (pt.x - startMouseX), startCardY + (pt.y - startMouseY));
+                                            }
+                                            onDoubleClicked: root.hasCustomPos = false
+                                        }
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 16
+                                            anchors.rightMargin: 14
+                                            spacing: 10
+
+                                            Rectangle {
+                                                Layout.preferredWidth: 36
+                                                Layout.preferredHeight: 36
+                                                radius: 10
+                                                color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.14)
+                                                border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.26)
+                                                border.width: 1
+
+                                                Image {
+                                                    anchors.centerIn: parent
+                                                    width: 22
+                                                    height: 22
+                                                    source: "../../assets/logo.svg"
+                                                    sourceSize: Qt.size(44, 44)
+                                                    fillMode: Image.PreserveAspectFit
+                                                    smooth: true
+                                                }
+                                            }
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 0
+                                                Text {
+                                                    text: Lang.t("settings.subtitle")
+                                                    color: Colors.surfaceText
+                                                    font.pixelSize: 14
+                                                    font.bold: true
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+                                                Text {
+                                                    text: Lang.t("settings.title")
+                                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                                                    font.pixelSize: 11
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.bottom: parent.bottom
+                                            height: 1
+                                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07)
+                                        }
+                                    }
+
+                                    // Sidebar Section List
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        Layout.fillHeight: true
+                                        Layout.margins: 14
+                                        spacing: 4
+
+                                        SidebarGroupLabel {
+                                            text: Lang.t("settings.groupInterface")
+                                        }
+
+                                        SidebarTab {
+                                            icon: "󰏘"
+                                            label: Lang.t("settings.tabAppearance")
+                                            selected: root.currentSection === "appearance"
+                                            onClicked: root.currentSection = "appearance"
+                                        }
+                                        SidebarTab {
+                                            icon: "󰍜"
+                                            label: Lang.t("settings.tabPanel")
+                                            selected: root.currentSection === "panel"
+                                            onClicked: root.currentSection = "panel"
+                                        }
+                                        SidebarTab {
+                                            icon: "󰀻"
+                                            label: Lang.t("settings.tabLauncher")
+                                            selected: root.currentSection === "launcher"
+                                            onClicked: root.currentSection = "launcher"
+                                        }
+                                        SidebarTab {
+                                            icon: "󰗊"
+                                            label: Lang.t("settings.tabLanguage")
+                                            selected: root.currentSection === "language"
+                                            onClicked: root.currentSection = "language"
+                                        }
+
+                                        SidebarGroupLabel {
+                                            Layout.topMargin: 10
+                                            text: Lang.t("settings.groupSystem")
+                                        }
+
+                                        SidebarTab {
+                                            icon: "󰂚"
+                                            label: Lang.t("settings.tabBehavior")
+                                            selected: root.currentSection === "behavior"
+                                            onClicked: root.currentSection = "behavior"
+                                        }
+                                        SidebarTab {
+                                            icon: "󰋼"
+                                            label: Lang.t("settings.tabAbout")
+                                            selected: root.currentSection === "about"
+                                            onClicked: root.currentSection = "about"
+                                        }
+
+                                        Item {
+                                            Layout.fillHeight: true
+                                        }
+
+                                        // Bottom Palette Status Pill
+                                        Rectangle {
+                                            Layout.fillWidth: true
+                                            Layout.preferredHeight: 54
+                                            radius: 12
+                                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.04)
+                                            border.color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08)
+                                            border.width: 1
+
+                                            ColumnLayout {
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 12
+                                                anchors.rightMargin: 12
+                                                anchors.topMargin: 8
+                                                anchors.bottomMargin: 8
+                                                spacing: 6
+
+                                                RowLayout {
+                                                    Layout.fillWidth: true
+                                                    Text {
+                                                        text: Lang.t("settings.activePalette")
+                                                        font.pixelSize: 9
+                                                        font.bold: true
+                                                        font.letterSpacing: 0.9
+                                                        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.45)
+                                                        Layout.fillWidth: true
+                                                        elide: Text.ElideRight
+                                                    }
+                                                    Text {
+                                                        text: Colors.themeSource
+                                                        font.pixelSize: 10
+                                                        font.bold: true
+                                                        color: Colors.primary
+                                                    }
+                                                }
+
+                                                Row {
+                                                    spacing: 6
+                                                    Repeater {
+                                                        model: [Colors.background, Colors.surface, Colors.primary, Colors.secondary, Colors.error]
+                                                        delegate: Rectangle {
+                                                            required property color modelData
+                                                            width: 16
+                                                            height: 16
+                                                            radius: 5
+                                                            color: modelData
+                                                            border.color: Qt.rgba(1, 1, 1, 0.22)
+                                                            border.width: 1
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Vertical Divider
+                            Rectangle {
+                                Layout.preferredWidth: 1
+                                Layout.fillHeight: true
+                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08)
+                            }
+
+                            // Right Content Pane
                             ColumnLayout {
-                                anchors.fill: parent
-                                anchors.margins: 18
-                                spacing: 14
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                spacing: 0
 
-                                // Brand / Header (drag handle)
+                                // Top Content Header (drag handle)
                                 Item {
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: 38
+                                    Layout.preferredHeight: 68
 
                                     MouseArea {
                                         anchors.fill: parent
                                         acceptedButtons: Qt.LeftButton
+                                        hoverEnabled: true
+                                        preventStealing: true
                                         cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
                                         property real startMouseX: 0
                                         property real startMouseY: 0
                                         property real startCardX: 0
                                         property real startCardY: 0
                                         onPressed: mouse => {
-                                            const pt = mapToItem(overlay, mouse.x, mouse.y);
+                                            const pt = mapToItem(overlayCanvas, mouse.x, mouse.y);
                                             startMouseX = pt.x;
                                             startMouseY = pt.y;
-                                            overlay.beginDrag();
+                                            overlayCanvas.beginDrag();
                                             startCardX = root.cardX;
                                             startCardY = root.cardY;
                                         }
                                         onPositionChanged: mouse => {
                                             if (!pressed)
                                                 return;
-                                            const pt = mapToItem(overlay, mouse.x, mouse.y);
-                                            overlay.moveCardTo(startCardX + (pt.x - startMouseX), startCardY + (pt.y - startMouseY));
+                                            const pt = mapToItem(overlayCanvas, mouse.x, mouse.y);
+                                            overlayCanvas.moveCardTo(startCardX + (pt.x - startMouseX), startCardY + (pt.y - startMouseY));
                                         }
                                         onDoubleClicked: root.hasCustomPos = false
                                     }
 
+                                    // Subtle top drag pill indicator
+                                    Rectangle {
+                                        anchors.top: parent.top
+                                        anchors.topMargin: 6
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        width: 36
+                                        height: 3
+                                        radius: 1.5
+                                        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.18)
+                                    }
+
                                     RowLayout {
                                         anchors.fill: parent
-                                        spacing: 10
+                                        anchors.leftMargin: 24
+                                        anchors.rightMargin: 20
+                                        spacing: 12
 
                                         Rectangle {
-                                            Layout.preferredWidth: 38
-                                            Layout.preferredHeight: 38
-                                            radius: 11
-                                            color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16)
-                                            border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.28)
+                                            Layout.preferredWidth: 34
+                                            Layout.preferredHeight: 34
+                                            radius: 10
+                                            color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.12)
+                                            border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.22)
                                             border.width: 1
 
                                             Text {
                                                 anchors.centerIn: parent
-                                                text: "󰒓"
-                                                font.pixelSize: 18
+                                                text: root._sectionIcon(root.currentSection)
+                                                font.pixelSize: 16
                                                 color: Colors.primary
                                             }
                                         }
@@ -270,248 +519,115 @@ Scope {
                                         ColumnLayout {
                                             Layout.fillWidth: true
                                             spacing: 1
+
                                             Text {
-                                                text: Lang.t("settings.title")
+                                                text: root._sectionTitle(root.currentSection)
                                                 color: Colors.surfaceText
-                                                font.pixelSize: 15
+                                                font.pixelSize: 18
                                                 font.bold: true
                                                 elide: Text.ElideRight
                                                 Layout.fillWidth: true
                                             }
                                             Text {
-                                                text: Lang.t("settings.subtitle")
-                                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.48)
-                                                font.pixelSize: 11
+                                                text: root._sectionSubtitle(root.currentSection)
+                                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
+                                                font.pixelSize: 11.5
                                                 elide: Text.ElideRight
                                                 Layout.fillWidth: true
                                             }
                                         }
-                                    }
-                                }
 
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 1
-                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07)
-                                }
-
-                                // Sidebar Section List
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 6
-
-                                    SidebarTab {
-                                        icon: "󰍜"
-                                        label: Lang.t("settings.tabPanel")
-                                        subtitle: Lang.t("settings.tabPanelSub")
-                                        selected: root.currentSection === "panel"
-                                        onClicked: root.currentSection = "panel"
-                                    }
-                                    SidebarTab {
-                                        icon: "󰀻"
-                                        label: Lang.t("settings.tabLauncher")
-                                        subtitle: Lang.t("settings.tabLauncherSub")
-                                        selected: root.currentSection === "launcher"
-                                        onClicked: root.currentSection = "launcher"
-                                    }
-                                    SidebarTab {
-                                        icon: "󰂚"
-                                        label: Lang.t("settings.tabBehavior")
-                                        subtitle: Lang.t("settings.tabBehaviorSub")
-                                        selected: root.currentSection === "behavior"
-                                        onClicked: root.currentSection = "behavior"
-                                    }
-                                    SidebarTab {
-                                        icon: "󰋼"
-                                        label: Lang.t("settings.tabAbout")
-                                        subtitle: Lang.t("settings.tabAboutSub")
-                                        selected: root.currentSection === "about"
-                                        onClicked: root.currentSection = "about"
-                                    }
-                                }
-
-                                Item {
-                                    Layout.fillHeight: true
-                                }
-
-                                // Bottom Palette Status Pill
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 54
-                                    radius: 12
-                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.04)
-                                    border.color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08)
-                                    border.width: 1
-
-                                    ColumnLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 12
-                                        anchors.rightMargin: 12
-                                        anchors.topMargin: 8
-                                        anchors.bottomMargin: 8
-                                        spacing: 5
-
-                                        RowLayout {
-                                            Layout.fillWidth: true
-                                            Text {
-                                                text: Lang.t("settings.activePalette")
-                                                font.pixelSize: 9
-                                                font.bold: true
-                                                font.letterSpacing: 0.8
-                                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.45)
-                                                Layout.fillWidth: true
-                                                elide: Text.ElideRight
-                                            }
-                                            Text {
-                                                text: Colors.themeSource
-                                                font.pixelSize: 10
-                                                font.bold: true
-                                                color: Colors.primary
-                                            }
-                                        }
-
-                                        Row {
-                                            spacing: 6
-                                            Repeater {
-                                                model: [Colors.background, Colors.surface, Colors.primary, Colors.secondary, Colors.error]
-                                                delegate: Rectangle {
-                                                    required property color modelData
-                                                    width: 16
-                                                    height: 16
-                                                    radius: 5
-                                                    color: modelData
-                                                    border.color: Qt.rgba(1, 1, 1, 0.2)
-                                                    border.width: 1
+                                        Rectangle {
+                                            visible: root.hasCustomPos
+                                            Layout.preferredWidth: 32
+                                            Layout.preferredHeight: 32
+                                            radius: 9
+                                            color: recenterMa.containsMouse ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.04)
+                                            border.color: recenterMa.containsMouse ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08)
+                                            border.width: 1
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: 120
                                                 }
                                             }
+
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "󰘖"
+                                                font.pixelSize: 14
+                                                color: recenterMa.containsMouse ? Colors.primary : Colors.surfaceText
+                                                opacity: recenterMa.containsMouse ? 1.0 : 0.7
+                                            }
+                                            MouseArea {
+                                                id: recenterMa
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: root.hasCustomPos = false
+                                            }
+
+                                            ToolTip.visible: recenterMa.containsMouse
+                                            ToolTip.delay: 400
+                                            ToolTip.text: Lang.t("settings.recenterTooltip")
                                         }
-                                    }
-                                }
-                            }
-                        }
 
-                        // Vertical Divider
-                        Rectangle {
-                            Layout.preferredWidth: 1
-                            Layout.fillHeight: true
-                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08)
-                        }
+                                        Rectangle {
+                                            Layout.preferredWidth: 32
+                                            Layout.preferredHeight: 32
+                                            radius: 9
+                                            color: closeMa.containsMouse ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.12) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.04)
+                                            border.color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08)
+                                            border.width: 1
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: 120
+                                                }
+                                            }
 
-                        // Right Content Pane
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            spacing: 0
-
-                            // Top Content Header (drag handle)
-                            Item {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 74
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    acceptedButtons: Qt.LeftButton
-                                    cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-                                    property real startMouseX: 0
-                                    property real startMouseY: 0
-                                    property real startCardX: 0
-                                    property real startCardY: 0
-                                    onPressed: mouse => {
-                                        const pt = mapToItem(overlay, mouse.x, mouse.y);
-                                        startMouseX = pt.x;
-                                        startMouseY = pt.y;
-                                        overlay.beginDrag();
-                                        startCardX = root.cardX;
-                                        startCardY = root.cardY;
-                                    }
-                                    onPositionChanged: mouse => {
-                                        if (!pressed)
-                                            return;
-                                        const pt = mapToItem(overlay, mouse.x, mouse.y);
-                                        overlay.moveCardTo(startCardX + (pt.x - startMouseX), startCardY + (pt.y - startMouseY));
-                                    }
-                                    onDoubleClicked: root.hasCustomPos = false
-                                }
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 28
-                                    anchors.rightMargin: 24
-                                    spacing: 12
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 2
-
-                                        Text {
-                                            text: root._sectionTitle(root.currentSection)
-                                            color: Colors.surfaceText
-                                            font.pixelSize: 20
-                                            font.bold: true
-                                            elide: Text.ElideRight
-                                            Layout.fillWidth: true
-                                        }
-                                        Text {
-                                            text: root._sectionSubtitle(root.currentSection)
-                                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
-                                            font.pixelSize: 12
-                                            elide: Text.ElideRight
-                                            Layout.fillWidth: true
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "󰅖"
+                                                font.pixelSize: 14
+                                                color: Colors.surfaceText
+                                                opacity: closeMa.containsMouse ? 1.0 : 0.7
+                                            }
+                                            MouseArea {
+                                                id: closeMa
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: root._close()
+                                            }
                                         }
                                     }
 
                                     Rectangle {
-                                        Layout.preferredWidth: 34
-                                        Layout.preferredHeight: 34
-                                        radius: 10
-                                        color: closeMa.containsMouse ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.1) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.04)
-                                        border.color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08)
-                                        border.width: 1
-                                        Behavior on color {
-                                            ColorAnimation {
-                                                duration: 120
-                                            }
-                                        }
-
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: "󰅖"
-                                            font.pixelSize: 14
-                                            color: Colors.surfaceText
-                                            opacity: closeMa.containsMouse ? 1.0 : 0.7
-                                        }
-                                        MouseArea {
-                                            id: closeMa
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: root._close()
-                                        }
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.bottom: parent.bottom
+                                        height: 1
+                                        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07)
                                     }
                                 }
 
-                                Rectangle {
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.bottom: parent.bottom
-                                    height: 1
-                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07)
-                                }
-                            }
-
-                            // Active Section Content
-                            Loader {
-                                id: sectionLoader
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                sourceComponent: {
-                                    if (root.currentSection === "launcher")
-                                        return launcherSectionComp;
-                                    if (root.currentSection === "behavior")
-                                        return behaviorSectionComp;
-                                    if (root.currentSection === "about")
-                                        return aboutSectionComp;
-                                    return panelSectionComp;
+                                // Active Section Content
+                                Loader {
+                                    id: sectionLoader
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    sourceComponent: {
+                                        if (root.currentSection === "panel")
+                                            return panelSectionComp;
+                                        if (root.currentSection === "launcher")
+                                            return launcherSectionComp;
+                                        if (root.currentSection === "language")
+                                            return languageSectionComp;
+                                        if (root.currentSection === "behavior")
+                                            return behaviorSectionComp;
+                                        if (root.currentSection === "about")
+                                            return aboutSectionComp;
+                                        return appearanceSectionComp;
+                                    }
                                 }
                             }
                         }
@@ -522,33 +638,106 @@ Scope {
     }
 
     // -------------------------------------------------------------------------
-    // Section 1: Panel & Theme
+    // Section 1: Appearance (Palette & Transparency)
     // -------------------------------------------------------------------------
     Component {
-        id: panelSectionComp
+        id: appearanceSectionComp
         SectionScroll {
-            id: panelScroll
-
             SectionCard {
-                title: Lang.t("settings.languageCard")
+                title: Lang.t("settings.paletteCard")
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 10
+                    spacing: 14
 
-                    Repeater {
-                        model: Lang.availableLanguages
-                        delegate: ModeChip {
-                            required property var modelData
-                            icon: modelData.shortLabel
-                            label: modelData.label
-                            selected: AppSettings.language === modelData.code
-                            onClicked: AppSettings.language = modelData.code
+                    Row {
+                        spacing: 7
+                        Repeater {
+                            model: [Colors.background, Colors.surface, Colors.primary, Colors.secondary, Colors.error]
+                            delegate: Rectangle {
+                                required property color modelData
+                                width: 28
+                                height: 28
+                                radius: 8
+                                color: modelData
+                                border.color: Qt.rgba(1, 1, 1, 0.22)
+                                border.width: 1
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+                        Text {
+                            text: {
+                                if (Colors.themeSource === "matugen")
+                                    return Lang.t("settings.paletteMatugen");
+                                if (Colors.themeSource === "quantizer")
+                                    return Lang.t("settings.paletteQuantizer");
+                                if (Colors.themeSource === "cache")
+                                    return Lang.t("settings.paletteCache");
+                                return Lang.t("settings.paletteDefault");
+                            }
+                            color: Colors.surfaceText
+                            font.pixelSize: 13
+                            font.bold: true
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                        Text {
+                            text: Lang.t("settings.paletteSub")
+                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
+                            font.pixelSize: 11
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    ActionPill {
+                        label: Lang.t("settings.wallpapersBtn")
+                        icon: "󰸉"
+                        accent: true
+                        onClicked: {
+                            root._close();
+                            ShellState.openWallpaperRequested = true;
                         }
                     }
                 }
             }
 
+            SectionCard {
+                title: Lang.t("settings.transparencyCard")
+
+                SliderRow {
+                    label: Lang.t("settings.barOpacity")
+                    subtitle: Lang.t("settings.barOpacitySub")
+                    value: AppSettings.barOpacity
+                    minValue: 0.25
+                    maxValue: 1.0
+                    onValueEdited: val => AppSettings.barOpacity = val
+                }
+
+                RowDivider {}
+
+                SliderRow {
+                    label: Lang.t("settings.popupOpacity")
+                    subtitle: Lang.t("settings.popupOpacitySub")
+                    value: AppSettings.popupOpacity
+                    minValue: 0.40
+                    maxValue: 1.0
+                    onValueEdited: val => AppSettings.popupOpacity = val
+                }
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Section 2: Bar & Panel
+    // -------------------------------------------------------------------------
+    Component {
+        id: panelSectionComp
+        SectionScroll {
             SectionCard {
                 title: Lang.t("settings.placementCard")
 
@@ -611,98 +800,11 @@ Scope {
                     onToggled: AppSettings.barShowTray = !AppSettings.barShowTray
                 }
             }
-
-            SectionCard {
-                title: Lang.t("settings.transparencyCard")
-
-                SliderRow {
-                    label: Lang.t("settings.barOpacity")
-                    subtitle: Lang.t("settings.barOpacitySub")
-                    value: AppSettings.barOpacity
-                    minValue: 0.25
-                    maxValue: 1.0
-                    onValueEdited: val => AppSettings.barOpacity = val
-                }
-
-                RowDivider {}
-
-                SliderRow {
-                    label: Lang.t("settings.popupOpacity")
-                    subtitle: Lang.t("settings.popupOpacitySub")
-                    value: AppSettings.popupOpacity
-                    minValue: 0.40
-                    maxValue: 1.0
-                    onValueEdited: val => AppSettings.popupOpacity = val
-                }
-            }
-
-            SectionCard {
-                title: Lang.t("settings.paletteCard")
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 14
-
-                    Row {
-                        spacing: 7
-                        Repeater {
-                            model: [Colors.background, Colors.surface, Colors.primary, Colors.secondary, Colors.error]
-                            delegate: Rectangle {
-                                required property color modelData
-                                width: 24
-                                height: 24
-                                radius: 7
-                                color: modelData
-                                border.color: Qt.rgba(1, 1, 1, 0.22)
-                                border.width: 1
-                            }
-                        }
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 2
-                        Text {
-                            text: {
-                                if (Colors.themeSource === "matugen")
-                                    return Lang.t("settings.paletteMatugen");
-                                if (Colors.themeSource === "quantizer")
-                                    return Lang.t("settings.paletteQuantizer");
-                                if (Colors.themeSource === "cache")
-                                    return Lang.t("settings.paletteCache");
-                                return Lang.t("settings.paletteDefault");
-                            }
-                            color: Colors.surfaceText
-                            font.pixelSize: 13
-                            font.bold: true
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
-                        }
-                        Text {
-                            text: Lang.t("settings.paletteSub")
-                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
-                            font.pixelSize: 11
-                            elide: Text.ElideRight
-                            Layout.fillWidth: true
-                        }
-                    }
-
-                    ActionPill {
-                        label: Lang.t("settings.wallpapersBtn")
-                        icon: "󰸉"
-                        accent: true
-                        onClicked: {
-                            root._close();
-                            ShellState.openWallpaperRequested = true;
-                        }
-                    }
-                }
-            }
         }
     }
 
     // -------------------------------------------------------------------------
-    // Section 2: Launcher & Wallpapers
+    // Section 3: Launcher & Wallpapers
     // -------------------------------------------------------------------------
     Component {
         id: launcherSectionComp
@@ -809,9 +911,9 @@ Scope {
                                 event.accepted = true;
                             }
                             onAccepted: {
-                                const t = text.trim();
-                                if (t.length > 0)
-                                    AppSettings.wallpaperDir = t;
+                                const val = text.trim();
+                                if (val.length > 0)
+                                    AppSettings.wallpaperDir = val;
                                 root.editingWpDir = false;
                             }
                         }
@@ -822,9 +924,9 @@ Scope {
                         icon: "󰄬"
                         accent: true
                         onClicked: {
-                            const t = wpDirField.text.trim();
-                            if (t.length > 0)
-                                AppSettings.wallpaperDir = t;
+                            const val = wpDirField.text.trim();
+                            if (val.length > 0)
+                                AppSettings.wallpaperDir = val;
                             root.editingWpDir = false;
                         }
                     }
@@ -869,7 +971,143 @@ Scope {
     }
 
     // -------------------------------------------------------------------------
-    // Section 3: Behavior (Notifications & Media)
+    // Section 4: Language
+    // -------------------------------------------------------------------------
+    Component {
+        id: languageSectionComp
+        SectionScroll {
+            SectionCard {
+                title: Lang.t("settings.languageCard")
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Repeater {
+                        model: Lang.availableLanguages
+                        delegate: Rectangle {
+                            id: langCard
+                            required property var modelData
+                            readonly property bool selected: AppSettings.language === langCard.modelData.code
+
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 60
+                            radius: 12
+                            color: langCard.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.14) : (langMa.containsMouse ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.065) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.03))
+                            border.color: langCard.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.7) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.09)
+                            border.width: langCard.selected ? 1.5 : 1
+
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: 120
+                                }
+                            }
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: 120
+                                }
+                            }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 14
+                                anchors.rightMargin: 14
+                                spacing: 12
+
+                                Rectangle {
+                                    Layout.preferredWidth: 38
+                                    Layout.preferredHeight: 38
+                                    radius: 10
+                                    color: langCard.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.22) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07)
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: langCard.modelData.shortLabel
+                                        font.pixelSize: 13
+                                        font.bold: true
+                                        color: langCard.selected ? Colors.primary : Colors.surfaceText
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 1
+                                    Text {
+                                        text: langCard.modelData.label
+                                        color: langCard.selected ? Colors.primary : Colors.surfaceText
+                                        font.pixelSize: 14
+                                        font.bold: true
+                                    }
+                                    Text {
+                                        text: langCard.modelData.region
+                                        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                                        font.pixelSize: 11
+                                    }
+                                }
+
+                                Rectangle {
+                                    visible: langCard.selected
+                                    implicitWidth: activeRow.implicitWidth + 16
+                                    Layout.preferredHeight: 26
+                                    radius: 13
+                                    color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.2)
+                                    border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.4)
+                                    border.width: 1
+
+                                    RowLayout {
+                                        id: activeRow
+                                        anchors.centerIn: parent
+                                        spacing: 5
+                                        Text {
+                                            text: "󰄬"
+                                            font.pixelSize: 12
+                                            color: Colors.primary
+                                        }
+                                        Text {
+                                            text: Lang.t("settings.langActive")
+                                            font.pixelSize: 11
+                                            font.bold: true
+                                            color: Colors.primary
+                                        }
+                                    }
+                                }
+                            }
+
+                            MouseArea {
+                                id: langMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: AppSettings.language = langCard.modelData.code
+                            }
+                        }
+                    }
+                }
+            }
+
+            SectionCard {
+                title: Lang.t("settings.langPreviewCard")
+
+                InfoLine {
+                    label: Lang.t("settings.langSampleDate")
+                    value: Qt.formatDate(new Date(), AppSettings.language === "ru" ? "dddd, d MMMM yyyy" : "dddd, MMMM d, yyyy", AppSettings.qtLocale)
+                }
+
+                RowDivider {}
+
+                Text {
+                    text: Lang.t("settings.langNote")
+                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
+                    font.pixelSize: 11.5
+                    wrapMode: Text.WordWrap
+                    Layout.fillWidth: true
+                }
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Section 5: Notifications & Media (Behavior)
     // -------------------------------------------------------------------------
     Component {
         id: behaviorSectionComp
@@ -1015,7 +1253,7 @@ Scope {
     }
 
     // -------------------------------------------------------------------------
-    // Section 4: System & About
+    // Section 6: System & About
     // -------------------------------------------------------------------------
     Component {
         id: aboutSectionComp
@@ -1064,7 +1302,7 @@ Scope {
                     ActionPill {
                         label: root.confirmReset ? Lang.t("common.confirmReset") : Lang.t("common.reset")
                         icon: "󰑓"
-                        accent: root.confirmReset
+                        danger: root.confirmReset
                         onClicked: {
                             if (!root.confirmReset) {
                                 root.confirmReset = true;
@@ -1169,7 +1407,7 @@ Scope {
         Flickable {
             id: flick
             anchors.fill: parent
-            anchors.margins: 24
+            anchors.margins: 22
             clip: true
             contentWidth: width
             contentHeight: innerCol.implicitHeight
@@ -1193,26 +1431,36 @@ Scope {
             ColumnLayout {
                 id: innerCol
                 readonly property real availW: flick.width - (flick.scrollable ? 14 : 0)
-                width: Math.min(availW, 880)
+                width: Math.min(availW, 860)
                 x: Math.round((availW - width) / 2)
                 spacing: 14
             }
         }
     }
 
+    component SidebarGroupLabel: Text {
+        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.42)
+        font.pixelSize: 10
+        font.bold: true
+        font.letterSpacing: 1.0
+        Layout.leftMargin: 10
+        Layout.bottomMargin: 2
+        Layout.fillWidth: true
+        elide: Text.ElideRight
+    }
+
     component SidebarTab: Rectangle {
         id: sTab
         property string icon: ""
         property string label: ""
-        property string subtitle: ""
         property bool selected: false
         signal clicked
 
         Layout.fillWidth: true
-        Layout.preferredHeight: 54
-        radius: 12
-        color: sTab.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16) : (sMa.containsMouse ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06) : "transparent")
-        border.color: sTab.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.34) : "transparent"
+        Layout.preferredHeight: 38
+        radius: 10
+        color: sTab.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.15) : (sMa.containsMouse ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06) : "transparent")
+        border.color: sTab.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.30) : "transparent"
         border.width: 1
         Behavior on color {
             ColorAnimation {
@@ -1220,44 +1468,36 @@ Scope {
             }
         }
 
+        Rectangle {
+            visible: sTab.selected
+            anchors.left: parent.left
+            anchors.leftMargin: 4
+            anchors.verticalCenter: parent.verticalCenter
+            width: 3
+            height: 18
+            radius: 1.5
+            color: Colors.primary
+        }
+
         RowLayout {
             anchors.fill: parent
             anchors.leftMargin: 12
-            anchors.rightMargin: 12
+            anchors.rightMargin: 10
             spacing: 10
 
-            Rectangle {
-                Layout.preferredWidth: 30
-                Layout.preferredHeight: 30
-                radius: 8
-                color: sTab.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.2) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06)
-
-                Text {
-                    anchors.centerIn: parent
-                    text: sTab.icon
-                    font.pixelSize: 14
-                    color: sTab.selected ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.7)
-                }
+            Text {
+                text: sTab.icon
+                font.pixelSize: 15
+                color: sTab.selected ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.65)
             }
 
-            ColumnLayout {
+            Text {
+                text: sTab.label
+                font.pixelSize: 13
+                font.bold: sTab.selected
+                color: sTab.selected ? Colors.primary : Colors.surfaceText
+                elide: Text.ElideRight
                 Layout.fillWidth: true
-                spacing: 1
-                Text {
-                    text: sTab.label
-                    font.pixelSize: 13
-                    font.bold: sTab.selected
-                    color: sTab.selected ? Colors.primary : Colors.surfaceText
-                    elide: Text.ElideRight
-                    Layout.fillWidth: true
-                }
-                Text {
-                    text: sTab.subtitle
-                    font.pixelSize: 10
-                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.46)
-                    elide: Text.ElideRight
-                    Layout.fillWidth: true
-                }
             }
         }
 
@@ -1277,8 +1517,8 @@ Scope {
 
         Layout.fillWidth: true
         implicitHeight: cardCol.implicitHeight + 32
-        radius: 16
-        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.045)
+        radius: 15
+        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.04)
         border.color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08)
         border.width: 1
 
@@ -1479,13 +1719,17 @@ Scope {
         property string label: ""
         property string icon: ""
         property bool accent: false
+        property bool danger: false
         signal clicked
+
+        readonly property color pillColor: actPill.danger ? Colors.error : Colors.primary
+        readonly property bool highlighted: actPill.accent || actPill.danger
 
         implicitWidth: pillRow.implicitWidth + 22
         Layout.preferredHeight: 32
         radius: 9
-        color: actPill.accent ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, actMa.containsMouse ? 0.28 : 0.18) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, actMa.containsMouse ? 0.12 : 0.07)
-        border.color: actPill.accent ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.45) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.12)
+        color: actPill.highlighted ? Qt.rgba(actPill.pillColor.r, actPill.pillColor.g, actPill.pillColor.b, actMa.containsMouse ? 0.28 : 0.18) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, actMa.containsMouse ? 0.12 : 0.07)
+        border.color: actPill.highlighted ? Qt.rgba(actPill.pillColor.r, actPill.pillColor.g, actPill.pillColor.b, 0.45) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.12)
         border.width: 1
         Behavior on color {
             ColorAnimation {
@@ -1501,13 +1745,13 @@ Scope {
                 visible: actPill.icon !== ""
                 text: actPill.icon
                 font.pixelSize: 13
-                color: actPill.accent ? Colors.primary : Colors.surfaceText
+                color: actPill.highlighted ? actPill.pillColor : Colors.surfaceText
             }
             Text {
                 text: actPill.label
                 font.pixelSize: 12
                 font.bold: true
-                color: actPill.accent ? Colors.primary : Colors.surfaceText
+                color: actPill.highlighted ? actPill.pillColor : Colors.surfaceText
             }
         }
 
@@ -1653,7 +1897,8 @@ Scope {
             color: Colors.surfaceText
             font.pixelSize: 12
             font.bold: true
-            Layout.preferredWidth: 140
+            elide: Text.ElideRight
+            Layout.preferredWidth: 150
         }
         Text {
             text: infoLine.value
