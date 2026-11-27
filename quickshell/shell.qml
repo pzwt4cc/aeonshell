@@ -48,7 +48,7 @@ ShellRoot {
 
     LazyLoader {
         id: settingsWindowLoader
-        active: !launcherOnly && ShellState.settingsWindowOpen
+        active: !launcherOnly
         SettingsWindow {}
     }
 

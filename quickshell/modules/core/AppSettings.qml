@@ -12,12 +12,13 @@ Item {
     id: root
 
     readonly property string confPath: Quickshell.env("HOME") + "/.config/quickshell/settings.conf"
+    readonly property string defaultWallpaperDir: Quickshell.env("HOME") + "/Pictures/Wallpapers"
 
     property string barPosition: "top"
     property bool groupNotificationsBySource: false
     property bool barShowPlayer: true
     property bool barShowTray: true
-    property string wallpaperDir: Quickshell.env("HOME") + "/Pictures/Wallpapers"
+    property string wallpaperDir: defaultWallpaperDir
     property string launcherHiddenApps: ""
     property string launcherViewMode: "list"
 
@@ -61,6 +62,16 @@ Item {
         else
             list.push(id);
         root.launcherHiddenApps = list.join(",");
+    }
+
+    function resetDefaults() {
+        root.barPosition = "top";
+        root.groupNotificationsBySource = false;
+        root.barShowPlayer = true;
+        root.barShowTray = true;
+        root.wallpaperDir = root.defaultWallpaperDir;
+        root.launcherViewMode = "list";
+        root.edgeToEdge = false;
     }
 
     function _applyGaps() {

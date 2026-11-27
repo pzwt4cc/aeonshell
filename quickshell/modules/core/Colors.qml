@@ -25,6 +25,7 @@ Item {
     property color barBackdrop: Qt.rgba(0.075, 0.078, 0.05, 0.55)
 
     property bool generatingTheme: false
+    property string themeSource: "default"
     property string _pendingImagePath: ""
     property var _pendingCallback: null
     property string _lastCavaBase: ""
@@ -69,6 +70,11 @@ Item {
             if (outVal)
                 root.outline = outVal;
 
+            if (data.source)
+                root.themeSource = data.source;
+            else if (root.themeSource === "default")
+                root.themeSource = "cache";
+
             const bg = Qt.color(root.background);
             root.barBackdrop = Qt.rgba(bg.r, bg.g, bg.b, 0.55);
         } catch (e) {
@@ -76,7 +82,7 @@ Item {
         }
     }
 
-    function _applyPalette(pal) {
+    function _applyPalette(pal, sourceTag) {
         root.background = pal.background;
         root.surface = pal.surface;
         root.surfaceText = pal.surfaceText;
@@ -87,7 +93,9 @@ Item {
         const bgCol = Qt.color(pal.background);
         root.barBackdrop = Qt.rgba(bgCol.r, bgCol.g, bgCol.b, 0.55);
 
+        root.themeSource = sourceTag || "cache";
         const jsonPayload = {
+            source: root.themeSource,
             background: pal.background,
             surface: pal.surface,
             surfaceText: pal.surfaceText,
@@ -273,7 +281,7 @@ Item {
             if (exitCode === 0 && matugenProc.outputBuf.trim() !== "") {
                 try {
                     const pal = root._paletteFromMatugen(matugenProc.outputBuf);
-                    root._applyPalette(pal);
+                    root._applyPalette(pal, "matugen");
                     root._finishThemeGeneration(true);
                     return;
                 } catch (e) {
@@ -298,7 +306,7 @@ Item {
                 return;
             const pal = root._paletteFromQuantizer(quantizer.colors);
             if (pal) {
-                root._applyPalette(pal);
+                root._applyPalette(pal, "quantizer");
                 root._finishThemeGeneration(true);
             } else {
                 root._finishThemeGeneration(false);
