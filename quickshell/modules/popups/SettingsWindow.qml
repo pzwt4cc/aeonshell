@@ -44,7 +44,7 @@ Scope {
             return "Notification grouping, Do Not Disturb, audio, and MPRIS";
         if (sec === "about")
             return "Local storage paths, preferences reset, and shell info";
-        return "Bar screen edge, modules visibility, and dynamic palette";
+        return "Bar screen edge, transparency, modules, and dynamic palette";
     }
 
     function _resolveActiveScreen() {
@@ -84,6 +84,8 @@ Scope {
                 root.confirmReset = false;
                 root.editingWpDir = false;
                 root.currentSection = root._normalizeSection(ShellState.settingsSection);
+                if (overlayLoader.item)
+                    overlayLoader.item.hasCustomPos = false;
             } else {
                 hideTimer.start();
             }
@@ -116,10 +118,34 @@ Scope {
             visible: true
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: ShellState.settingsWindowOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
-            mask: ShellState.settingsWindowOpen ? null : emptyMask
+            property bool hasCustomPos: false
+            property real cardX: 0
+            property real cardY: 0
+
+            function beginDrag() {
+                if (!overlay.hasCustomPos) {
+                    overlay.cardX = cardFrame.x;
+                    overlay.cardY = cardFrame.y;
+                    overlay.hasCustomPos = true;
+                }
+            }
+
+            function moveCardTo(newX, newY) {
+                const maxX = Math.max(0, overlay.width - cardFrame.width);
+                const maxY = Math.max(0, overlay.height - cardFrame.height);
+                overlay.cardX = Math.max(0, Math.min(maxX, Math.round(newX)));
+                overlay.cardY = Math.max(0, Math.min(maxY, Math.round(newY)));
+            }
+
+            mask: ShellState.settingsWindowOpen ? cardMask : emptyMask
 
             Region {
                 id: emptyMask
+            }
+
+            Region {
+                id: cardMask
+                item: cardFrame
             }
 
             Component.onCompleted: Qt.callLater(() => overlay._animReady = true)
@@ -135,18 +161,12 @@ Scope {
                 }
             }
 
-            // Click outside to close (no background dimming / shadow)
-            MouseArea {
-                anchors.fill: parent
-                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                onClicked: root._close()
-            }
-
             Item {
                 id: cardFrame
-                anchors.centerIn: parent
                 width: Math.round(Math.min(parent.width - 64, Math.max(720, parent.width * 0.6)))
                 height: Math.round(Math.min(parent.height - 64, Math.max(520, parent.height * 0.6)))
+                x: overlay.hasCustomPos ? Math.min(overlay.cardX, Math.max(0, parent.width - width)) : Math.round((parent.width - width) / 2)
+                y: overlay.hasCustomPos ? Math.min(overlay.cardY, Math.max(0, parent.height - height)) : Math.round((parent.height - height) / 2)
 
                 scale: overlay.visualOpen ? 1.0 : 0.96
                 opacity: overlay.visualOpen ? 1.0 : 0.0
@@ -168,7 +188,7 @@ Scope {
                     id: cardBg
                     anchors.fill: parent
                     radius: 22
-                    color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.97)
+                    color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, AppSettings.popupOpacity)
                     border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.34)
                     border.width: 1
                     clip: true
@@ -197,10 +217,39 @@ Scope {
                                 anchors.margins: 18
                                 spacing: 14
 
-                                // Brand / Header
-                                RowLayout {
+                                // Brand / Header (drag handle)
+                                Item {
                                     Layout.fillWidth: true
-                                    spacing: 10
+                                    Layout.preferredHeight: 38
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        acceptedButtons: Qt.LeftButton
+                                        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                                        property real startMouseX: 0
+                                        property real startMouseY: 0
+                                        property real startCardX: 0
+                                        property real startCardY: 0
+                                        onPressed: mouse => {
+                                            const pt = mapToItem(overlay, mouse.x, mouse.y);
+                                            startMouseX = pt.x;
+                                            startMouseY = pt.y;
+                                            overlay.beginDrag();
+                                            startCardX = overlay.cardX;
+                                            startCardY = overlay.cardY;
+                                        }
+                                        onPositionChanged: mouse => {
+                                            if (!pressed)
+                                                return;
+                                            const pt = mapToItem(overlay, mouse.x, mouse.y);
+                                            overlay.moveCardTo(startCardX + (pt.x - startMouseX), startCardY + (pt.y - startMouseY));
+                                        }
+                                        onDoubleClicked: overlay.hasCustomPos = false
+                                    }
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        spacing: 10
 
                                     Rectangle {
                                         Layout.preferredWidth: 38
@@ -232,6 +281,7 @@ Scope {
                                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.48)
                                             font.pixelSize: 11
                                         }
+                                    }
                                     }
                                 }
 
@@ -348,10 +398,35 @@ Scope {
                             Layout.fillHeight: true
                             spacing: 0
 
-                            // Top Content Header
+                            // Top Content Header (drag handle)
                             Item {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 74
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.LeftButton
+                                    cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                                    property real startMouseX: 0
+                                    property real startMouseY: 0
+                                    property real startCardX: 0
+                                    property real startCardY: 0
+                                    onPressed: mouse => {
+                                        const pt = mapToItem(overlay, mouse.x, mouse.y);
+                                        startMouseX = pt.x;
+                                        startMouseY = pt.y;
+                                        overlay.beginDrag();
+                                        startCardX = overlay.cardX;
+                                        startCardY = overlay.cardY;
+                                    }
+                                    onPositionChanged: mouse => {
+                                        if (!pressed)
+                                            return;
+                                        const pt = mapToItem(overlay, mouse.x, mouse.y);
+                                        overlay.moveCardTo(startCardX + (pt.x - startMouseX), startCardY + (pt.y - startMouseY));
+                                    }
+                                    onDoubleClicked: overlay.hasCustomPos = false
+                                }
 
                                 RowLayout {
                                     anchors.fill: parent
@@ -507,6 +582,30 @@ Scope {
                     subtitle: "Display pinned and background tray apps"
                     checked: AppSettings.barShowTray
                     onToggled: AppSettings.barShowTray = !AppSettings.barShowTray
+                }
+            }
+
+            SectionCard {
+                title: "TRANSPARENCY"
+
+                SliderRow {
+                    label: "Bar opacity"
+                    subtitle: "Adjust top, bottom, or side panel background opacity"
+                    value: AppSettings.barOpacity
+                    minValue: 0.25
+                    maxValue: 1.0
+                    onValueEdited: val => AppSettings.barOpacity = val
+                }
+
+                RowDivider {}
+
+                SliderRow {
+                    label: "Popups & panels opacity"
+                    subtitle: "Adjust popups, launcher, notifications, and settings window"
+                    value: AppSettings.popupOpacity
+                    minValue: 0.40
+                    maxValue: 1.0
+                    onValueEdited: val => AppSettings.popupOpacity = val
                 }
             }
 
@@ -920,7 +1019,7 @@ Scope {
                             font.bold: true
                         }
                         Text {
-                            text: "Restores bar position, layout, view mode, and wallpaper path"
+                            text: "Restores bar position, transparency, layout, view mode, and wallpaper path"
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
                             font.pixelSize: 11
                         }
@@ -1381,6 +1480,127 @@ Scope {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: actPill.clicked()
+        }
+    }
+
+    component SliderRow: ColumnLayout {
+        id: slRow
+        property string label: ""
+        property string subtitle: ""
+        property real value: 1.0
+        property real minValue: 0.0
+        property real maxValue: 1.0
+        signal valueEdited(real newValue)
+
+        readonly property real clampedNorm: Math.max(0, Math.min(1, (slRow.value - slRow.minValue) / Math.max(0.001, slRow.maxValue - slRow.minValue)))
+        readonly property int percentValue: Math.round(slRow.value * 100)
+
+        Layout.fillWidth: true
+        spacing: 8
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 12
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 2
+                Text {
+                    text: slRow.label
+                    color: Colors.surfaceText
+                    font.pixelSize: 13
+                    font.bold: true
+                }
+                Text {
+                    visible: slRow.subtitle !== ""
+                    text: slRow.subtitle
+                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
+                    font.pixelSize: 11
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                }
+            }
+
+            Rectangle {
+                implicitWidth: pctText.implicitWidth + 16
+                Layout.preferredHeight: 24
+                radius: 7
+                color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.14)
+                border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.28)
+                border.width: 1
+
+                Text {
+                    id: pctText
+                    anchors.centerIn: parent
+                    text: slRow.percentValue + "%"
+                    color: Colors.primary
+                    font.pixelSize: 11
+                    font.bold: true
+                }
+            }
+        }
+
+        Item {
+            id: slTrackArea
+            Layout.fillWidth: true
+            Layout.preferredHeight: 22
+
+            function updateFromX(posX) {
+                const usable = Math.max(1, slTrack.width);
+                const t = Math.max(0, Math.min(1, posX / usable));
+                const raw = slRow.minValue + t * (slRow.maxValue - slRow.minValue);
+                const rounded = Math.round(raw * 100) / 100;
+                slRow.valueEdited(rounded);
+            }
+
+            Rectangle {
+                id: slTrack
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                height: 6
+                radius: 3
+                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.12)
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    width: Math.max(6, slRow.clampedNorm * parent.width)
+                    radius: 3
+                    color: Colors.primary
+                }
+            }
+
+            Rectangle {
+                id: slThumb
+                width: slMa.pressed ? 18 : 16
+                height: slMa.pressed ? 18 : 16
+                radius: width / 2
+                anchors.verticalCenter: slTrack.verticalCenter
+                x: Math.max(0, Math.min(slTrackArea.width - width, slRow.clampedNorm * (slTrackArea.width - width)))
+                color: "#ffffff"
+                border.color: Colors.primary
+                border.width: 2
+            }
+
+            MouseArea {
+                id: slMa
+                anchors.fill: parent
+                hoverEnabled: true
+                preventStealing: true
+                cursorShape: Qt.PointingHandCursor
+                onPressed: mouse => slTrackArea.updateFromX(mouse.x)
+                onPositionChanged: mouse => {
+                    if (pressed)
+                        slTrackArea.updateFromX(mouse.x);
+                }
+                onWheel: wheel => {
+                    const step = wheel.angleDelta.y > 0 ? 0.02 : -0.02;
+                    const next = Math.max(slRow.minValue, Math.min(slRow.maxValue, Math.round((slRow.value + step) * 100) / 100));
+                    slRow.valueEdited(next);
+                }
+            }
         }
     }
 

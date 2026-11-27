@@ -30,6 +30,8 @@ Item {
     property string launcherViewMode: "list"
 
     property bool edgeToEdge: false
+    property real barOpacity: 0.75
+    property real popupOpacity: 0.96
 
     property var _hiddenSet: ({})
 
@@ -71,6 +73,8 @@ Item {
         root.wallpaperDir = root.defaultWallpaperDir;
         root.launcherViewMode = "list";
         root.edgeToEdge = false;
+        root.barOpacity = 0.75;
+        root.popupOpacity = 0.96;
     }
 
     Settings {
@@ -86,6 +90,8 @@ Item {
         property alias launcherHiddenApps: root.launcherHiddenApps
         property alias launcherViewMode: root.launcherViewMode
         property alias edgeToEdge: root.edgeToEdge
+        property alias barOpacity: root.barOpacity
+        property alias popupOpacity: root.popupOpacity
     }
 
     Process {

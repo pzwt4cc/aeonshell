@@ -81,7 +81,7 @@ FloatingWindow {
         id: winBg
         anchors.fill: parent
         radius: 16
-        color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.98)
+        color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, AppSettings.popupOpacity)
         border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.2)
         border.width: 1
 

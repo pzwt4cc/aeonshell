@@ -569,7 +569,7 @@ PopupWindow {
         anchors.margins: popup.shadowMargin
         height: mainColumn.implicitHeight + 52
         radius: 26
-        color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.96)
+        color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, AppSettings.popupOpacity)
         border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18)
         border.width: 1
         clip: true

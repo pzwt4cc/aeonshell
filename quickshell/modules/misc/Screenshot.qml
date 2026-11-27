@@ -118,7 +118,7 @@ Scope {
                 width: 348
                 implicitHeight: content.implicitHeight + 26
                 radius: 20
-                color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.97)
+                color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, AppSettings.popupOpacity)
                 border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.25)
                 border.width: 1
                 clip: true

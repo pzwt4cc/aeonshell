@@ -138,7 +138,7 @@ Scope {
                 width: root.vertical ? 56 : 220
                 height: root.vertical ? 220 : 56
                 radius: 16
-                color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.85)
+                color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, AppSettings.popupOpacity)
                 border.color: Qt.rgba(1, 1, 1, 0.1)
                 border.width: 1
 

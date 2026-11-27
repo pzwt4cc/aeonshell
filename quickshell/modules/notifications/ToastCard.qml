@@ -26,7 +26,7 @@ Rectangle {
         return Colors.primary;
     }
 
-    color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.92)
+    color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, AppSettings.popupOpacity)
     border.color: Qt.rgba(card.accentColor.r, card.accentColor.g, card.accentColor.b, 0.75)
     border.width: 1.5
     clip: true

@@ -225,7 +225,7 @@ Scope {
                 id: backdrop
                 anchors.fill: parent
                 radius: AppSettings.edgeToEdge ? 0 : 14
-                color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.75)
+                color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, AppSettings.barOpacity)
                 border.color: AppSettings.edgeToEdge ? "transparent" : Qt.rgba(1, 1, 1, 0.1)
                 border.width: AppSettings.edgeToEdge ? 0 : 1
                 antialiasing: !AppSettings.edgeToEdge
