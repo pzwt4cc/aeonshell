@@ -28,13 +28,9 @@ Item {
     property string themeSource: "default"
     property string _pendingImagePath: ""
     property var _pendingCallback: null
-    property string _lastCavaBase: ""
 
     readonly property string homeDir: Quickshell.env("HOME")
     readonly property string cacheJsonPath: root.homeDir + "/.cache/aeonshell/colors.json"
-    readonly property string legacyWalJsonPath: root.homeDir + "/.cache/wal/colors.json"
-    readonly property string kittyColorsPath: root.homeDir + "/.cache/wal/colors-kitty.conf"
-    readonly property string cavaConfigPath: root.homeDir + "/.config/cava/config"
 
     function _toHex(c) {
         const col = Qt.color(c);
@@ -47,28 +43,21 @@ Item {
     function updateColors(jsonStr) {
         try {
             const data = JSON.parse(jsonStr);
-            const bgVal = data.background || (data.special && data.special.background);
-            const surfVal = data.surface || bgVal;
-            const fgVal = data.surfaceText || (data.special && data.special.foreground);
-            const priVal = data.primary || (data.colors && data.colors.color1);
-            const secVal = data.secondary || (data.colors && data.colors.color2);
-            const errVal = data.error || (data.colors && data.colors.color3);
-            const outVal = data.outline;
 
-            if (bgVal)
-                root.background = bgVal;
-            if (surfVal)
-                root.surface = surfVal;
-            if (fgVal)
-                root.surfaceText = fgVal;
-            if (priVal)
-                root.primary = priVal;
-            if (secVal)
-                root.secondary = secVal;
-            if (errVal)
-                root.error = errVal;
-            if (outVal)
-                root.outline = outVal;
+            if (data.background)
+                root.background = data.background;
+            if (data.surface || data.background)
+                root.surface = data.surface || data.background;
+            if (data.surfaceText)
+                root.surfaceText = data.surfaceText;
+            if (data.primary)
+                root.primary = data.primary;
+            if (data.secondary)
+                root.secondary = data.secondary;
+            if (data.error)
+                root.error = data.error;
+            if (data.outline)
+                root.outline = data.outline;
 
             if (data.source)
                 root.themeSource = data.source;
@@ -102,33 +91,14 @@ Item {
             primary: pal.primary,
             secondary: pal.secondary,
             error: pal.error,
-            outline: pal.outline,
-            special: {
-                background: pal.background,
-                foreground: pal.surfaceText,
-                cursor: pal.primary
-            },
-            colors: pal.term16
+            outline: pal.outline
         };
         colorsOutFile.setText(JSON.stringify(jsonPayload, null, 2) + "\n");
-
-        const p16 = pal.term16;
-        let kitty = "background " + pal.background + "\n" + "foreground " + pal.surfaceText + "\n" + "cursor " + pal.primary + "\n" + "selection_background " + pal.primary + "\n" + "selection_foreground " + pal.background + "\n";
-        for (let i = 0; i < 16; i++) {
-            kitty += "color" + i + " " + p16["color" + i] + "\n";
-        }
-        kittyOutFile.setText(kitty);
-
-        const baseConf = (root._lastCavaBase || "[general]\nbar_width = 2\nbar_spacing = 1\novershoot = 100\nmax_height = 100\n").replace(/\n*\[color\][\s\S]*$/m, "").trimEnd();
-        const cavaText = baseConf + "\n\n[color]\ngradient = 1\n" + "gradient_color_1 = '" + pal.primary + "'\n" + "gradient_color_2 = '" + pal.secondary + "'\n" + "background = 'default'\n";
-        cavaOutFile.setText(cavaText);
-        Quickshell.execDetached(["pkill", "-USR2", "cava"]);
     }
 
     function _paletteFromMatugen(rawJson) {
         const data = JSON.parse(rawJson);
         const c = data.colors || {};
-        const b = data.base16 || {};
         const pick = (obj, fallback) => (obj && obj.dark && obj.dark.color) ? obj.dark.color : fallback;
 
         const background = pick(c.background, "#13140d");
@@ -139,25 +109,6 @@ Item {
         const error = pick(c.error, "#ffb4ab");
         const outline = pick(c.outline, "#8f9282");
 
-        const term16 = {
-            color0: pick(b.base00, background),
-            color1: pick(b.base08, error),
-            color2: pick(b.base0b, primary),
-            color3: pick(b.base0a, secondary),
-            color4: pick(b.base0d, primary),
-            color5: pick(b.base0e, secondary),
-            color6: pick(b.base0c, secondary),
-            color7: pick(b.base05, surfaceText),
-            color8: pick(b.base03, outline),
-            color9: pick(b.base08, error),
-            color10: pick(b.base0b, primary),
-            color11: pick(b.base0a, secondary),
-            color12: pick(b.base0d, primary),
-            color13: pick(b.base0e, secondary),
-            color14: pick(b.base0c, secondary),
-            color15: pick(b.base07, surfaceText)
-        };
-
         return {
             background: background,
             surface: surface,
@@ -165,8 +116,7 @@ Item {
             primary: primary,
             secondary: secondary,
             error: error,
-            outline: outline,
-            term16: term16
+            outline: outline
         };
     }
 
@@ -206,38 +156,14 @@ Item {
         const outCol = Qt.hsla(bgCol.hslHue, 0.14, 0.56, 1.0);
 
         const background = root._toHex(bgCol);
-        const primary = root._toHex(priCol);
-        const secondary = root._toHex(secCol);
-        const surfaceText = root._toHex(fgCol);
-        const outline = root._toHex(outCol);
-        const error = "#ffb4ab";
-
         return {
             background: background,
             surface: background,
-            surfaceText: surfaceText,
-            primary: primary,
-            secondary: secondary,
-            error: error,
-            outline: outline,
-            term16: {
-                color0: background,
-                color1: "#f38ba8",
-                color2: primary,
-                color3: secondary,
-                color4: root._toHex(Qt.hsla((priCol.hslHue + 0.55) % 1.0, 0.55, 0.70, 1.0)),
-                color5: root._toHex(Qt.hsla((priCol.hslHue + 0.75) % 1.0, 0.55, 0.72, 1.0)),
-                color6: root._toHex(Qt.hsla((priCol.hslHue + 0.40) % 1.0, 0.55, 0.72, 1.0)),
-                color7: surfaceText,
-                color8: outline,
-                color9: "#f38ba8",
-                color10: primary,
-                color11: secondary,
-                color12: root._toHex(Qt.hsla((priCol.hslHue + 0.55) % 1.0, 0.60, 0.76, 1.0)),
-                color13: root._toHex(Qt.hsla((priCol.hslHue + 0.75) % 1.0, 0.60, 0.78, 1.0)),
-                color14: root._toHex(Qt.hsla((priCol.hslHue + 0.40) % 1.0, 0.60, 0.78, 1.0)),
-                color15: "#ffffff"
-            }
+            surfaceText: root._toHex(fgCol),
+            primary: root._toHex(priCol),
+            secondary: root._toHex(secCol),
+            error: "#ffb4ab",
+            outline: root._toHex(outCol)
         };
     }
 
@@ -268,7 +194,7 @@ Item {
 
     Process {
         id: dirInitProc
-        command: ["mkdir", "-p", root.homeDir + "/.cache/aeonshell", root.homeDir + "/.cache/wal", root.homeDir + "/.config/cava"]
+        command: ["mkdir", "-p", root.homeDir + "/.cache/aeonshell"]
     }
 
     Process {
@@ -324,20 +250,6 @@ Item {
             if (text && text.trim() !== "")
                 root.updateColors(text);
         }
-        onLoadFailed: legacyColorsFile.reload()
-        onFileChanged: reload()
-    }
-
-    FileView {
-        id: legacyColorsFile
-        path: root.legacyWalJsonPath
-        watchChanges: true
-        printErrors: false
-        onLoaded: {
-            const text = legacyColorsFile.text();
-            if (text && text.trim() !== "")
-                root.updateColors(text);
-        }
         onFileChanged: reload()
     }
 
@@ -346,19 +258,5 @@ Item {
         path: root.cacheJsonPath
         preload: false
         printErrors: false
-    }
-
-    FileView {
-        id: kittyOutFile
-        path: root.kittyColorsPath
-        preload: false
-        printErrors: false
-    }
-
-    FileView {
-        id: cavaOutFile
-        path: root.cavaConfigPath
-        printErrors: false
-        onLoaded: root._lastCavaBase = cavaOutFile.text()
     }
 }

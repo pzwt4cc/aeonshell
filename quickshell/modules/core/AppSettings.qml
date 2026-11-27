@@ -6,7 +6,6 @@ import QtQuick
 import QtCore
 import Quickshell
 import Quickshell.Io
-import Quickshell.Hyprland
 
 Item {
     id: root
@@ -23,14 +22,6 @@ Item {
     property string launcherViewMode: "list"
 
     property bool edgeToEdge: false
-
-    readonly property int normalGapsIn: 5
-    readonly property int normalGapsOut: 10
-    readonly property int normalBorderSize: 2
-    readonly property int normalRounding: 15
-
-    readonly property int edgeGapsIn: 2
-    readonly property int edgeGapsOut: 2
 
     property var _hiddenSet: ({})
 
@@ -74,25 +65,6 @@ Item {
         root.edgeToEdge = false;
     }
 
-    function _applyGaps() {
-        if (!Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") || Quickshell.env("AEONSHELL_LAUNCHER_ONLY") === "1")
-            return;
-        const gIn = root.edgeToEdge ? root.edgeGapsIn : root.normalGapsIn;
-        const gOut = root.edgeToEdge ? root.edgeGapsOut : root.normalGapsOut;
-        const border = root.edgeToEdge ? 0 : root.normalBorderSize;
-        const rounding = root.edgeToEdge ? 0 : root.normalRounding;
-        if (Hyprland.usingLua) {
-            const luaExpr = "hl.config({ general = { gaps_in = " + gIn + ", gaps_out = " + gOut + ", border_size = " + border + " }, decoration = { rounding = " + rounding + " } })";
-            gapsProc.command = ["hyprctl", "eval", luaExpr];
-            gapsProc.running = true;
-        } else {
-            gapsProc.command = ["hyprctl", "--batch", "keyword general:gaps_in " + gIn + ";" + "keyword general:gaps_out " + gOut + ";" + "keyword general:border_size " + border + ";" + "keyword decoration:rounding " + rounding];
-            gapsProc.running = true;
-        }
-    }
-
-    onEdgeToEdgeChanged: root._applyGaps()
-
     Settings {
         id: shellSettings
         category: "Shell"
@@ -109,26 +81,12 @@ Item {
     }
 
     Process {
-        id: gapsProc
-    }
-
-    Connections {
-        target: Hyprland
-        function onRawEvent(event) {
-            if (event.name === "configreloaded" || event.name === "monitoradded" || event.name === "monitorremoved") {
-                root._applyGaps();
-            }
-        }
-    }
-
-    Process {
         id: wpDirInitProc
         command: ["mkdir", "-p", root.wallpaperDir]
     }
 
     Component.onCompleted: {
         root._rebuildHiddenSet();
-        root._applyGaps();
         wpDirInitProc.running = true;
     }
 }

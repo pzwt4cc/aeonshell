@@ -371,7 +371,7 @@ Scope {
 
                     SwitchRow {
                         label: "Edge-to-edge layout"
-                        subtitle: "Compact Hyprland gaps with square window corners"
+                        subtitle: "Flush screen-edge bar with square panel corners"
                         checked: AppSettings.edgeToEdge
                         onToggled: AppSettings.edgeToEdge = !AppSettings.edgeToEdge
                     }
@@ -436,7 +436,7 @@ Scope {
                                 font.bold: true
                             }
                             Text {
-                                text: "Updates Quickshell, kitty, and cava on wallpaper change"
+                                text: "Updates aeonshell palette on wallpaper change"
                                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
                                 font.pixelSize: 11
                                 elide: Text.ElideRight
