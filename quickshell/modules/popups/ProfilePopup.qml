@@ -6,45 +6,50 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
-import Qt5Compat.GraphicalEffects
+import Quickshell.Widgets
 
 PopupWindow {
     id: popup
 
     property bool open: false
+    property bool _animReady: false
+    readonly property bool visualOpen: popup.open && popup._animReady
     readonly property bool isHovered: hover.hovered
+    readonly property bool keepOpen: (avatarPickerLoader.item && avatarPickerLoader.item.visible) || (weatherInputLoader.item && weatherInputLoader.item.visible)
 
-    property string username: "..."
+    property string username: Quickshell.env("USER") || Quickshell.env("LOGNAME") || "User"
     property string hostname: "..."
     property string kernel: "..."
     property string uptime: "..."
-    property string installAge: "..."
+    property string installAge: ShellState.cachedInstallAge !== undefined ? ShellState.cachedInstallAge : "..."
     property string distro: "..."
     property string distroVersion: ""
-    property string shellName: "..."
-    property string shellVersion: ""
-    property string terminalName: "..."
-    property string localeStr: "..."
-    property string wmName: "..."
-    property string weatherText: "Click to configure"
-    property string weatherCity: "Moscow"
-    property bool weatherFetched: false
+    property string shellName: {
+        const sh = Quickshell.env("SHELL") || "sh";
+        const parts = sh.split("/");
+        return parts[parts.length - 1] || "sh";
+    }
+    property string terminalName: mapTerminalName(Quickshell.env("TERMINAL"))
+    property string wmName: Quickshell.env("XDG_CURRENT_DESKTOP") || Quickshell.env("DESKTOP_SESSION") || Quickshell.env("XDG_SESSION_DESKTOP") || "Hyprland"
 
-    property int pacmanPkgs: 0
-    property int aurPkgs: 0
-    property int flatpakPkgs: 0
-    property int snapPkgs: 0
-    property int brewPkgs: 0
-    property int totalPkgs: 0
+    property string weatherText: ShellState.cachedWeatherText
+    property string weatherCity: ShellState.cachedWeatherCity
+    property int avatarTick: 0
+
+    property int pacmanPkgs: ShellState.cachedPkgs ? ShellState.cachedPkgs.pacman : 0
+    property int aurPkgs: ShellState.cachedPkgs ? ShellState.cachedPkgs.aur : 0
+    property int flatpakPkgs: ShellState.cachedPkgs ? ShellState.cachedPkgs.flatpak : 0
+    property int snapPkgs: ShellState.cachedPkgs ? ShellState.cachedPkgs.snap : 0
+    property int brewPkgs: ShellState.cachedPkgs ? ShellState.cachedPkgs.brew : 0
+    property int totalPkgs: ShellState.cachedPkgs ? ShellState.cachedPkgs.total : 0
 
     property real cpuUsagePct: 0
+    property real _prevCpuTotal: 0
+    property real _prevCpuIdle: 0
     property int cpuTempC: 0
-    property bool gpuAvailable: true
+    property bool gpuAvailable: false
     property string gpuUsageLabel: "0"
     property int gpuTempC: 0
-    property real gpuVramTotalGb: 0
-    property real gpuVramUsedGb: 0
-    property real ramTotalGb: 0
     property real ramUsedGb: 0
     property real ramUsagePct: 0
 
@@ -57,241 +62,411 @@ PopupWindow {
     color: "transparent"
     visible: popup.open || hideTimer.running
 
+    function mapTerminalName(t) {
+        if (!t)
+            return "";
+        const base = t.split("/").pop().toLowerCase();
+        const map = {
+            kitty: "Kitty",
+            alacritty: "Alacritty",
+            wezterm: "WezTerm",
+            foot: "Foot",
+            konsole: "Konsole",
+            "gnome-terminal": "GNOME Terminal",
+            tilix: "Tilix",
+            "xfce4-terminal": "Xfce Terminal",
+            terminator: "Terminator",
+            lxterminal: "LXTerminal",
+            xterm: "xterm"
+        };
+        return map[base] || t.split("/").pop();
+    }
 
-    Timer { 
+    function formatAgeFromDateStr(dateStr) {
+        const parts = dateStr.split("-");
+        if (parts.length !== 3)
+            return "Unknown";
+        const instMs = Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+        if (isNaN(instMs))
+            return "Unknown";
+        const daysTotal = Math.max(0, Math.floor((Date.now() - instMs) / 86400000));
+        const years = Math.floor(daysTotal / 365);
+        const rem = daysTotal % 365;
+        const months = Math.floor(rem / 30);
+        const rem2 = rem % 30;
+        const weeks = Math.floor(rem2 / 7);
+        const days = rem2 % 7;
+
+        const out = [];
+        if (years > 0) {
+            out.push(years + "y");
+            if (months > 0)
+                out.push(months + "m");
+            if (weeks > 0)
+                out.push(weeks + "w");
+        } else if (months > 0) {
+            out.push(months + "m");
+            if (weeks > 0)
+                out.push(weeks + "w");
+            if (days > 0)
+                out.push(days + "d");
+        } else if (weeks > 0) {
+            out.push(weeks + "w");
+            if (days > 0)
+                out.push(days + "d");
+        } else {
+            out.push(days + "d");
+        }
+        return out.length > 0 ? out.join(" ") : "0d";
+    }
+
+    function weatherDesc(code) {
+        const map = {
+            0: "Clear sky",
+            1: "Mainly clear",
+            2: "Partly cloudy",
+            3: "Overcast",
+            45: "Fog",
+            48: "Fog",
+            51: "Drizzle",
+            53: "Drizzle",
+            55: "Drizzle",
+            56: "Freezing drizzle",
+            57: "Freezing drizzle",
+            61: "Rain",
+            63: "Rain",
+            65: "Rain",
+            66: "Freezing rain",
+            67: "Freezing rain",
+            71: "Snow",
+            73: "Snow",
+            75: "Snow",
+            77: "Snow grains",
+            80: "Rain showers",
+            81: "Rain showers",
+            82: "Rain showers",
+            85: "Snow showers",
+            86: "Snow showers",
+            95: "Thunderstorm",
+            96: "Thunderstorm with hail",
+            99: "Thunderstorm with hail"
+        };
+        return map[code] || "Unknown";
+    }
+
+    function fetchWeather(force) {
+        const now = Date.now();
+        if (!force && ShellState.cachedWeatherTimestamp > 0 && (now - ShellState.cachedWeatherTimestamp) < 15 * 60 * 1000) {
+            popup.weatherText = ShellState.cachedWeatherText;
+            return;
+        }
+        const raw = (popup.weatherCity || "Moscow").trim();
+        const comma = raw.indexOf(",");
+        const cityPart = comma !== -1 ? raw.slice(0, comma).trim() : raw;
+        const countryPart = comma !== -1 ? raw.slice(comma + 1).trim().toLowerCase() : "";
+
+        const geoUrl = "https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(cityPart) + "&count=10&language=en&format=json";
+        const xhr = new XMLHttpRequest();
+        xhr.timeout = 5000;
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== XMLHttpRequest.DONE)
+                return;
+            if (xhr.status !== 200) {
+                popup.weatherText = "No connection";
+                return;
+            }
+            try {
+                const data = JSON.parse(xhr.responseText);
+                const results = data.results || [];
+                if (results.length === 0) {
+                    popup.weatherText = "Location not found";
+                    return;
+                }
+                let pick = null;
+                if (countryPart) {
+                    for (let i = 0; i < results.length; i++) {
+                        const r = results[i];
+                        const c = (r.country || "").toLowerCase();
+                        const cc = (r.country_code || "").toLowerCase();
+                        if (c.indexOf(countryPart) !== -1 || countryPart === cc) {
+                            pick = r;
+                            break;
+                        }
+                    }
+                }
+                if (!pick)
+                    pick = results[0];
+
+                const wxUrl = "https://api.open-meteo.com/v1/forecast?latitude=" + encodeURIComponent(pick.latitude) + "&longitude=" + encodeURIComponent(pick.longitude) + "&current_weather=true";
+                const wxReq = new XMLHttpRequest();
+                wxReq.timeout = 5000;
+                wxReq.onreadystatechange = function () {
+                    if (wxReq.readyState !== XMLHttpRequest.DONE)
+                        return;
+                    if (wxReq.status !== 200) {
+                        popup.weatherText = "No connection";
+                        return;
+                    }
+                    try {
+                        const w = JSON.parse(wxReq.responseText);
+                        const cw = w.current_weather;
+                        const desc = popup.weatherDesc(cw.weathercode);
+                        const txt = desc + " " + Math.round(cw.temperature) + "°C";
+                        popup.weatherText = txt;
+                        ShellState.cachedWeatherText = txt;
+                        ShellState.cachedWeatherTimestamp = Date.now();
+                    } catch (e) {
+                        popup.weatherText = "No connection";
+                    }
+                };
+                wxReq.ontimeout = function () {
+                    popup.weatherText = "No connection";
+                };
+                wxReq.open("GET", wxUrl);
+                wxReq.send();
+            } catch (e) {
+                popup.weatherText = "No connection";
+            }
+        };
+        xhr.ontimeout = function () {
+            popup.weatherText = "No connection";
+        };
+        xhr.open("GET", geoUrl);
+        xhr.send();
+    }
+
+    function refreshLiveStats() {
+        uptimeFile.reload();
+        memFile.reload();
+        statFile.reload();
+        if (!diskGpuTempReader.running)
+            diskGpuTempReader.running = true;
+    }
+
+    function refreshOnOpen() {
+        hostnameFile.reload();
+        osreleaseFile.reload();
+        osReleaseFile.reload();
+        refreshLiveStats();
+        if (!ShellState.cachedPkgs && !pkgReader.running)
+            pkgReader.running = true;
+        if (!popup.terminalName && !termDetectProc.running)
+            termDetectProc.running = true;
+        if ((!popup.installAge || popup.installAge === "...") && !installDateProc.running)
+            installDateProc.running = true;
+        fetchWeather(false);
+    }
+
+    Component.onCompleted: {
+        Qt.callLater(() => popup._animReady = true);
+        if (popup.open)
+            refreshOnOpen();
+    }
+
+    Timer {
         id: hideTimer
-        interval: 150 
+        interval: 150
     }
 
     onOpenChanged: {
         if (!open) {
-            hideTimer.start()
+            hideTimer.start();
         } else {
-            hideTimer.stop()
-            sysInfoReader.running = true
-            pkgReader.running = true
-            shellTermReader.running = true
-            installAgeReader.running = true
-            if (!weatherFetched) weatherReader.running = true
-            statsReader.running = true
+            hideTimer.stop();
+            refreshOnOpen();
         }
     }
 
+    FileView {
+        id: hostnameFile
+        path: "/proc/sys/kernel/hostname"
+        printErrors: false
+        onLoaded: popup.hostname = text().trim() || "unknown-host"
+    }
+
+    FileView {
+        id: osreleaseFile
+        path: "/proc/sys/kernel/osrelease"
+        printErrors: false
+        onLoaded: popup.kernel = text().trim() || "Unknown"
+    }
+
+    FileView {
+        id: osReleaseFile
+        path: "/etc/os-release"
+        printErrors: false
+        onLoaded: {
+            const lines = text().split("\n");
+            let d = "Linux";
+            let v = "";
+            for (let i = 0; i < lines.length; i++) {
+                const l = lines[i];
+                if (l.startsWith("PRETTY_NAME="))
+                    d = l.slice(12).replace(/^"|"$/g, "");
+                else if (l.startsWith("VERSION_ID="))
+                    v = l.slice(11).replace(/^"|"$/g, "");
+            }
+            popup.distro = d || "Linux";
+            popup.distroVersion = v || "";
+        }
+    }
+
+    FileView {
+        id: uptimeFile
+        path: "/proc/uptime"
+        printErrors: false
+        onLoaded: {
+            const sec = parseFloat(text().trim().split(/\s+/)[0]) || 0;
+            const d = Math.floor(sec / 86400);
+            const h = Math.floor((sec % 86400) / 3600);
+            const m = Math.floor((sec % 3600) / 60);
+            popup.uptime = (d > 0 ? d + "d " : "") + (h > 0 ? h + "h " : "") + m + "m";
+        }
+    }
+
+    FileView {
+        id: memFile
+        path: "/proc/meminfo"
+        printErrors: false
+        onLoaded: {
+            const lines = text().split("\n");
+            let totalKb = 0;
+            let availKb = 0;
+            for (let i = 0; i < lines.length; i++) {
+                const l = lines[i];
+                if (l.startsWith("MemTotal:"))
+                    totalKb = parseInt(l.replace(/\D+/g, ""), 10) || 0;
+                else if (l.startsWith("MemAvailable:"))
+                    availKb = parseInt(l.replace(/\D+/g, ""), 10) || 0;
+            }
+            if (totalKb > 0) {
+                const usedKb = Math.max(0, totalKb - availKb);
+                popup.ramUsedGb = usedKb / (1024 * 1024);
+                popup.ramUsagePct = Math.round(usedKb * 100 / totalKb);
+            }
+        }
+    }
+
+    FileView {
+        id: statFile
+        path: "/proc/stat"
+        printErrors: false
+        onLoaded: {
+            const firstLine = text().split("\n")[0] || "";
+            const parts = firstLine.trim().split(/\s+/);
+            if (parts[0] !== "cpu" || parts.length < 5)
+                return;
+            let total = 0;
+            for (let i = 1; i < parts.length; i++)
+                total += parseInt(parts[i], 10) || 0;
+            const idle = (parseInt(parts[4], 10) || 0) + (parseInt(parts[5], 10) || 0);
+            if (popup._prevCpuTotal > 0 && total > popup._prevCpuTotal) {
+                const dTotal = total - popup._prevCpuTotal;
+                const dIdle = idle - popup._prevCpuIdle;
+                popup.cpuUsagePct = Math.max(0, Math.min(100, Math.round((1 - dIdle / dTotal) * 100)));
+            } else if (popup._prevCpuTotal === 0) {
+                popup.cpuUsagePct = total > 0 ? Math.max(0, Math.min(100, Math.round((1 - idle / total) * 100))) : 0;
+                cpuQuickSampleTimer.restart();
+            }
+            popup._prevCpuTotal = total;
+            popup._prevCpuIdle = idle;
+        }
+    }
+
+    Timer {
+        id: cpuQuickSampleTimer
+        interval: 250
+        onTriggered: if (popup.open)
+            statFile.reload()
+    }
+
     Process {
-        id: sysInfoReader
-        command: ["bash", "-c", `
-u=$(whoami 2>/dev/null); echo "\${u:-User}"
-h=$(cat /proc/sys/kernel/hostname 2>/dev/null || hostnamectl --static 2>/dev/null || hostname 2>/dev/null || cat /etc/hostname 2>/dev/null || uname -n 2>/dev/null); echo "\${h:-unknown-host}"
-k=$(uname -r 2>/dev/null); echo "\${k:-Unknown}"
-up=$(awk '{d=int($1/86400); h=int(($1%86400)/3600); m=int(($1%3600)/60); printf "%s%s%dm", (d>0?d"d ":""), (h>0?h"h ":""), m}' /proc/uptime 2>/dev/null); echo "\${up:-Unknown}"
-d=$(grep -m1 '^PRETTY_NAME=' /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"'); echo "\${d:-Linux}"
-v=$(grep -m1 '^VERSION_ID=' /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"'); echo "\${v:-}"
-w=$(echo "\${XDG_CURRENT_DESKTOP:-\${DESKTOP_SESSION:-\${XDG_SESSION_DESKTOP}}}"); echo "\${w:-Unknown}"
-`]
+        id: installDateProc
+        command: ["sh", "-c", "head -n1 /var/log/pacman.log 2>/dev/null | sed -n 's/^\\[\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}\\).*/\\1/p'"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const lines = this.text.trim().split("\n")
-                popup.username = lines[0] || "User"
-                popup.hostname = lines[1] || "unknown-host"
-                popup.kernel = lines[2] || "Unknown"
-                popup.uptime = lines[3] || "Unknown"
-                popup.distro = lines[4] || "Linux"
-                popup.distroVersion = lines[5] || ""
-                popup.wmName = lines[6] || "Unknown"
+                const d = this.text.trim();
+                const age = d ? popup.formatAgeFromDateStr(d) : "Unknown";
+                popup.installAge = age;
+                if (typeof ShellState.cachedInstallAge !== "undefined")
+                    ShellState.cachedInstallAge = age;
             }
         }
     }
 
     Process {
-        id: installAgeReader
-        command: ["bash", "-c", `
-log=/var/log/pacman.log
-if [ -f "$log" ]; then
-    first=$(head -n1 "$log" | grep -oP '^\\[\\K[0-9-]+')
-    if [ -n "$first" ]; then
-        inst=$(date -d "$first" +%s 2>/dev/null)
-        now=$(date +%s)
-        if [ -n "$inst" ]; then
-            total_days=$(( (now - inst) / 86400 ))
-            python3 -c "
-days_total = $total_days
-years = days_total // 365
-rem = days_total % 365
-months = rem // 30
-rem2 = rem % 30
-weeks = rem2 // 7
-days = rem2 % 7
-
-parts = []
-if years > 0:
-    parts.append(f'{years}y')
-    if months > 0: parts.append(f'{months}m')
-    if weeks > 0: parts.append(f'{weeks}w')
-elif months > 0:
-    parts.append(f'{months}m')
-    if weeks > 0: parts.append(f'{weeks}w')
-    if days > 0: parts.append(f'{days}d')
-elif weeks > 0:
-    parts.append(f'{weeks}w')
-    if days > 0: parts.append(f'{days}d')
-else:
-    parts.append(f'{days}d')
-
-print(' '.join(parts) if parts else '0d')
-"
-        else
-            echo "Unknown"
-        fi
-    else
-        echo "Unknown"
-    fi
-else
-    echo "Unknown"
-fi
-`]
+        id: termDetectProc
+        command: ["sh", "-c", "for t in kitty alacritty wezterm foot konsole gnome-terminal tilix xfce4-terminal terminator lxterminal xterm; do command -v \"$t\" >/dev/null 2>&1 && { echo \"$t\"; exit 0; }; done; echo Unknown"]
         stdout: StdioCollector {
-            onStreamFinished: {
-                popup.installAge = this.text.trim() || "Unknown"
-            }
+            onStreamFinished: popup.terminalName = popup.mapTerminalName(this.text.trim()) || "Unknown"
         }
     }
 
     Process {
         id: pkgReader
-        command: ["bash", "-c", `
-p=$(command -v pacman >/dev/null 2>&1 && pacman -Q 2>/dev/null | wc -l || echo 0)
-a=$(command -v yay >/dev/null 2>&1 && yay -Qm 2>/dev/null | wc -l || { command -v paru >/dev/null 2>&1 && paru -Qm 2>/dev/null | wc -l; } || echo 0)
-f=$(command -v flatpak >/dev/null 2>&1 && flatpak list 2>/dev/null | wc -l || echo 0)
-s=$(command -v snap >/dev/null 2>&1 && snap list 2>/dev/null | tail -n+2 | wc -l || echo 0)
-b=$(command -v brew >/dev/null 2>&1 && brew list 2>/dev/null | wc -l || echo 0)
-echo "$p|$a|$f|$s|$b"
-`]
+        command: ["sh", "-c", "p=$(command -v pacman >/dev/null 2>&1 && pacman -Q 2>/dev/null | wc -l || echo 0);" + "a=$(command -v yay >/dev/null 2>&1 && yay -Qm 2>/dev/null | wc -l || { command -v paru >/dev/null 2>&1 && paru -Qm 2>/dev/null | wc -l; } || echo 0);" + "f=$(command -v flatpak >/dev/null 2>&1 && flatpak list 2>/dev/null | wc -l || echo 0);" + "s=$(command -v snap >/dev/null 2>&1 && snap list 2>/dev/null | tail -n+2 | wc -l || echo 0);" + "b=$(command -v brew >/dev/null 2>&1 && brew list 2>/dev/null | wc -l || echo 0);" + "echo \"$p|$a|$f|$s|$b\""]
         stdout: StdioCollector {
             onStreamFinished: {
-                const parts = this.text.trim().split("|")
+                const parts = this.text.trim().split("|");
                 if (parts.length >= 5) {
-                    popup.pacmanPkgs = parseInt(parts[0]) || 0
-                    popup.aurPkgs = parseInt(parts[1]) || 0
-                    popup.flatpakPkgs = parseInt(parts[2]) || 0
-                    popup.snapPkgs = parseInt(parts[3]) || 0
-                    popup.brewPkgs = parseInt(parts[4]) || 0
-                    popup.totalPkgs = popup.pacmanPkgs + popup.aurPkgs + popup.flatpakPkgs + popup.snapPkgs + popup.brewPkgs
+                    const p = parseInt(parts[0], 10) || 0;
+                    const a = parseInt(parts[1], 10) || 0;
+                    const f = parseInt(parts[2], 10) || 0;
+                    const s = parseInt(parts[3], 10) || 0;
+                    const b = parseInt(parts[4], 10) || 0;
+                    const total = p + a + f + s + b;
+                    popup.pacmanPkgs = p;
+                    popup.aurPkgs = a;
+                    popup.flatpakPkgs = f;
+                    popup.snapPkgs = s;
+                    popup.brewPkgs = b;
+                    popup.totalPkgs = total;
+                    ShellState.cachedPkgs = {
+                        pacman: p,
+                        aur: a,
+                        flatpak: f,
+                        snap: s,
+                        brew: b,
+                        total: total
+                    };
                 }
             }
         }
     }
 
     Process {
-        id: shellTermReader
-        command: ["bash", "-c", `
-sh="$SHELL"
-[ -z "$sh" ] && sh=$(getent passwd "\${USER:-$(whoami)}" 2>/dev/null | cut -d: -f7)
-sh=$(basename "\${sh:-sh}" 2>/dev/null); echo "\${sh:-sh}"
-
-term=""
-if [ -n "$TERMINAL" ]; then
-    term="$TERMINAL"
-else
-    for t in kitty alacritty wezterm foot konsole gnome-terminal tilix xfce4-terminal terminator lxterminal xterm; do
-        if command -v "$t" >/dev/null 2>&1; then term="$t"; break; fi
-    done
-fi
-
-case "$term" in
-    kitty) term="Kitty" ;;
-    alacritty) term="Alacritty" ;;
-    wezterm) term="WezTerm" ;;
-    foot) term="Foot" ;;
-    konsole) term="Konsole" ;;
-    gnome-terminal) term="GNOME Terminal" ;;
-    tilix) term="Tilix" ;;
-    xfce4-terminal) term="Xfce Terminal" ;;
-    terminator) term="Terminator" ;;
-    lxterminal) term="LXTerminal" ;;
-    xterm) term="xterm" ;;
-    "") term="Unknown" ;;
-esac
-
-echo "$term"
-`]
+        id: diskGpuTempReader
+        command: ["sh", "-c", "ct=''; for d in /sys/class/hwmon/hwmon*; do n=$(cat \"$d/name\" 2>/dev/null); case \"$n\" in coretemp|k10temp|zenpower|acpitz) ct=$(awk '{print int($1/1000); exit}' \"$d\"/temp*_input 2>/dev/null); [ -n \"$ct\" ] && break;; esac; done; [ -z \"$ct\" ] && ct=$(awk '{print int($1/1000); exit}' /sys/class/hwmon/hwmon*/temp*_input 2>/dev/null); echo \"CT:${ct:-0}\";" + "if command -v nvidia-smi >/dev/null 2>&1; then gd=$(nvidia-smi --query-gpu=utilization.gpu,temperature.gpu --format=csv,noheader,nounits 2>/dev/null | head -n1 | tr -d ' '); [ -n \"$gd\" ] && echo \"GPU:$gd\"; fi;" + "df -h --output=target,size,used,pcent 2>/dev/null | tail -n+2 | while read -r m s u p; do case \"$m\" in /) echo \"DISK:Root|$s|$u|$p\";; /media/*|/mnt/*) echo \"DISK:${m##*/}|$s|$u|$p\";; esac; done"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const lines = this.text.trim().split("\n")
-                popup.shellName = lines[0] || "sh"
-                popup.terminalName = lines[1] || "Unknown"
-            }
-        }
-    }
-
-    Process {
-        id: statsReader
-        command: [
-            "bash", "-c",
-            "cpu_usage=$(top -bn1 | grep 'Cpu(s)' | awk '{print int($2+$4+$6)}');" +
-            "cpu_temp=$(cat /sys/class/hwmon/hwmon*/temp*_input 2>/dev/null | head -n1 | awk '{print int($1/1000)}');" +
-            "[ -z \"$cpu_temp\" ] && cpu_temp=0;" +
-            "gpu_avail=false; gpu_usage=0; gpu_temp=0; gpu_vram_total=0; gpu_vram_used=0;" +
-            "if command -v nvidia-smi >/dev/null 2>&1; then" +
-            "  gpu_data=$(nvidia-smi --query-gpu=utilization.gpu,temperature.gpu,memory.total,memory.used --format=csv,noheader,nounits 2>/dev/null | head -n1);" +
-            "  if echo \"$gpu_data\" | grep -qE '^[0-9]+, *[0-9]+, *[0-9]+, *[0-9]+$'; then" +
-            "    gpu_avail=true;" +
-            "    gpu_usage=$(echo $gpu_data | cut -d',' -f1 | xargs);" +
-            "    gpu_temp=$(echo $gpu_data | cut -d',' -f2 | xargs);" +
-            "    gpu_vram_total=$(echo $gpu_data | cut -d',' -f3 | xargs);" +
-            "    gpu_vram_used=$(echo $gpu_data | cut -d',' -f4 | xargs);" +
-            "  fi;" +
-            "fi;" +
-            "read total used _ <<< $(free -b | awk 'NR==2{print $2,$3}');" +
-            "ram_total=$((total/1024/1024)); ram_used=$((used/1024/1024)); ram_usage=$((ram_used*100/ram_total));" +
-            "echo \"DISKS_START\";" +
-            "df -h --output=target,size,used,pcent 2>/dev/null | tail -n+2 | while read -r mount size used pct; do" +
-            "  [ \"$mount\" = \"/\" ] && echo \"Root|$size|$used|$pct\" && continue;" +
-            "  [[ \"$mount\" == /media/* ]] && echo \"$(basename $mount)|$size|$used|$pct\" && continue;" +
-            "  [[ \"$mount\" == /mnt/* ]] && echo \"$(basename $mount)|$size|$used|$pct\" && continue;" +
-            "done;" +
-            "echo \"DISKS_END\";" +
-            "echo \"STATS:$cpu_usage|$cpu_temp|$gpu_avail|$gpu_usage|$gpu_temp|$gpu_vram_total|$gpu_vram_used|$ram_total|$ram_used|$ram_usage\""
-        ]
-        stdout: StdioCollector {
-            property var diskData: []
-            property bool readingDisks: false
-
-            onStreamFinished: {
-                const lines = this.text.trim().split('\n')
-                let statsLine = ""
+                const lines = this.text.trim().split("\n");
+                const disks = [];
+                let hasGpu = false;
                 for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i].trim()
-                    if (line === "DISKS_START") { readingDisks = true; diskData = []; continue }
-                    if (line === "DISKS_END") { readingDisks = false; continue }
-                    if (readingDisks) {
-                        const parts = line.split('|')
-                        if (parts.length >= 4) {
-                            diskData.push({
-                                name: parts[0],
-                                size: parts[1],
-                                used: parts[2],
-                                pct: parseInt(parts[3].replace('%','')) || 0
-                            })
+                    const line = lines[i].trim();
+                    if (line.startsWith("CT:")) {
+                        popup.cpuTempC = parseInt(line.slice(3), 10) || 0;
+                    } else if (line.startsWith("GPU:")) {
+                        const gp = line.slice(4).split(",");
+                        if (gp.length >= 2) {
+                            hasGpu = true;
+                            popup.gpuUsageLabel = gp[0] || "0";
+                            popup.gpuTempC = parseInt(gp[1], 10) || 0;
+                        }
+                    } else if (line.startsWith("DISK:")) {
+                        const dp = line.slice(5).split("|");
+                        if (dp.length >= 4) {
+                            disks.push({
+                                name: dp[0],
+                                size: dp[1],
+                                used: dp[2],
+                                pct: parseInt(dp[3].replace("%", ""), 10) || 0
+                            });
                         }
                     }
-                    if (line.startsWith("STATS:")) statsLine = line.substring(6)
                 }
-                popup.diskList = diskData
-                if (statsLine) {
-                    const s = statsLine.split("|")
-                    if (s.length >= 10) {
-                        popup.cpuUsagePct = parseInt(s[0]) || 0
-                        popup.cpuTempC = parseInt(s[1]) || 0
-                        popup.gpuAvailable = s[2] === "true"
-                        popup.gpuUsageLabel = s[3] || "0"
-                        popup.gpuTempC = parseInt(s[4]) || 0
-                        popup.gpuVramTotalGb = (parseFloat(s[5]) || 0) / 1024
-                        popup.gpuVramUsedGb = (parseFloat(s[6]) || 0) / 1024
-                        popup.ramTotalGb = (parseFloat(s[7]) || 0) / 1024
-                        popup.ramUsedGb = (parseFloat(s[8]) || 0) / 1024
-                        popup.ramUsagePct = parseInt(s[9]) || 0
-                    }
-                }
+                popup.gpuAvailable = hasGpu;
+                popup.diskList = disks;
             }
         }
     }
@@ -301,146 +476,41 @@ echo "$term"
         interval: 3000
         running: popup.open
         repeat: true
-        triggeredOnStart: false
-        onTriggered: {
-            if (!statsReader.running) statsReader.running = true
-        }
+        onTriggered: popup.refreshLiveStats()
     }
 
-    property string weatherConfigPath: Quickshell.env("HOME") + "/.config/quickshell/weather_city.conf"
+    readonly property string weatherConfigPath: Quickshell.env("HOME") + "/.config/quickshell/weather_city.conf"
 
-    Component.onCompleted: { weatherCityReader.running = true }
-
-    Process {
-        id: weatherCityReader
-        command: ["bash", "-c", 'cat "$1" 2>/dev/null || echo Moscow', "bash", popup.weatherConfigPath]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const c = this.text.trim()
-                if (c) {
-                    popup.weatherCity = c
-                    popup.weatherFetched = false
-                    weatherReader.running = true
-                }
+    FileView {
+        id: weatherCityFile
+        path: popup.weatherConfigPath
+        printErrors: false
+        onLoaded: {
+            const c = text().trim();
+            if (c) {
+                if (c !== ShellState.cachedWeatherCity)
+                    ShellState.cachedWeatherTimestamp = 0;
+                popup.weatherCity = c;
+                ShellState.cachedWeatherCity = c;
             }
+            popup.fetchWeather(false);
+        }
+        onLoadFailed: err => {
+            popup.fetchWeather(false);
         }
     }
 
-    Process {
-        id: weatherReader
-        command: ["bash", "-c", `
-raw="$1"
-if echo "$raw" | grep -q ','; then
-  cityPart=$(echo "$raw" | cut -d',' -f1 | sed 's/^[ \\t]*//;s/[ \\t]*$//')
-  countryPart=$(echo "$raw" | cut -d',' -f2- | sed 's/^[ \\t]*//;s/[ \\t]*$//')
-else
-  cityPart="$raw"
-  countryPart=""
-fi
-
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "No connection"
-  exit 0
-fi
-
-geo=$(curl -s --max-time 5 -G \\
-  --data-urlencode "name=$cityPart" \\
-  --data-urlencode "count=10" \\
-  --data-urlencode "language=en" \\
-  --data-urlencode "format=json" \\
-  "https://geocoding-api.open-meteo.com/v1/search" 2>/dev/null)
-
-export WEATHER_COUNTRY="$countryPart"
-coords=$(echo "$geo" | python3 -c '
-import json, os, sys
-try:
-    data = json.load(sys.stdin)
-except Exception:
-    sys.exit(1)
-results = data.get("results") or []
-if not results:
-    sys.exit(1)
-country = os.environ.get("WEATHER_COUNTRY", "").strip().lower()
-pick = None
-if country:
-    for r in results:
-        c = (r.get("country") or "").lower()
-        cc = (r.get("country_code") or "").lower()
-        if country in c or country == cc:
-            pick = r
-            break
-if pick is None:
-    pick = results[0]
-print(pick["latitude"])
-print(pick["longitude"])
-' 2>/dev/null)
-
-if [ -z "$coords" ]; then echo "No connection"; exit 0; fi
-lat=$(echo "$coords" | sed -n '1p')
-lon=$(echo "$coords" | sed -n '2p')
-
-wx=$(curl -s --max-time 5 "https://api.open-meteo.com/v1/forecast?latitude=\${lat}&longitude=\${lon}&current_weather=true" 2>/dev/null)
-out=$(echo "$wx" | python3 -c '
-import json, sys
-try:
-    d = json.load(sys.stdin)
-    cw = d["current_weather"]
-    temp = cw["temperature"]
-    code = cw["weathercode"]
-except Exception:
-    sys.exit(1)
-desc_map = {
-    0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
-    45: "Fog", 48: "Fog",
-    51: "Drizzle", 53: "Drizzle", 55: "Drizzle",
-    56: "Freezing drizzle", 57: "Freezing drizzle",
-    61: "Rain", 63: "Rain", 65: "Rain",
-    66: "Freezing rain", 67: "Freezing rain",
-    71: "Snow", 73: "Snow", 75: "Snow",
-    77: "Snow grains",
-    80: "Rain showers", 81: "Rain showers", 82: "Rain showers",
-    85: "Snow showers", 86: "Snow showers",
-    95: "Thunderstorm",
-    96: "Thunderstorm with hail", 99: "Thunderstorm with hail",
-}
-desc = desc_map.get(code, "Unknown")
-print("%s %.0f\u00b0C" % (desc, round(temp)))
-' 2>/dev/null)
-
-if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
-`, "bash", popup.weatherCity]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const t = this.text.trim()
-                const looksValid = t.length > 0 && (t.includes("°") || /\d/.test(t))
-                popup.weatherText = looksValid ? t : "No connection"
-                popup.weatherFetched = true
+    Loader {
+        id: avatarPickerLoader
+        active: false
+        sourceComponent: FilePicker {
+            pickerTitle: "Choose Avatar"
+            initialDir: Quickshell.env("HOME") + "/Pictures"
+            nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
+            onAccepted: path => {
+                copyAvatarProc.command = ["sh", "-c", "mkdir -p \"$2\" && cp -- \"$1\" \"$2/avatar.png\" && echo ok", "sh", path, Quickshell.env("HOME") + "/.config/quickshell"];
+                copyAvatarProc.running = true;
             }
-        }
-    }
-
-    Timer {
-        interval: 5 * 60 * 1000
-        running: true
-        repeat: true
-        onTriggered: {
-            popup.weatherFetched = false
-            weatherReader.running = true
-        }
-    }
-
-    FilePicker {
-        id: avatarPicker
-        pickerTitle: "Choose Avatar"
-        initialDir: Quickshell.env("HOME") + "/Pictures"
-        nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
-        onAccepted: (path) => {
-            copyAvatarProc.command = [
-                "bash", "-c",
-                'mkdir -p ~/.config/quickshell && cp "$1" ~/.config/quickshell/avatar.png && echo ok',
-                "bash", path
-            ]
-            copyAvatarProc.running = true
         }
     }
 
@@ -448,31 +518,27 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
         id: copyAvatarProc
         stdout: StdioCollector {
             onStreamFinished: {
-                if (this.text.trim() === "ok") {
-                    avatarImage.source = "file://" + Quickshell.env("HOME") + "/.config/quickshell/avatar.png?t=" + Date.now()
-                }
+                if (this.text.trim() === "ok")
+                    popup.avatarTick++;
             }
         }
     }
 
-    TextInputPopup {
-        id: weatherCityInput
-        popupTitle: "Weather Location"
-        promptText: "Enter City, Country (e.g. London,UK):"
-        onAccepted: (value) => {
-            saveWeatherCityProc.command = [
-                "bash", "-c",
-                'mkdir -p ~/.config/quickshell && printf "%s\\n" "$1" > "$2"',
-                "bash", value, popup.weatherConfigPath
-            ]
-            popup.weatherCity = value
-            popup.weatherFetched = false
-            saveWeatherCityProc.running = true
-            weatherReader.running = true
+    Loader {
+        id: weatherInputLoader
+        active: false
+        sourceComponent: TextInputPopup {
+            popupTitle: "Weather Location"
+            promptText: "Enter City, Country (e.g. London,UK):"
+            onAccepted: value => {
+                popup.weatherCity = value;
+                ShellState.cachedWeatherCity = value;
+                ShellState.cachedWeatherTimestamp = 0;
+                weatherCityFile.setText(value + "\n");
+                popup.fetchWeather(true);
+            }
         }
     }
-
-    Process { id: saveWeatherCityProc }
 
     Rectangle {
         anchors.fill: bg
@@ -509,16 +575,31 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
         clip: true
 
         transformOrigin: {
-            if (AppSettings.barPosition === "bottom") return Item.BottomLeft
-            if (AppSettings.barPosition === "right") return Item.TopRight
-            return Item.TopLeft
+            if (AppSettings.barPosition === "bottom")
+                return Item.BottomLeft;
+            if (AppSettings.barPosition === "right")
+                return Item.TopRight;
+            return Item.TopLeft;
         }
-        scale: popup.open ? 1.0 : 0.88
-        opacity: popup.open ? 1.0 : 0.0
-        Behavior on scale { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
-        Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
+        scale: popup.visualOpen ? 1.0 : 0.88
+        opacity: popup.visualOpen ? 1.0 : 0.0
+        Behavior on scale {
+            NumberAnimation {
+                duration: 200
+                easing.type: Easing.OutBack
+                easing.overshoot: 1.1
+            }
+        }
+        Behavior on opacity {
+            NumberAnimation {
+                duration: 150
+                easing.type: Easing.OutQuad
+            }
+        }
 
-        HoverHandler { id: hover }
+        HoverHandler {
+            id: hover
+        }
 
         Rectangle {
             id: gearBtn
@@ -530,9 +611,15 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
             radius: 12
             z: 10
             color: gearHover.hovered ? Qt.rgba(1, 1, 1, 0.1) : "transparent"
-            Behavior on color { ColorAnimation { duration: 150 } }
+            Behavior on color {
+                ColorAnimation {
+                    duration: 150
+                }
+            }
 
-            HoverHandler { id: gearHover }
+            HoverHandler {
+                id: gearHover
+            }
 
             Text {
                 anchors.centerIn: parent
@@ -562,21 +649,20 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
                     Layout.preferredWidth: 115
                     Layout.preferredHeight: 115
 
-                    Image {
-                        id: avatarImage
+                    ClippingRectangle {
                         anchors.fill: parent
-                        source: "file://" + Quickshell.env("HOME") + "/.config/quickshell/avatar.png"
-                        fillMode: Image.PreserveAspectCrop
-                        smooth: true
-                        asynchronous: true
-                        visible: status === Image.Ready
-                        layer.enabled: visible
-                        layer.effect: OpacityMask {
-                            maskSource: Rectangle {
-                                width: avatarImage.width
-                                height: avatarImage.height
-                                radius: width / 2
-                            }
+                        radius: width / 2
+                        color: "transparent"
+                        visible: avatarImage.status === Image.Ready
+
+                        Image {
+                            id: avatarImage
+                            anchors.fill: parent
+                            source: "file://" + Quickshell.env("HOME") + "/.config/quickshell/avatar.png" + (popup.avatarTick > 0 ? "?t=" + popup.avatarTick : "")
+                            sourceSize: Qt.size(230, 230)
+                            fillMode: Image.PreserveAspectCrop
+                            smooth: true
+                            asynchronous: true
                         }
                     }
 
@@ -585,7 +671,7 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
                         radius: width / 2
                         color: Colors.primary
                         opacity: 0.8
-                        visible: !avatarImage.visible
+                        visible: avatarImage.status !== Image.Ready
                         Text {
                             anchors.centerIn: parent
                             text: popup.username ? popup.username.charAt(0).toUpperCase() : "U"
@@ -599,16 +685,20 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
                         anchors.fill: parent
                         radius: width / 2
                         color: "transparent"
-                        border.color: avatarHover.hovered ? Colors.primary : Qt.rgba(1,1,1,0.12)
+                        border.color: avatarHover.hovered ? Colors.primary : Qt.rgba(1, 1, 1, 0.12)
                         border.width: 2
                     }
 
                     Rectangle {
                         anchors.fill: parent
                         radius: width / 2
-                        color: Qt.rgba(0,0,0,0.5)
+                        color: Qt.rgba(0, 0, 0, 0.5)
                         opacity: avatarHover.hovered ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: 150 } }
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: 150
+                            }
+                        }
                         Text {
                             anchors.centerIn: parent
                             text: "\uf304"
@@ -617,8 +707,18 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
                         }
                     }
 
-                    HoverHandler { id: avatarHover }
-                    TapHandler { onTapped: avatarPicker.openAt(avatarPicker.initialDir) }
+                    HoverHandler {
+                        id: avatarHover
+                    }
+                    TapHandler {
+                        onTapped: {
+                            avatarPickerLoader.active = true;
+                            Qt.callLater(() => {
+                                if (avatarPickerLoader.item)
+                                    avatarPickerLoader.item.openAt(avatarPickerLoader.item.initialDir);
+                            });
+                        }
+                    }
                 }
 
                 ColumnLayout {
@@ -639,7 +739,9 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
                     }
                 }
 
-                Item { Layout.fillWidth: true }
+                Item {
+                    Layout.fillWidth: true
+                }
 
                 Rectangle {
                     Layout.preferredWidth: uptimeLabel.implicitWidth + 26
@@ -672,7 +774,13 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: weatherCityInput.openWith(popup.weatherCity)
+                    onClicked: {
+                        weatherInputLoader.active = true;
+                        Qt.callLater(() => {
+                            if (weatherInputLoader.item)
+                                weatherInputLoader.item.openWith(popup.weatherCity);
+                        });
+                    }
                 }
 
                 RowLayout {
@@ -768,7 +876,7 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
                         Layout.fillWidth: true
                         icon: "󰒼"
                         label: "Terminal"
-                        value: popup.terminalName
+                        value: popup.terminalName || "..."
                     }
                     SysTile {
                         Layout.fillWidth: true
@@ -780,7 +888,7 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
                         Layout.fillWidth: true
                         icon: "󰆍"
                         label: "User Shell"
-                        value: popup.shellName + (popup.shellVersion ? " " + popup.shellVersion : "")
+                        value: popup.shellName
                     }
 
                     SysTile {
@@ -790,13 +898,18 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
                         icon: "\uf487"
                         label: "Packages"
                         value: {
-                            var parts = []
-                            if (popup.pacmanPkgs > 0) parts.push("pacman: " + popup.pacmanPkgs)
-                            if (popup.aurPkgs > 0) parts.push("aur: " + popup.aurPkgs)
-                            if (popup.flatpakPkgs > 0) parts.push("flatpak: " + popup.flatpakPkgs)
-                            if (popup.snapPkgs > 0) parts.push("snap: " + popup.snapPkgs)
-                            if (popup.brewPkgs > 0) parts.push("brew: " + popup.brewPkgs)
-                            return parts.length > 0 ? popup.totalPkgs + " total (" + parts.join(", ") + ")" : "0 total"
+                            var parts = [];
+                            if (popup.pacmanPkgs > 0)
+                                parts.push("pacman: " + popup.pacmanPkgs);
+                            if (popup.aurPkgs > 0)
+                                parts.push("aur: " + popup.aurPkgs);
+                            if (popup.flatpakPkgs > 0)
+                                parts.push("flatpak: " + popup.flatpakPkgs);
+                            if (popup.snapPkgs > 0)
+                                parts.push("snap: " + popup.snapPkgs);
+                            if (popup.brewPkgs > 0)
+                                parts.push("brew: " + popup.brewPkgs);
+                            return parts.length > 0 ? popup.totalPkgs + " total (" + parts.join(", ") + ")" : "0 total";
                         }
                     }
                 }
@@ -826,85 +939,86 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
                         width: parent.width
                         spacing: 8
 
-                Repeater {
-                    model: popup.diskList
-                    delegate: Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 64
-                        radius: 14
-                        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.04)
-                        border.color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08)
-                        border.width: 1
-
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.margins: 14
-                            spacing: 14
-
-                            Rectangle {
-                                Layout.preferredWidth: 40
-                                Layout.preferredHeight: 40
-                                radius: 10
-                                color: modelData.pct > 90 ? Qt.rgba(Colors.error.r, Colors.error.g, Colors.error.b, 0.18) :
-                                       modelData.pct > 70 ? Qt.rgba(1, 0.7, 0.4, 0.18) :
-                                       Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18)
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: modelData.name === "Root" ? "󰋊" : "󰆓"
-                                    font.pixelSize: 18
-                                    color: modelData.pct > 90 ? Colors.error :
-                                           modelData.pct > 70 ? "#f7b267" : Colors.primary
-                                }
-                            }
-
-                            ColumnLayout {
+                        Repeater {
+                            model: popup.diskList
+                            delegate: Rectangle {
+                                required property var modelData
                                 Layout.fillWidth: true
-                                spacing: 4
+                                Layout.preferredHeight: 64
+                                radius: 14
+                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.04)
+                                border.color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08)
+                                border.width: 1
 
                                 RowLayout {
-                                    Layout.fillWidth: true
-                                    Text {
-                                        text: modelData.name === "Root" ? "System Drive (Root)" : modelData.name
-                                        color: Colors.surfaceText
-                                        font.pixelSize: 14
-                                        font.bold: true
-                                        Layout.fillWidth: true
-                                    }
-                                    Text {
-                                        text: modelData.used + " of " + modelData.size + " (" + modelData.pct + "%)"
-                                        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.7)
-                                        font.pixelSize: 12
-                                        font.bold: true
-                                    }
-                                }
-
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 6
-                                    radius: 3
-                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.1)
+                                    anchors.fill: parent
+                                    anchors.margins: 14
+                                    spacing: 14
 
                                     Rectangle {
-                                        width: parent.width * Math.min(1, modelData.pct / 100)
-                                        height: parent.height
-                                        radius: 3
-                                        color: modelData.pct > 90 ? Colors.error :
-                                               modelData.pct > 70 ? "#f7b267" : Colors.primary
-                                        Behavior on width { NumberAnimation { duration: 300 } }
+                                        Layout.preferredWidth: 40
+                                        Layout.preferredHeight: 40
+                                        radius: 10
+                                        color: modelData.pct > 90 ? Qt.rgba(Colors.error.r, Colors.error.g, Colors.error.b, 0.18) : modelData.pct > 70 ? Qt.rgba(1, 0.7, 0.4, 0.18) : Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18)
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: modelData.name === "Root" ? "󰋊" : "󰆓"
+                                            font.pixelSize: 18
+                                            color: modelData.pct > 90 ? Colors.error : modelData.pct > 70 ? "#f7b267" : Colors.primary
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 4
+
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            Text {
+                                                text: modelData.name === "Root" ? "System Drive (Root)" : modelData.name
+                                                color: Colors.surfaceText
+                                                font.pixelSize: 14
+                                                font.bold: true
+                                                Layout.fillWidth: true
+                                            }
+                                            Text {
+                                                text: modelData.used + " of " + modelData.size + " (" + modelData.pct + "%)"
+                                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.7)
+                                                font.pixelSize: 12
+                                                font.bold: true
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            Layout.fillWidth: true
+                                            Layout.preferredHeight: 6
+                                            radius: 3
+                                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.1)
+
+                                            Rectangle {
+                                                width: parent.width * Math.min(1, modelData.pct / 100)
+                                                height: parent.height
+                                                radius: 3
+                                                color: modelData.pct > 90 ? Colors.error : modelData.pct > 70 ? "#f7b267" : Colors.primary
+                                                Behavior on width {
+                                                    NumberAnimation {
+                                                        duration: 300
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                }
 
-                Text {
-                    visible: popup.diskList.length === 0
-                    text: "No mounted storage drives detected"
-                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
-                    font.pixelSize: 13
-                }
+                        Text {
+                            visible: popup.diskList.length === 0
+                            text: "No mounted storage drives detected"
+                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
+                            font.pixelSize: 13
+                        }
                     }
                 }
             }
@@ -991,7 +1105,9 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
                     font.pixelSize: 12
                     font.bold: true
                 }
-                Item { Layout.fillWidth: true }
+                Item {
+                    Layout.fillWidth: true
+                }
                 Text {
                     text: subValue
                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.8)
@@ -1021,7 +1137,11 @@ if [ -z "$out" ]; then echo "No connection"; else echo "$out"; fi
                     height: parent.height
                     radius: 2.5
                     color: progressColor
-                    Behavior on width { NumberAnimation { duration: 300 } }
+                    Behavior on width {
+                        NumberAnimation {
+                            duration: 300
+                        }
+                    }
                 }
             }
         }

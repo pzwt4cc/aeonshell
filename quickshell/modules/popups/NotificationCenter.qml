@@ -11,9 +11,11 @@ PopupWindow {
     id: popup
 
     property bool open: false
+    property bool _animReady: false
+    readonly property bool visualOpen: popup.open && popup._animReady
+
     function toggle() {
         popup.open = !popup.open;
-        if (popup.open) NotificationService.markAllRead();
     }
 
     readonly property int shadowMargin: 16
@@ -25,34 +27,58 @@ PopupWindow {
     implicitWidth: 480 + shadowMargin * 2
     implicitHeight: contentCol.implicitHeight + 32 + shadowMargin * 2
     color: "transparent"
-    visible: popup.open
+    visible: popup.open || hideTimer.running
+
+    Component.onCompleted: {
+        Qt.callLater(() => popup._animReady = true);
+        if (popup.open)
+            NotificationService.markAllRead();
+    }
+
+    Timer {
+        id: hideTimer
+        interval: 150
+    }
 
     function notificationModel() {
+        if (!popup.open && !hideTimer.running)
+            return [];
         const src = NotificationService.history;
         const withIdx = [];
         for (let i = 0; i < src.length; i++) {
-            const item = Object.assign({}, src[i], { _origIndex: i });
+            const item = Object.assign({}, src[i], {
+                _origIndex: i
+            });
             withIdx.push(item);
         }
-        if (!AppSettings.groupNotificationsBySource) return withIdx;
+        if (!AppSettings.groupNotificationsBySource)
+            return withIdx;
 
         const order = [];
         const groups = {};
         for (const item of withIdx) {
             const key = item.appName || "—";
-            if (!groups[key]) { groups[key] = []; order.push(key); }
+            if (!groups[key]) {
+                groups[key] = [];
+                order.push(key);
+            }
             groups[key].push(item);
         }
         let out = [];
-        for (const key of order) out = out.concat(groups[key]);
+        for (const key of order)
+            out = out.concat(groups[key]);
         return out;
     }
 
     property bool mouseHasEntered: false
-    
+
     onOpenChanged: {
         if (open) {
+            hideTimer.stop();
             mouseHasEntered = false;
+            NotificationService.markAllRead();
+        } else {
+            hideTimer.start();
         }
     }
 
@@ -85,19 +111,29 @@ PopupWindow {
         clip: true
 
         transformOrigin: {
-            if (AppSettings.barPosition === "bottom") return Item.BottomRight
-            if (AppSettings.barPosition === "left") return Item.BottomLeft
-            if (AppSettings.barPosition === "right") return Item.BottomRight
-            return Item.TopRight
+            if (AppSettings.barPosition === "bottom")
+                return Item.BottomRight;
+            if (AppSettings.barPosition === "left")
+                return Item.BottomLeft;
+            if (AppSettings.barPosition === "right")
+                return Item.BottomRight;
+            return Item.TopRight;
         }
-        scale: popup.open ? 1.0 : 0.85
-        opacity: popup.open ? 1.0 : 0.0
+        scale: popup.visualOpen ? 1.0 : 0.85
+        opacity: popup.visualOpen ? 1.0 : 0.0
 
         Behavior on scale {
-            NumberAnimation { duration: 180; easing.type: Easing.OutBack; easing.overshoot: 1.2 }
+            NumberAnimation {
+                duration: 180
+                easing.type: Easing.OutBack
+                easing.overshoot: 1.2
+            }
         }
         Behavior on opacity {
-            NumberAnimation { duration: 140; easing.type: Easing.OutQuad }
+            NumberAnimation {
+                duration: 140
+                easing.type: Easing.OutQuad
+            }
         }
 
         HoverHandler {
@@ -112,7 +148,7 @@ PopupWindow {
         ColumnLayout {
             id: contentCol
             anchors.fill: parent
-            anchors.margins: 16 
+            anchors.margins: 16
             spacing: 12
 
             ColumnLayout {
@@ -126,7 +162,7 @@ PopupWindow {
                     Text {
                         text: "Notifications"
                         color: Colors.surfaceText
-                        font.pixelSize: 18 
+                        font.pixelSize: 18
                         font.bold: true
                         Layout.fillWidth: true
                     }
@@ -146,13 +182,13 @@ PopupWindow {
                         Layout.alignment: Qt.AlignVCenter
                         Layout.rightMargin: 2
                         radius: height / 2
-                        color: NotificationService.dnd
-                            ? Colors.primary
-                            : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.18)
+                        color: NotificationService.dnd ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.18)
                         border.width: 0
 
                         Behavior on color {
-                            ColorAnimation { duration: 150 }
+                            ColorAnimation {
+                                duration: 150
+                            }
                         }
 
                         Rectangle {
@@ -165,89 +201,97 @@ PopupWindow {
                             color: "white"
 
                             Behavior on x {
-                                NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
-                            }
-                    }
-
-                    TapHandler {
-                        onTapped: NotificationService.dnd = !NotificationService.dnd
-                    }
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 8
-
-                Rectangle {
-                    id: groupToggleBtn
-                    Layout.preferredHeight: 30
-                    Layout.preferredWidth: groupRow.implicitWidth + 24
-                    radius: height / 2
-                    color: AppSettings.groupNotificationsBySource
-                        ? Colors.primary
-                        : (groupHover.hovered
-                            ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.10)
-                            : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.05))
-                    border.width: AppSettings.groupNotificationsBySource ? 0 : 1
-                    border.color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.15)
-                    scale: groupTap.pressed ? 0.96 : 1.0
-
-                    Behavior on color { ColorAnimation { duration: 150 } }
-                    Behavior on scale { NumberAnimation { duration: 100; easing.type: Easing.OutQuad } }
-
-                    RowLayout {
-                        id: groupRow
-                        anchors.centerIn: parent
-                        spacing: 6
-
-                        Item {
-                            Layout.preferredWidth: 12
-                            Layout.preferredHeight: 12
-
-                            readonly property color iconColor: AppSettings.groupNotificationsBySource
-                                ? "white"
-                                : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.55)
-
-                            Rectangle {
-                                width: 7
-                                height: 7
-                                radius: 2
-                                anchors.top: parent.top
-                                anchors.left: parent.left
-                                color: "transparent"
-                                border.width: 1.2
-                                border.color: parent.iconColor
-                            }
-                            Rectangle {
-                                width: 7
-                                height: 7
-                                radius: 2
-                                anchors.bottom: parent.bottom
-                                anchors.right: parent.right
-                                color: parent.iconColor
+                                NumberAnimation {
+                                    duration: 150
+                                    easing.type: Easing.OutQuad
+                                }
                             }
                         }
 
-                        Text {
-                            text: "Group by app"
-                            font.pixelSize: 12
-                            font.bold: AppSettings.groupNotificationsBySource
-                            color: AppSettings.groupNotificationsBySource
-                                ? "white"
-                                : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.55)
+                        TapHandler {
+                            onTapped: NotificationService.dnd = !NotificationService.dnd
                         }
-                    }
-
-                    HoverHandler { id: groupHover }
-                    TapHandler {
-                        id: groupTap
-                        onTapped: AppSettings.groupNotificationsBySource = !AppSettings.groupNotificationsBySource
                     }
                 }
 
-                Item { Layout.fillWidth: true }
-            }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Rectangle {
+                        id: groupToggleBtn
+                        Layout.preferredHeight: 30
+                        Layout.preferredWidth: groupRow.implicitWidth + 24
+                        radius: height / 2
+                        color: AppSettings.groupNotificationsBySource ? Colors.primary : (groupHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.10) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.05))
+                        border.width: AppSettings.groupNotificationsBySource ? 0 : 1
+                        border.color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.15)
+                        scale: groupTap.pressed ? 0.96 : 1.0
+
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: 150
+                            }
+                        }
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: 100
+                                easing.type: Easing.OutQuad
+                            }
+                        }
+
+                        RowLayout {
+                            id: groupRow
+                            anchors.centerIn: parent
+                            spacing: 6
+
+                            Item {
+                                Layout.preferredWidth: 12
+                                Layout.preferredHeight: 12
+
+                                readonly property color iconColor: AppSettings.groupNotificationsBySource ? "white" : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.55)
+
+                                Rectangle {
+                                    width: 7
+                                    height: 7
+                                    radius: 2
+                                    anchors.top: parent.top
+                                    anchors.left: parent.left
+                                    color: "transparent"
+                                    border.width: 1.2
+                                    border.color: parent.iconColor
+                                }
+                                Rectangle {
+                                    width: 7
+                                    height: 7
+                                    radius: 2
+                                    anchors.bottom: parent.bottom
+                                    anchors.right: parent.right
+                                    color: parent.iconColor
+                                }
+                            }
+
+                            Text {
+                                text: "Group by app"
+                                font.pixelSize: 12
+                                font.bold: AppSettings.groupNotificationsBySource
+                                color: AppSettings.groupNotificationsBySource ? "white" : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.55)
+                            }
+                        }
+
+                        HoverHandler {
+                            id: groupHover
+                        }
+                        TapHandler {
+                            id: groupTap
+                            onTapped: AppSettings.groupNotificationsBySource = !AppSettings.groupNotificationsBySource
+                        }
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                    }
+                }
             }
 
             ListView {
@@ -256,7 +300,7 @@ PopupWindow {
                 Layout.preferredHeight: Math.min(contentHeight, popup.listCapHeight)
                 Layout.maximumHeight: popup.listCapHeight
                 clip: true
-                spacing: 10 
+                spacing: 10
                 model: popup.notificationModel()
 
                 section.property: AppSettings.groupNotificationsBySource ? "appName" : ""
@@ -278,24 +322,39 @@ PopupWindow {
 
                 delegate: Rectangle {
                     id: notifCard
+                    required property var modelData
+                    readonly property string itemImage: modelData && modelData.image ? modelData.image : ""
+                    readonly property string itemAppIcon: modelData && modelData.appIcon ? modelData.appIcon : ""
+                    readonly property string itemSummary: modelData && modelData.summary ? modelData.summary : ""
+                    readonly property string itemTime: modelData && modelData.time ? modelData.time : ""
+                    readonly property string itemBody: modelData && modelData.body ? modelData.body : ""
+                    readonly property int itemOrigIndex: modelData && modelData._origIndex !== undefined ? modelData._origIndex : -1
+
                     width: list.width
                     height: Math.max(cardContent.implicitHeight + 28, 76)
                     radius: 14
                     color: cardHover.hovered ? Qt.rgba(1, 1, 1, 0.06) : Qt.rgba(1, 1, 1, 0.04)
 
-                    Behavior on color { ColorAnimation { duration: 100 } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: 100
+                        }
+                    }
 
-                    HoverHandler { id: cardHover }
+                    HoverHandler {
+                        id: cardHover
+                    }
 
                     TapHandler {
                         enabled: !closeHover.hovered
-                        onTapped: NotificationService.openSource(modelData)
+                        onTapped: if (notifCard.modelData)
+                            NotificationService.openSource(notifCard.modelData)
                     }
 
                     RowLayout {
                         id: cardContent
                         anchors.fill: parent
-                        anchors.margins: 14 
+                        anchors.margins: 14
                         spacing: 14
 
                         Item {
@@ -303,24 +362,28 @@ PopupWindow {
                             Layout.preferredHeight: 56
                             Layout.alignment: Qt.AlignVCenter
 
+                            readonly property bool hasValidImg: notifImg.source !== "" && notifImg.status !== Image.Error
+
                             Image {
+                                id: notifImg
                                 anchors.fill: parent
-                                visible: modelData.image !== ""
-                                source: modelData.image
+                                visible: notifCard.itemImage !== "" && status !== Image.Error
+                                source: notifCard.itemImage
+                                sourceSize: Qt.size(112, 112)
                                 fillMode: Image.PreserveAspectCrop
                                 smooth: true
                                 asynchronous: true
                             }
                             IconImage {
                                 anchors.fill: parent
-                                visible: modelData.image === "" && modelData.appIcon !== ""
-                                source: modelData.appIcon
+                                visible: !parent.hasValidImg && notifCard.itemAppIcon !== ""
+                                source: notifCard.itemAppIcon
                             }
                             Rectangle {
                                 anchors.fill: parent
                                 radius: 10
                                 color: Qt.rgba(1, 1, 1, 0.08)
-                                visible: modelData.image === "" && modelData.appIcon === ""
+                                visible: !parent.hasValidImg && notifCard.itemAppIcon === ""
                                 Text {
                                     anchors.centerIn: parent
                                     text: "󰂚"
@@ -339,17 +402,17 @@ PopupWindow {
                                 spacing: 10
 
                                 Text {
-                                    text: modelData.summary 
+                                    text: notifCard.itemSummary
                                     color: Colors.surfaceText
-                                    font.pixelSize: 16 
+                                    font.pixelSize: 16
                                     font.bold: true
-                                    Layout.fillWidth: true 
+                                    Layout.fillWidth: true
                                     elide: Text.ElideRight
                                 }
                                 Text {
-                                    text: modelData.time
+                                    text: notifCard.itemTime
                                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
-                                    font.pixelSize: 11 
+                                    font.pixelSize: 11
                                     Layout.alignment: Qt.AlignVCenter
                                 }
 
@@ -359,31 +422,36 @@ PopupWindow {
                                     Layout.preferredHeight: 26
                                     Layout.alignment: Qt.AlignVCenter
                                     radius: 7
-                                    color: closeHover.hovered
-                                        ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.12)
-                                        : "transparent"
+                                    color: closeHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.12) : "transparent"
 
-                                    Behavior on color { ColorAnimation { duration: 100 } }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: 100
+                                        }
+                                    }
 
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰅖"
-                                        color: closeHover.hovered
-                                            ? Colors.surfaceText
-                                            : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                                        color: closeHover.hovered ? Colors.surfaceText : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
                                         font.pixelSize: 13
                                     }
 
-                                    HoverHandler { id: closeHover }
-                                    TapHandler { onTapped: NotificationService.dismissAt(modelData._origIndex) }
+                                    HoverHandler {
+                                        id: closeHover
+                                    }
+                                    TapHandler {
+                                        onTapped: if (notifCard.itemOrigIndex >= 0)
+                                            NotificationService.dismissAt(notifCard.itemOrigIndex)
+                                    }
                                 }
                             }
 
                             Text {
-                                visible: modelData.body.length > 0
-                                text: modelData.body
+                                visible: notifCard.itemBody.length > 0
+                                text: notifCard.itemBody
                                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.75)
-                                font.pixelSize: 13 
+                                font.pixelSize: 13
                                 wrapMode: Text.Wrap
                                 maximumLineCount: 3
                                 elide: Text.ElideRight
@@ -401,24 +469,34 @@ PopupWindow {
                 Layout.bottomMargin: 8
                 text: "No notifications"
                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
-                font.pixelSize: 18 
+                font.pixelSize: 18
             }
 
             RowLayout {
                 Layout.fillWidth: true
                 Layout.topMargin: 8
-                Item { Layout.fillWidth: true }
+                Item {
+                    Layout.fillWidth: true
+                }
                 Text {
                     text: "Clear all"
                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.6)
-                    font.pixelSize: 14 
+                    font.pixelSize: 14
                     font.bold: true
-                    
-                    HoverHandler { id: clearHover }
+
+                    HoverHandler {
+                        id: clearHover
+                    }
                     scale: clearHover.hovered ? 1.05 : 1.0
-                    Behavior on scale { NumberAnimation { duration: 100 } }
-                    
-                    TapHandler { onTapped: NotificationService.clearAll() }
+                    Behavior on scale {
+                        NumberAnimation {
+                            duration: 100
+                        }
+                    }
+
+                    TapHandler {
+                        onTapped: NotificationService.clearAll()
+                    }
                 }
             }
         }

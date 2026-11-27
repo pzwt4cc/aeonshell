@@ -20,12 +20,30 @@ FloatingWindow {
     property string currentDir: initialDir
     property string selectedPath: ""
     property string selectedName: ""
+    property bool _handled: false
 
     function openAt(dir) {
+        picker._handled = false;
         picker.currentDir = dir && dir.length > 0 ? dir : picker.initialDir;
         picker.selectedPath = "";
         picker.selectedName = "";
         picker.visible = true;
+    }
+
+    function cancelClose() {
+        if (!picker._handled) {
+            picker._handled = true;
+            picker.rejected();
+        }
+        picker.visible = false;
+    }
+
+    function acceptPath(path) {
+        if (!path || picker._handled)
+            return;
+        picker._handled = true;
+        picker.accepted(path);
+        picker.visible = false;
     }
 
     function goUp() {
@@ -42,14 +60,17 @@ FloatingWindow {
     implicitWidth: 640
     implicitHeight: 520
 
-    onClosed: {
-        picker.rejected();
-        picker.visible = false;
+    onClosed: picker.cancelClose()
+
+    Shortcut {
+        sequences: [StandardKey.Cancel]
+        enabled: picker.visible
+        onActivated: picker.cancelClose()
     }
 
     FolderListModel {
         id: folderModel
-        folder: "file://" + picker.currentDir
+        folder: picker.visible ? ("file://" + picker.currentDir) : ""
         nameFilters: picker.nameFilters
         showDirsFirst: true
         showDotAndDotDot: false
@@ -113,10 +134,7 @@ FloatingWindow {
                     }
 
                     TapHandler {
-                        onTapped: {
-                            picker.rejected();
-                            picker.visible = false;
-                        }
+                        onTapped: picker.cancelClose()
                     }
                 }
             }
@@ -180,6 +198,11 @@ FloatingWindow {
                 delegate: Item {
                     width: grid.cellWidth
                     height: grid.cellHeight
+
+                    required property bool fileIsDir
+                    required property string filePath
+                    required property string fileName
+                    required property url fileURL
 
                     readonly property bool isDir: fileIsDir
                     readonly property bool isSelected: !isDir && picker.selectedPath === filePath
@@ -263,8 +286,7 @@ FloatingWindow {
                                 picker.selectedPath = "";
                                 picker.selectedName = "";
                             } else {
-                                picker.accepted(filePath);
-                                picker.visible = false;
+                                picker.acceptPath(filePath);
                             }
                         }
                     }
@@ -301,10 +323,7 @@ FloatingWindow {
                     }
 
                     TapHandler {
-                        onTapped: {
-                            picker.rejected();
-                            picker.visible = false;
-                        }
+                        onTapped: picker.cancelClose()
                     }
                 }
 
@@ -325,10 +344,7 @@ FloatingWindow {
 
                     TapHandler {
                         enabled: picker.selectedPath !== ""
-                        onTapped: {
-                            picker.accepted(picker.selectedPath);
-                            picker.visible = false;
-                        }
+                        onTapped: picker.acceptPath(picker.selectedPath)
                     }
                 }
             }

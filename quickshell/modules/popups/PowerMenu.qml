@@ -8,6 +8,8 @@ import Quickshell
 PopupWindow {
     id: popup
     property bool open: false
+    property bool _animReady: false
+    readonly property bool visualOpen: popup.open && popup._animReady
     readonly property bool isHovered: menuHover.hovered
     function toggle() {
         popup.open = !popup.open;
@@ -17,6 +19,9 @@ PopupWindow {
     implicitHeight: 210 + shadowMargin * 2
     color: "transparent"
     visible: popup.open || hideTimer.running
+
+    Component.onCompleted: Qt.callLater(() => popup._animReady = true)
+
     Timer {
         id: hideTimer
         interval: 150
@@ -66,8 +71,8 @@ PopupWindow {
                 return Item.BottomRight;
             return Item.TopRight;
         }
-        scale: popup.open ? 1.0 : 0.75
-        opacity: popup.open ? 1.0 : 0.0
+        scale: popup.visualOpen ? 1.0 : 0.75
+        opacity: popup.visualOpen ? 1.0 : 0.0
         Behavior on scale {
             NumberAnimation {
                 duration: 180

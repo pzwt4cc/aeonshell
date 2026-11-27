@@ -12,16 +12,28 @@ FloatingWindow {
     property string popupTitle: "Enter Value"
     property string promptText: ""
     property string currentValue: ""
+    property bool _handled: false
 
     signal accepted(string value)
     signal rejected
 
     function openWith(value) {
+        popup._handled = false;
         popup.currentValue = value || "";
         field.text = popup.currentValue;
         popup.visible = true;
-        field.forceActiveFocus();
-        field.selectAll();
+        Qt.callLater(() => {
+            field.forceActiveFocus();
+            field.selectAll();
+        });
+    }
+
+    function cancelClose() {
+        if (!popup._handled) {
+            popup._handled = true;
+            popup.rejected();
+        }
+        popup.visible = false;
     }
 
     title: popupTitle
@@ -30,10 +42,7 @@ FloatingWindow {
     implicitWidth: 380
     implicitHeight: 180
 
-    onClosed: {
-        popup.rejected();
-        popup.visible = false;
-    }
+    onClosed: popup.cancelClose()
 
     Rectangle {
         id: winBg
@@ -92,10 +101,7 @@ FloatingWindow {
                     }
 
                     TapHandler {
-                        onTapped: {
-                            popup.rejected();
-                            popup.visible = false;
-                        }
+                        onTapped: popup.cancelClose()
                     }
                 }
             }
@@ -135,10 +141,7 @@ FloatingWindow {
 
                     Keys.onReturnPressed: confirmBtn.trigger()
                     Keys.onEnterPressed: confirmBtn.trigger()
-                    Keys.onEscapePressed: {
-                        popup.rejected();
-                        popup.visible = false;
-                    }
+                    Keys.onEscapePressed: popup.cancelClose()
                 }
             }
 
@@ -172,10 +175,7 @@ FloatingWindow {
                     }
 
                     TapHandler {
-                        onTapped: {
-                            popup.rejected();
-                            popup.visible = false;
-                        }
+                        onTapped: popup.cancelClose()
                     }
                 }
 
@@ -188,9 +188,11 @@ FloatingWindow {
                     color: Colors.primary
 
                     function trigger() {
-                        if (field.text.trim().length === 0)
+                        const val = field.text.trim();
+                        if (val.length === 0 || popup._handled)
                             return;
-                        popup.accepted(field.text.trim());
+                        popup._handled = true;
+                        popup.accepted(val);
                         popup.visible = false;
                     }
 

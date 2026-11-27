@@ -5,158 +5,322 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
-import Quickshell.Io
 import Quickshell.Services.Pipewire
+import Quickshell.Networking
+import Quickshell.Bluetooth
 
 PopupWindow {
     id: popup
 
     property bool open: false
+    property bool _animReady: false
+    readonly property bool visualOpen: popup.open && popup._animReady
     readonly property bool isHovered: menuHover.hovered
 
-    function toggle() { popup.open = !popup.open }
+    function toggle() {
+        popup.open = !popup.open;
+    }
 
     readonly property int panelWidth: 460
     readonly property int panelMargin: 24
     readonly property int cardSpacing: 16
-
     readonly property int shadowMargin: 14
 
+    readonly property var _netKeepAlive: Networking.devices
+    readonly property var _btKeepAlive: Bluetooth.defaultAdapter
+
+    readonly property real audioExpandedH: audioListLoader.item ? audioListLoader.item.implicitHeight : 0
+    readonly property real wifiExpandedH: wifiListLoader.item ? Math.min(240, wifiListLoader.item.implicitHeight) : 0
+    readonly property real btExpandedH: btListLoader.item ? Math.min(280, btListLoader.item.implicitHeight) : 0
+
+    readonly property real targetContentHeight: contentCol.implicitHeight - audioListWrap.height + (popup.audioExpanded ? audioExpandedH : 0) - wifiListWrap.height + (popup.wifiExpanded ? wifiExpandedH : 0) - btListWrap.height + (popup.btExpanded ? btExpandedH : 0)
+
     implicitWidth: panelWidth + shadowMargin * 2
+    implicitHeight: targetContentHeight + panelMargin * 2 + shadowMargin * 2
     color: "transparent"
     visible: popup.open || hideTimer.running
 
-    readonly property real audioCardTargetHeight: audioCard.height - audioListWrap.height
-        + (popup.audioExpanded ? audioListCol.implicitHeight : 0)
-    readonly property real wifiCardTargetHeight: wifiCard.height - wifiListWrap.height
-        + (popup.wifiExpanded ? Math.min(240, wifiListCol.implicitHeight) : 0)
-    readonly property real btCardTargetHeight: btCard.height - btListWrap.height
-        + (popup.btExpanded ? Math.min(280, btListCol.implicitHeight) : 0)
-
-    readonly property real targetContentHeight: contentCol.implicitHeight
-        - audioCard.height + audioCardTargetHeight
-        - wifiCard.height + wifiCardTargetHeight
-        - btCard.height + btCardTargetHeight
-
-    implicitHeight: targetContentHeight + panelMargin * 2 + shadowMargin * 2
-    Behavior on implicitHeight {
-        NumberAnimation { duration: 200; easing.type: Easing.OutQuad }
-    }
-
-
+    // --- Audio (Pipewire) ---
     readonly property var sink: Pipewire.defaultAudioSink
     readonly property bool muted: !!(sink && sink.audio && sink.audio.muted)
     readonly property real volume: (sink && sink.audio) ? sink.audio.volume : 0
 
-    PwObjectTracker { objects: popup.sink ? [popup.sink] : [] }
+    PwObjectTracker {
+        objects: popup.sink ? [popup.sink] : []
+    }
 
     property bool volumeDragging: false
 
     readonly property var audioSinks: {
         let list = [...Pipewire.nodes.values];
-        return list.filter(function (n) { return n && n.isSink && !n.isStream && n.audio; });
+        return list.filter(n => n && n.isSink && !n.isStream && n.audio);
     }
     readonly property var audioSources: {
         let list = [...Pipewire.nodes.values];
-        return list.filter(function (n) { return n && !n.isSink && !n.isStream && n.audio; });
+        return list.filter(n => n && !n.isSink && !n.isStream && n.audio);
     }
 
-    PwObjectTracker { objects: popup.audioSinks.concat(popup.audioSources) }
+    PwObjectTracker {
+        objects: popup.audioSinks.concat(popup.audioSources)
+    }
 
     function isNodeDefault(node) {
-        if (!node) return false;
-        if (node.isSink) return !!(popup.sink && node.id === popup.sink.id);
+        if (!node)
+            return false;
+        if (node.isSink)
+            return !!(popup.sink && node.id === popup.sink.id);
         const src = Pipewire.defaultAudioSource;
         return !!(src && node.id === src.id);
     }
 
     property bool audioExpanded: false
 
-    property bool wifiPowered: false
-    property string wifiConnName: ""
-    property bool wifiExpanded: false
-    property bool wifiScanning: false
-    property int wifiScanTicks: 0
-    property string pendingSsid: ""
-    property string pendingSecurity: ""
-
-    ListModel { id: wifiNetworksModel }
-
-    function syncListModel(model, arr, keyField) {
-        const keys = {}
-        for (const it of arr) keys[it[keyField]] = true
-        for (let i = model.count - 1; i >= 0; i--) {
-            if (!keys[model.get(i)[keyField]]) model.remove(i)
+    // --- Networking (Quickshell.Networking) ---
+    readonly property var wifiDevice: {
+        const devs = Networking.devices ? Networking.devices.values : [];
+        for (let i = 0; i < devs.length; i++) {
+            if (devs[i] && devs[i].type === DeviceType.Wifi)
+                return devs[i];
         }
-        for (let i = 0; i < arr.length; i++) {
-            const item = arr[i]
-            let idx = -1
-            for (let j = 0; j < model.count; j++) {
-                if (model.get(j)[keyField] === item[keyField]) { idx = j; break }
-            }
-            if (idx === -1) {
-                model.insert(i, item)
-            } else {
-                if (idx !== i) model.move(idx, i, 1)
-                model.set(i, item)
-            }
-        }
+        return null;
     }
 
-    property bool ethConnected: false
-    property bool ethConnecting: false
-    property string ethConnName: ""
+    readonly property var wiredDevice: {
+        const devs = Networking.devices ? Networking.devices.values : [];
+        for (let i = 0; i < devs.length; i++) {
+            if (devs[i] && devs[i].type === DeviceType.Wired)
+                return devs[i];
+        }
+        return null;
+    }
 
-    readonly property bool hasNetworkConnection: popup.ethConnected || (popup.wifiPowered && popup.wifiConnName !== "")
+    readonly property bool wifiPowered: Networking.wifiEnabled
+    readonly property bool wifiScanning: !!(wifiDevice && wifiDevice.scannerEnabled)
 
+    readonly property var wifiNetworks: {
+        if (!popup.wifiExpanded && wifiListWrap.expandProgress === 0)
+            return [];
+        if (!wifiDevice || !wifiDevice.networks)
+            return [];
+        const raw = wifiDevice.networks.values;
+        const bestByName = Object.create(null);
+        for (let i = 0; i < raw.length; i++) {
+            const n = raw[i];
+            if (!n || !n.name)
+                continue;
+            const prev = bestByName[n.name];
+            if (!prev || n.connected || (!prev.connected && (n.signalStrength || 0) > (prev.signalStrength || 0)))
+                bestByName[n.name] = n;
+        }
+        const arr = Object.values(bestByName);
+        arr.sort((a, b) => (b.connected - a.connected) || ((b.signalStrength || 0) - (a.signalStrength || 0)));
+        return arr;
+    }
+
+    readonly property string wifiConnName: {
+        if (!wifiDevice || !wifiDevice.networks)
+            return "";
+        const nets = wifiDevice.networks.values;
+        for (let i = 0; i < nets.length; i++) {
+            if (nets[i] && nets[i].connected)
+                return nets[i].name || "";
+        }
+        return "";
+    }
+
+    property bool wifiExpanded: false
+    property string pendingSsid: ""
+    property var connectingNet: null
     property bool wifiShowPassword: false
-    property bool wifiConnecting: false
+    property bool wifiConnecting: !!(connectingNet && connectingNet.stateChanging)
     property bool wifiConnectFailed: false
 
     onPendingSsidChanged: {
-        wifiShowPassword = false
-        wifiConnecting = false
-        wifiConnectFailed = false
+        wifiShowPassword = false;
+        wifiConnectFailed = false;
     }
 
-    property bool btPowered: false
+    Connections {
+        target: popup.connectingNet
+        function onConnectedChanged() {
+            if (popup.connectingNet && popup.connectingNet.connected) {
+                popup.pendingSsid = "";
+                popup.wifiConnectFailed = false;
+                popup.connectingNet = null;
+            }
+        }
+        function onConnectionFailed(reason) {
+            popup.wifiConnectFailed = true;
+            if (reason === ConnectionFailReason.NoSecrets && popup.connectingNet) {
+                popup.pendingSsid = popup.connectingNet.name;
+            }
+            popup.connectingNet = null;
+        }
+    }
+
+    Timer {
+        id: wifiScanTimeout
+        interval: 6000
+        onTriggered: {
+            if (popup.wifiDevice)
+                popup.wifiDevice.scannerEnabled = false;
+        }
+    }
+
+    onWifiExpandedChanged: {
+        if (wifiExpanded) {
+            if (popup.wifiDevice) {
+                popup.wifiDevice.scannerEnabled = true;
+                wifiScanTimeout.restart();
+            }
+        } else {
+            wifiScanTimeout.stop();
+            if (popup.wifiDevice)
+                popup.wifiDevice.scannerEnabled = false;
+            popup.pendingSsid = "";
+        }
+    }
+
+    readonly property bool ethConnected: !!(wiredDevice && wiredDevice.connected)
+    readonly property bool ethConnecting: !!(wiredDevice && wiredDevice.state === ConnectionState.Connecting)
+    readonly property string ethConnName: {
+        if (!wiredDevice || !wiredDevice.connected)
+            return "";
+        if (wiredDevice.network && wiredDevice.network.name)
+            return wiredDevice.network.name;
+        if (wiredDevice.linkSpeed > 0)
+            return "Wired · " + wiredDevice.linkSpeed + " Mbps";
+        return wiredDevice.name || "Connected";
+    }
+
+    readonly property bool hasNetworkConnection: popup.ethConnected || (popup.wifiPowered && popup.wifiConnName !== "")
+
+    // --- Bluetooth (Quickshell.Bluetooth) ---
+    readonly property var btAdapter: Bluetooth.defaultAdapter
+    readonly property bool btPowered: !!(btAdapter && btAdapter.enabled)
+    readonly property bool btScanning: !!(btAdapter && btAdapter.discovering)
     property bool btExpanded: false
-    property bool btScanning: false
-    property int btScanTicks: 0
-    property string btConnectingMac: ""
-    property string btConnectingAction: ""
-    property string btConnectErrorMac: ""
 
-    ListModel { id: btDevicesModel }
-    ListModel { id: btDiscoveredModel }
+    property var btPendingDevice: null
+    property string btPendingAction: ""
+    property string btConnectErrorAddr: ""
 
-    function btDeviceName(mac) {
-        if (!mac) return ""
-        for (let i = 0; i < btDevicesModel.count; i++) {
-            if (btDevicesModel.get(i).mac === mac) return btDevicesModel.get(i).name
+    readonly property var btPairedDevices: {
+        if (!btAdapter || !btAdapter.devices)
+            return [];
+        const devs = btAdapter.devices.values;
+        const out = [];
+        for (let i = 0; i < devs.length; i++) {
+            const d = devs[i];
+            if (d && (d.paired || d.bonded || d.connected))
+                out.push(d);
         }
-        for (let i = 0; i < btDiscoveredModel.count; i++) {
-            if (btDiscoveredModel.get(i).mac === mac) return btDiscoveredModel.get(i).name
-        }
-        return ""
+        out.sort((a, b) => (b.connected - a.connected));
+        return out;
     }
 
-    function connectedBtDevices() {
-        let arr = []
-        for (let i = 0; i < btDevicesModel.count; i++) {
-            const d = btDevicesModel.get(i)
-            if (d.connected) arr.push(d)
+    readonly property var btDiscoveredDevices: {
+        if (!popup.btExpanded && btListWrap.expandProgress === 0)
+            return [];
+        if (!btAdapter || !btAdapter.devices)
+            return [];
+        const devs = btAdapter.devices.values;
+        const named = [];
+        const unnamed = [];
+        for (let i = 0; i < devs.length; i++) {
+            const d = devs[i];
+            if (!d || d.paired || d.bonded || d.connected)
+                continue;
+            const n = d.name || d.deviceName || "";
+            if (n && n !== d.address)
+                named.push(d);
+            else
+                unnamed.push(d);
         }
-        return arr
+        return named.concat(unnamed);
+    }
+
+    readonly property var btConnectedDevices: {
+        const out = [];
+        const devs = popup.btPairedDevices;
+        for (let i = 0; i < devs.length; i++) {
+            if (devs[i].connected)
+                out.push(devs[i]);
+        }
+        return out;
     }
 
     function startBtScan() {
-        popup.btScanTicks = 0
-        popup.btScanning = true
-        if (!btScanProc.running) {
-            btScanProc.running = true
+        if (!popup.btAdapter || !popup.btPowered)
+            return;
+        popup.btAdapter.discovering = true;
+        btScanTimeout.restart();
+    }
+
+    Timer {
+        id: btScanTimeout
+        interval: 15000
+        onTriggered: {
+            if (popup.btAdapter)
+                popup.btAdapter.discovering = false;
+        }
+    }
+
+    Connections {
+        target: popup.btPendingDevice
+        function onConnectedChanged() {
+            const d = popup.btPendingDevice;
+            if (!d)
+                return;
+            if (d.connected && popup.btPendingAction !== "disconnect") {
+                popup.btPendingDevice = null;
+                popup.btPendingAction = "";
+                popup.btConnectErrorAddr = "";
+            } else if (!d.connected && popup.btPendingAction === "disconnect") {
+                popup.btPendingDevice = null;
+                popup.btPendingAction = "";
+            }
+        }
+        function onPairedChanged() {
+            const d = popup.btPendingDevice;
+            if (d && d.paired && popup.btPendingAction === "pair") {
+                popup.btPendingAction = "connect";
+                d.trusted = true;
+                d.connect();
+            }
+        }
+        function onStateChanged() {
+            const d = popup.btPendingDevice;
+            if (!d)
+                return;
+            if (d.state === BluetoothDeviceState.Disconnected && popup.btPendingAction === "connect" && !d.pairing) {
+                popup.btConnectErrorAddr = d.address;
+                popup.btPendingDevice = null;
+                popup.btPendingAction = "";
+            }
+        }
+    }
+
+    Timer {
+        id: btOpTimeout
+        interval: 12000
+        running: popup.btPendingDevice !== null
+        onTriggered: {
+            if (popup.btPendingDevice) {
+                popup.btConnectErrorAddr = popup.btPendingDevice.address || "";
+                popup.btPendingDevice = null;
+                popup.btPendingAction = "";
+            }
+        }
+    }
+
+    onBtExpandedChanged: {
+        if (btExpanded) {
+            startBtScan();
         } else {
-            btDiscoverReader.running = true
+            btScanTimeout.stop();
+            if (popup.btAdapter && popup.btAdapter.discovering)
+                popup.btAdapter.discovering = false;
         }
     }
 
@@ -164,10 +328,10 @@ PopupWindow {
         id: hideTimer
         interval: 230
         onTriggered: {
-            popup.audioExpanded = false
-            popup.wifiExpanded = false
-            popup.btExpanded = false
-            popup.pendingSsid = ""
+            popup.audioExpanded = false;
+            popup.wifiExpanded = false;
+            popup.btExpanded = false;
+            popup.pendingSsid = "";
         }
     }
 
@@ -177,338 +341,25 @@ PopupWindow {
         id: closeDelayTimer
         interval: 450
         onTriggered: {
-            popup.open = false
-            menuWasEntered = false
+            popup.open = false;
+            menuWasEntered = false;
         }
     }
+
+    Component.onCompleted: Qt.callLater(() => popup._animReady = true)
 
     onOpenChanged: {
         if (!open) {
-            hideTimer.start()
-            menuWasEntered = false
-            closeDelayTimer.stop()
+            hideTimer.start();
+            menuWasEntered = false;
+            closeDelayTimer.stop();
+            ShellState.suppressVolumeOSD = false;
+            if (popup.wifiDevice && popup.wifiDevice.scannerEnabled)
+                popup.wifiDevice.scannerEnabled = false;
+            if (popup.btAdapter && popup.btAdapter.discovering)
+                popup.btAdapter.discovering = false;
         } else {
-            hideTimer.stop()
-            wifiStatusReader.running = true
-            ethStatusReader.running = true
-            btStatusReader.running = true
-            btPairedReader.running = true
-        }
-    }
-
-    Process {
-        id: wifiStatusReader
-        command: ["bash", "-c",
-            "state=$(nmcli radio wifi 2>/dev/null); echo \"${state:-unknown}\"; " +
-            "nmcli -t -f TYPE,NAME connection show --active 2>/dev/null | grep '^802-11-wireless' | head -n1 | cut -d: -f2"
-        ]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const lines = this.text.trim().split("\n")
-                popup.wifiPowered = (lines[0] || "").trim() === "enabled"
-                popup.wifiConnName = lines[1] ? lines[1].trim() : ""
-            }
-        }
-    }
-
-    Process { id: wifiToggleProc }
-
-    Process {
-        id: wifiScanProc
-        command: ["bash", "-c", "nmcli device wifi rescan >/dev/null 2>&1"]
-    }
-
-    Timer {
-        id: wifiScanPollTimer
-        interval: 1000
-        repeat: true
-        running: popup.wifiScanning
-        onTriggered: {
-            popup.wifiScanTicks++
-            wifiListReader.running = true
-            if (popup.wifiScanTicks >= 5) {
-                popup.wifiScanning = false
-                popup.wifiScanTicks = 0
-            }
-        }
-    }
-
-    Process {
-        id: wifiListReader
-        command: ["bash", "-c",
-            "nmcli -t -f IN-USE,SSID,SIGNAL,SECURITY device wifi list 2>/dev/null"
-        ]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const lines = this.text.trim().split("\n").filter(l => l.length > 0)
-                const seen = {}
-                let arr = []
-                for (const line of lines) {
-                    const parts = line.split(":")
-                    if (parts.length < 3) continue
-                    const inUse = parts[0].trim() === "*"
-                    const ssid = parts[1]
-                    if (!ssid || seen[ssid]) continue
-                    seen[ssid] = true
-                    const strength = parseInt(parts[2]) || 0
-                    const security = parts.slice(3).join(":").trim()
-                    arr.push({ ssid: ssid, strength: strength, security: security, active: inUse })
-                }
-                arr.sort((a, b) => (b.active - a.active) || (b.strength - a.strength))
-                popup.syncListModel(wifiNetworksModel, arr, "ssid")
-            }
-        }
-    }
-
-    Process {
-        id: wifiConnectProc
-        property string lastResult: ""
-        stdout: StdioCollector {
-            onStreamFinished: wifiConnectProc.lastResult = this.text.trim()
-        }
-        onRunningChanged: if (!running) {
-            popup.wifiConnecting = false
-            if (wifiConnectProc.lastResult.indexOf("OK") !== -1) {
-                popup.pendingSsid = ""
-            } else {
-                popup.wifiConnectFailed = true
-            }
-            wifiStatusReader.running = true
-            wifiListReader.running = true
-        }
-    }
-
-    onWifiExpandedChanged: {
-        if (wifiExpanded) {
-            wifiListReader.running = true
-            popup.wifiScanTicks = 0
-            popup.wifiScanning = true
-            wifiScanProc.running = true
-        } else {
-            popup.pendingSsid = ""
-        }
-    }
-
-    Process {
-        id: ethStatusReader
-        command: ["bash", "-c",
-            "nmcli -t -f DEVICE,TYPE,STATE device status 2>/dev/null | awk -F: '$2==\"ethernet\"{print; exit}'; " +
-            "echo '---'; " +
-            "nmcli -t -f TYPE,STATE,NAME connection show --active 2>/dev/null | grep '^802-3-ethernet' | head -n1"
-        ]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const chunks = this.text.trim().split("---")
-                const devLine = (chunks[0] || "").trim()
-                const connLine = (chunks[1] || "").trim()
-                const devState = devLine.split(":")[2] || ""
-
-                popup.ethConnecting = devState.indexOf("connecting") === 0
-
-                if (connLine) {
-                    const parts = connLine.split(":")
-                    popup.ethConnected = true
-                    popup.ethConnName = parts.slice(2).join(":") || "Connected"
-                } else {
-                    popup.ethConnected = false
-                    popup.ethConnName = ""
-                }
-            }
-        }
-    }
-
-    Process {
-        id: ethEditorProc
-        command: ["nm-connection-editor"]
-    }
-
-    Process { id: setDefaultAudioProc }
-
-    Process {
-        id: btStatusReader
-        command: ["bash", "-c", "bluetoothctl show 2>/dev/null | grep -q 'Powered: yes' && echo on || echo off"]
-        stdout: StdioCollector {
-            onStreamFinished: popup.btPowered = this.text.trim() === "on"
-        }
-    }
-
-    Process { id: btToggleProc }
-
-    Process {
-        id: btPairedReader
-        command: ["bash", "-c", `
-paired=$(bluetoothctl paired-devices 2>/dev/null | grep -E '^Device ([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}')
-conn_macs=$(bluetoothctl devices Connected 2>/dev/null | grep -E '^Device ([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}' | awk '{print $2}')
-
-if [ -n "$conn_macs" ]; then
-    all_to_check=$( (echo "$paired"; bluetoothctl devices Connected 2>/dev/null | grep -E '^Device ([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}') | awk '!seen[$2]++' )
-else
-    all_to_check="$paired"
-fi
-
-echo "$all_to_check" | while read -r tag mac rest; do
-  [ "$tag" != "Device" ] && continue
-  [ -z "$mac" ] && continue
-  
-  mac=$(echo "$mac" | sed 's/\\x1b\\[[0-9;]*m//g')
-  rest=$(echo "$rest" | sed 's/\\x1b\\[[0-9;]*m//g')
-  
-  if [ -n "$conn_macs" ]; then
-      echo "$conn_macs" | grep -qx "$mac" && conn="yes" || conn="no"
-  else
-      conn=$(bluetoothctl info "$mac" 2>/dev/null | grep -q "Connected: yes" && echo yes || echo no)
-  fi
-  echo "$mac|$rest|$conn"
-done
-`]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const lines = this.text.trim().split("\n").filter(l => l.length > 0)
-                let arr = []
-                for (const line of lines) {
-                    const parts = line.split("|")
-                    if (parts.length < 3) continue
-                    arr.push({ mac: parts[0], name: parts[1] || parts[0], connected: parts[2] === "yes" })
-                }
-                arr.sort((a, b) => (b.connected - a.connected))
-                popup.syncListModel(btDevicesModel, arr, "mac")
-
-                if (popup.btConnectErrorMac !== "") {
-                    const errDevice = arr.find(d => d.mac === popup.btConnectErrorMac)
-                    if (errDevice && errDevice.connected) popup.btConnectErrorMac = ""
-                }
-            }
-        }
-    }
-
-    Timer {
-        id: btScanPollTimer
-        interval: 1000
-        repeat: true
-        running: popup.btScanning
-        onTriggered: {
-            popup.btScanTicks++
-            btDiscoverReader.running = true
-            if (popup.btScanTicks >= 15) {
-                popup.btScanning = false
-                btScanProc.running = false
-                popup.btScanTicks = 0
-            }
-        }
-    }
-
-    Process {
-        id: btScanProc
-        command: ["bash", "-c", "exec bluetoothctl --timeout 16 scan on >/dev/null 2>&1"]
-        onRunningChanged: if (!running) {
-            btScanStopProc.running = true
-            btDiscoverReader.running = true
-        }
-    }
-
-    Process {
-        id: btScanStopProc
-        command: ["bluetoothctl", "scan", "off"]
-    }
-
-    Process {
-        id: btDiscoverReader
-        command: ["bash", "-c", `
-exclude_macs=$( (bluetoothctl paired-devices 2>/dev/null; bluetoothctl devices Connected 2>/dev/null) | grep -E '^Device ([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}' | awk '{print $2}' )
-
-bluetoothctl devices 2>/dev/null | grep -E '^Device ([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}' | while read -r tag mac rest; do
-  [ "$tag" != "Device" ] && continue
-  [ -z "$mac" ] && continue
-  
-  mac=$(echo "$mac" | sed 's/\\x1b\\[[0-9;]*m//g')
-  rest=$(echo "$rest" | sed 's/\\x1b\\[[0-9;]*m//g')
-  
-  if [ -n "$exclude_macs" ]; then
-      echo "$exclude_macs" | grep -qx "$mac" && continue
-  fi
-  echo "$mac|$rest"
-done
-`]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const lines = this.text.trim().split("\n").filter(l => l.length > 0)
-                let arr = []
-                for (const line of lines) {
-                    const parts = line.split("|")
-                    if (parts.length < 2) continue
-                    arr.push({ mac: parts[0], name: parts[1] || parts[0] })
-                }
-                
-                let named = []
-                let unnamed = []
-                for (let i = arr.length - 1; i >= 0; i--) {
-                    if (arr[i].name && arr[i].name !== arr[i].mac) {
-                        named.push(arr[i])
-                    } else {
-                        unnamed.push(arr[i])
-                    }
-                }
-                arr = named.concat(unnamed)
-                
-                popup.syncListModel(btDiscoveredModel, arr, "mac")
-            }
-        }
-    }
-
-    Process {
-        id: btConnectProc
-        property string actionMac: ""
-        property string actionOutput: ""
-        stdout: StdioCollector {
-            onStreamFinished: btConnectProc.actionOutput = this.text
-        }
-        onRunningChanged: if (!running) {
-            popup.btConnectingMac = ""
-            const out = btConnectProc.actionOutput
-            const isRealFailure = /fail|error/i.test(out) && !/already connected|already exists/i.test(out)
-            popup.btConnectErrorMac = isRealFailure ? btConnectProc.actionMac : ""
-            btPairedReader.running = true
-            btStatusReader.running = true
-        }
-    }
-
-    Process {
-        id: btPairProc
-        property string actionMac: ""
-        property string actionOutput: ""
-        stdout: StdioCollector {
-            onStreamFinished: btPairProc.actionOutput = this.text
-        }
-        onRunningChanged: if (!running) {
-            popup.btConnectingMac = ""
-            const out = btPairProc.actionOutput
-            const isRealFailure = /fail|error/i.test(out) && !/already exists|already connected/i.test(out)
-            popup.btConnectErrorMac = isRealFailure ? btPairProc.actionMac : ""
-            btPairedReader.running = true
-            btDiscoverReader.running = true
-        }
-    }
-
-    onBtExpandedChanged: {
-        if (btExpanded) {
-            btPairedReader.running = true
-            startBtScan()
-        } else {
-            popup.btScanning = false
-            btScanProc.running = false
-        }
-    }
-
-    Timer {
-        interval: 3000
-        running: popup.open
-        repeat: true
-        onTriggered: {
-            wifiStatusReader.running = true
-            ethStatusReader.running = true
-            btStatusReader.running = true
-            if (popup.wifiExpanded && !popup.wifiScanning) wifiListReader.running = true
-            if (popup.btExpanded && !popup.btScanning) btPairedReader.running = true
+            hideTimer.stop();
         }
     }
 
@@ -525,8 +376,12 @@ done
 
     Rectangle {
         id: menuBg
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: AppSettings.barPosition === "bottom" ? undefined : parent.top
+        anchors.bottom: AppSettings.barPosition === "bottom" ? parent.bottom : undefined
         anchors.margins: popup.shadowMargin
+        height: contentCol.implicitHeight + popup.panelMargin * 2
         radius: 26
         color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.97)
         border.color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08)
@@ -537,37 +392,55 @@ done
         readonly property int slideDist: 8
 
         transformOrigin: {
-            if (AppSettings.barPosition === "bottom") return Item.BottomRight
-            if (AppSettings.barPosition === "left") return Item.BottomLeft
-            if (AppSettings.barPosition === "right") return Item.BottomRight
-            return Item.TopRight
+            if (AppSettings.barPosition === "bottom")
+                return Item.BottomRight;
+            if (AppSettings.barPosition === "left")
+                return Item.BottomLeft;
+            if (AppSettings.barPosition === "right")
+                return Item.BottomRight;
+            return Item.TopRight;
         }
-        scale: popup.open ? 1.0 : 0.88
-        opacity: popup.open ? 1.0 : 0.0
-        x: menuBg.barVertical ? (popup.open ? 0 : (AppSettings.barPosition === "right" ? menuBg.slideDist : -menuBg.slideDist)) : 0
-        y: menuBg.barVertical ? 0 : (popup.open ? 0 : (AppSettings.barPosition === "bottom" ? menuBg.slideDist : -menuBg.slideDist))
+        scale: popup.visualOpen ? 1.0 : 0.88
+        opacity: popup.visualOpen ? 1.0 : 0.0
+        x: menuBg.barVertical ? (popup.visualOpen ? 0 : (AppSettings.barPosition === "right" ? menuBg.slideDist : -menuBg.slideDist)) : 0
+        y: menuBg.barVertical ? 0 : (popup.visualOpen ? 0 : (AppSettings.barPosition === "bottom" ? menuBg.slideDist : -menuBg.slideDist))
 
         Behavior on scale {
-            NumberAnimation { duration: 220; easing.type: Easing.OutBack; easing.overshoot: 1.15 }
+            NumberAnimation {
+                duration: 220
+                easing.type: Easing.OutBack
+                easing.overshoot: 1.15
+            }
         }
         Behavior on opacity {
-            NumberAnimation { duration: 160; easing.type: Easing.OutQuad }
+            NumberAnimation {
+                duration: 160
+                easing.type: Easing.OutQuad
+            }
         }
         Behavior on x {
-            NumberAnimation { duration: 220; easing.type: Easing.OutBack; easing.overshoot: 1.15 }
+            NumberAnimation {
+                duration: 220
+                easing.type: Easing.OutBack
+                easing.overshoot: 1.15
+            }
         }
         Behavior on y {
-            NumberAnimation { duration: 220; easing.type: Easing.OutBack; easing.overshoot: 1.15 }
+            NumberAnimation {
+                duration: 220
+                easing.type: Easing.OutBack
+                easing.overshoot: 1.15
+            }
         }
 
         HoverHandler {
             id: menuHover
             onHoveredChanged: {
                 if (menuHover.hovered) {
-                    menuWasEntered = true
-                    closeDelayTimer.stop()
-                } else if (menuWasEntered) {
-                    closeDelayTimer.start()
+                    menuWasEntered = true;
+                    closeDelayTimer.stop();
+                } else if (menuWasEntered && popup.pendingSsid === "") {
+                    closeDelayTimer.start();
                 }
             }
         }
@@ -601,7 +474,11 @@ done
                     anchors.fill: parent
                     anchors.margins: 10
                     spacing: 10
-                    Text { text: "󰀦"; color: "#f0a050"; font.pixelSize: 15 }
+                    Text {
+                        text: "󰀦"
+                        color: "#f0a050"
+                        font.pixelSize: 15
+                    }
                     Text {
                         text: "No network — Wi-Fi and Ethernet are both offline"
                         color: Colors.surfaceText
@@ -612,6 +489,7 @@ done
                 }
             }
 
+            // Master Volume Card
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 84
@@ -640,7 +518,8 @@ done
 
                         TapHandler {
                             onTapped: {
-                                if (popup.sink && popup.sink.audio) popup.sink.audio.muted = !popup.sink.audio.muted
+                                if (popup.sink && popup.sink.audio)
+                                    popup.sink.audio.muted = !popup.sink.audio.muted;
                             }
                         }
                     }
@@ -688,10 +567,16 @@ done
                                 height: width
                                 radius: width / 2
                                 color: "#ffffff"
-                                Behavior on width { NumberAnimation { duration: 100 } }
+                                Behavior on width {
+                                    NumberAnimation {
+                                        duration: 100
+                                    }
+                                }
                             }
 
-                            HoverHandler { id: volHover }
+                            HoverHandler {
+                                id: volHover
+                            }
 
                             MouseArea {
                                 anchors.fill: parent
@@ -699,16 +584,31 @@ done
                                 acceptedButtons: Qt.LeftButton
 
                                 function applyVol(mx) {
-                                    let v = Math.max(0, Math.min(1, mx / volSlider.width))
+                                    let v = Math.max(0, Math.min(1, mx / volSlider.width));
                                     if (popup.sink && popup.sink.audio) {
-                                        popup.sink.audio.volume = v
-                                        if (v > 0) popup.sink.audio.muted = false
+                                        popup.sink.audio.volume = v;
+                                        if (v > 0)
+                                            popup.sink.audio.muted = false;
                                     }
                                 }
 
-                                onPressed: (mouse) => { popup.volumeDragging = true; applyVol(mouse.x) }
-                                onPositionChanged: (mouse) => { if (popup.volumeDragging) applyVol(mouse.x) }
-                                onReleased: popup.volumeDragging = false
+                                onPressed: mouse => {
+                                    ShellState.suppressVolumeOSD = true;
+                                    popup.volumeDragging = true;
+                                    applyVol(mouse.x);
+                                }
+                                onPositionChanged: mouse => {
+                                    if (popup.volumeDragging)
+                                        applyVol(mouse.x);
+                                }
+                                onReleased: {
+                                    popup.volumeDragging = false;
+                                    ShellState.suppressVolumeOSD = false;
+                                }
+                                onCanceled: {
+                                    popup.volumeDragging = false;
+                                    ShellState.suppressVolumeOSD = false;
+                                }
                             }
                         }
                     }
@@ -724,6 +624,7 @@ done
                 }
             }
 
+            // Audio Devices Card
             Rectangle {
                 id: audioCard
                 Layout.fillWidth: true
@@ -771,10 +672,10 @@ done
                             }
                             Text {
                                 text: {
-                                    const outName = popup.sink ? (popup.sink.description || popup.sink.nickname || popup.sink.name || "Unknown") : "None"
-                                    const srcNode = Pipewire.defaultAudioSource
-                                    const inName = srcNode ? (srcNode.description || srcNode.nickname || srcNode.name || "Unknown") : "None"
-                                    return outName + "  ·  " + inName
+                                    const outName = popup.sink ? (popup.sink.description || popup.sink.nickname || popup.sink.name || "Unknown") : "None";
+                                    const srcNode = Pipewire.defaultAudioSource;
+                                    const inName = srcNode ? (srcNode.description || srcNode.nickname || srcNode.name || "Unknown") : "None";
+                                    return outName + "  ·  " + inName;
                                 }
                                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
                                 font.pixelSize: 12
@@ -789,7 +690,9 @@ done
                             radius: 8
                             color: expandHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08) : "transparent"
 
-                            HoverHandler { id: expandHover }
+                            HoverHandler {
+                                id: expandHover
+                            }
 
                             Text {
                                 anchors.centerIn: parent
@@ -797,7 +700,12 @@ done
                                 font.pixelSize: 13
                                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.6)
                                 rotation: popup.audioExpanded ? 180 : 0
-                                Behavior on rotation { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
+                                Behavior on rotation {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutQuad
+                                    }
+                                }
                             }
 
                             TapHandler {
@@ -813,66 +721,79 @@ done
 
                         property real expandProgress: popup.audioExpanded ? 1 : 0
                         Behavior on expandProgress {
-                            NumberAnimation { duration: 200; easing.type: Easing.OutQuad }
+                            NumberAnimation {
+                                duration: 200
+                                easing.type: Easing.OutQuad
+                            }
                         }
 
-                        Layout.preferredHeight: expandProgress * audioListCol.implicitHeight
+                        Layout.preferredHeight: expandProgress * popup.audioExpandedH
                         opacity: expandProgress
 
-                        ColumnLayout {
-                            id: audioListCol
+                        Loader {
+                            id: audioListLoader
                             width: parent.width
-                            spacing: 10
+                            active: popup.audioExpanded || audioListWrap.expandProgress > 0
+                            sourceComponent: ColumnLayout {
+                                width: audioListWrap.width
+                                spacing: 10
 
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 8
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
 
-                                Text {
-                                    text: "OUTPUT"
-                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
-                                    font.pixelSize: 11
-                                    font.bold: true
-                                    Layout.leftMargin: 2
+                                    Text {
+                                        text: "OUTPUT"
+                                        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
+                                        font.pixelSize: 11
+                                        font.bold: true
+                                        Layout.leftMargin: 2
+                                    }
+
+                                    Text {
+                                        visible: popup.audioSinks.length === 0
+                                        text: "No output devices found"
+                                        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
+                                        font.pixelSize: 13
+                                        Layout.leftMargin: 2
+                                    }
+
+                                    Repeater {
+                                        model: popup.audioSinks
+                                        delegate: AudioDeviceRow {
+                                            required property var modelData
+                                            node: modelData
+                                        }
+                                    }
                                 }
 
-                                Text {
-                                    visible: popup.audioSinks.length === 0
-                                    text: "No output devices found"
-                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
-                                    font.pixelSize: 13
-                                    Layout.leftMargin: 2
-                                }
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
 
-                                Repeater {
-                                    model: popup.audioSinks
-                                    delegate: AudioDeviceRow { node: modelData }
-                                }
-                            }
+                                    Text {
+                                        text: "INPUT"
+                                        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
+                                        font.pixelSize: 11
+                                        font.bold: true
+                                        Layout.leftMargin: 2
+                                    }
 
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 8
+                                    Text {
+                                        visible: popup.audioSources.length === 0
+                                        text: "No input devices found"
+                                        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
+                                        font.pixelSize: 13
+                                        Layout.leftMargin: 2
+                                    }
 
-                                Text {
-                                    text: "INPUT"
-                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
-                                    font.pixelSize: 11
-                                    font.bold: true
-                                    Layout.leftMargin: 2
-                                }
-
-                                Text {
-                                    visible: popup.audioSources.length === 0
-                                    text: "No input devices found"
-                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
-                                    font.pixelSize: 13
-                                    Layout.leftMargin: 2
-                                }
-
-                                Repeater {
-                                    model: popup.audioSources
-                                    delegate: AudioDeviceRow { node: modelData }
+                                    Repeater {
+                                        model: popup.audioSources
+                                        delegate: AudioDeviceRow {
+                                            required property var modelData
+                                            node: modelData
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -880,6 +801,7 @@ done
                 }
             }
 
+            // Wi-Fi Card
             Rectangle {
                 id: wifiCard
                 Layout.fillWidth: true
@@ -907,9 +829,7 @@ done
                             Layout.preferredWidth: 44
                             Layout.preferredHeight: 44
                             radius: 12
-                            color: popup.wifiPowered
-                                ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18)
-                                : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06)
+                            color: popup.wifiPowered ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06)
                             Text {
                                 anchors.centerIn: parent
                                 text: "󰖩"
@@ -929,14 +849,15 @@ done
                             }
                             Text {
                                 text: {
-                                    if (!popup.wifiPowered) return "Off"
-                                    if (popup.wifiConnecting) return "Connecting to " + popup.pendingSsid + "…"
-                                    if (popup.wifiConnectFailed) return "Couldn't connect to " + popup.pendingSsid
-                                    return popup.wifiConnName || "Not connected"
+                                    if (!popup.wifiPowered)
+                                        return "Off";
+                                    if (popup.wifiConnecting)
+                                        return "Connecting to " + (popup.connectingNet ? popup.connectingNet.name : popup.pendingSsid) + "…";
+                                    if (popup.wifiConnectFailed)
+                                        return "Couldn't connect" + (popup.pendingSsid ? " to " + popup.pendingSsid : "");
+                                    return popup.wifiConnName || "Not connected";
                                 }
-                                color: popup.wifiConnectFailed
-                                    ? Qt.rgba(1, 0.5, 0.5, 0.85)
-                                    : (popup.wifiConnecting ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5))
+                                color: popup.wifiConnectFailed ? Qt.rgba(1, 0.5, 0.5, 0.85) : (popup.wifiConnecting ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5))
                                 font.pixelSize: 12
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
@@ -951,7 +872,8 @@ done
                             RotationAnimation on rotation {
                                 running: popup.wifiConnecting
                                 loops: Animation.Infinite
-                                from: 0; to: 360
+                                from: 0
+                                to: 360
                                 duration: 800
                             }
                         }
@@ -966,10 +888,9 @@ done
                         ToggleSwitch {
                             checked: popup.wifiPowered
                             onToggled: {
-                                wifiToggleProc.command = ["bash", "-c", "nmcli radio wifi " + (popup.wifiPowered ? "off" : "on")]
-                                wifiToggleProc.running = true
-                                popup.wifiPowered = !popup.wifiPowered
-                                if (!popup.wifiPowered) popup.wifiExpanded = false
+                                Networking.wifiEnabled = !popup.wifiPowered;
+                                if (popup.wifiPowered)
+                                    popup.wifiExpanded = false;
                             }
                         }
 
@@ -979,7 +900,9 @@ done
                             radius: 8
                             color: wifiExpandHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08) : "transparent"
 
-                            HoverHandler { id: wifiExpandHover }
+                            HoverHandler {
+                                id: wifiExpandHover
+                            }
 
                             Text {
                                 anchors.centerIn: parent
@@ -987,11 +910,17 @@ done
                                 font.pixelSize: 13
                                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.6)
                                 rotation: popup.wifiExpanded ? 180 : 0
-                                Behavior on rotation { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
+                                Behavior on rotation {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutQuad
+                                    }
+                                }
                             }
 
                             TapHandler {
-                                onTapped: if (popup.wifiPowered) popup.wifiExpanded = !popup.wifiExpanded
+                                onTapped: if (popup.wifiPowered)
+                                    popup.wifiExpanded = !popup.wifiExpanded
                             }
                         }
                     }
@@ -1003,10 +932,13 @@ done
 
                         property real expandProgress: popup.wifiExpanded ? 1 : 0
                         Behavior on expandProgress {
-                            NumberAnimation { duration: 200; easing.type: Easing.OutQuad }
+                            NumberAnimation {
+                                duration: 200
+                                easing.type: Easing.OutQuad
+                            }
                         }
 
-                        Layout.preferredHeight: expandProgress * Math.min(240, wifiListCol.implicitHeight)
+                        Layout.preferredHeight: expandProgress * popup.wifiExpandedH
                         opacity: expandProgress
 
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
@@ -1019,41 +951,45 @@ done
                             contentItem: Rectangle {
                                 implicitWidth: 6
                                 radius: 3
-                                color: wifiScrollBar.hovered || wifiScrollBar.active
-                                    ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.5)
-                                    : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.15)
-                                Behavior on color { ColorAnimation { duration: 150 } }
+                                color: wifiScrollBar.hovered || wifiScrollBar.active ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.5) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.15)
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: 150
+                                    }
+                                }
                             }
                         }
 
-                        ColumnLayout {
-                            id: wifiListCol
+                        Loader {
+                            id: wifiListLoader
                             width: wifiListWrap.availableWidth
-                            spacing: 4
+                            active: popup.wifiExpanded || wifiListWrap.expandProgress > 0
+                            sourceComponent: ColumnLayout {
+                                width: wifiListWrap.availableWidth
+                                spacing: 4
 
-                            Text {
-                                visible: popup.wifiScanning
-                                text: "Scanning for networks…"
-                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
-                                font.pixelSize: 13
-                                Layout.leftMargin: 2
-                            }
+                                Text {
+                                    visible: popup.wifiScanning
+                                    text: "Scanning for networks…"
+                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
+                                    font.pixelSize: 13
+                                    Layout.leftMargin: 2
+                                }
 
-                            Text {
-                                visible: !popup.wifiScanning && wifiNetworksModel.count === 0
-                                text: "No networks found"
-                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
-                                font.pixelSize: 13
-                                Layout.leftMargin: 2
-                            }
+                                Text {
+                                    visible: !popup.wifiScanning && popup.wifiNetworks.length === 0
+                                    text: "No networks found"
+                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
+                                    font.pixelSize: 13
+                                    Layout.leftMargin: 2
+                                }
 
-                            Repeater {
-                                model: wifiNetworksModel
-                                delegate: NetworkRow {
-                                    ssid: model.ssid
-                                    signalStrength: model.strength
-                                    security: model.security
-                                    active: model.active
+                                Repeater {
+                                    model: popup.wifiNetworks
+                                    delegate: NetworkRow {
+                                        required property var modelData
+                                        network: modelData
+                                    }
                                 }
                             }
                         }
@@ -1061,6 +997,7 @@ done
                 }
             }
 
+            // Ethernet Card
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 84
@@ -1078,9 +1015,7 @@ done
                         Layout.preferredWidth: 44
                         Layout.preferredHeight: 44
                         radius: 12
-                        color: popup.ethConnected
-                            ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18)
-                            : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06)
+                        color: popup.ethConnected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06)
                         Text {
                             anchors.centerIn: parent
                             text: "󰌗"
@@ -1115,7 +1050,8 @@ done
                         RotationAnimation on rotation {
                             running: popup.ethConnecting
                             loops: Animation.Infinite
-                            from: 0; to: 360
+                            from: 0
+                            to: 360
                             duration: 800
                         }
                     }
@@ -1126,7 +1062,9 @@ done
                         radius: 8
                         color: ethSettingsHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08) : "transparent"
 
-                        HoverHandler { id: ethSettingsHover }
+                        HoverHandler {
+                            id: ethSettingsHover
+                        }
 
                         Text {
                             anchors.centerIn: parent
@@ -1135,11 +1073,14 @@ done
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.6)
                         }
 
-                        TapHandler { onTapped: ethEditorProc.running = true }
+                        TapHandler {
+                            onTapped: Quickshell.execDetached(["nm-connection-editor"])
+                        }
                     }
                 }
             }
 
+            // Bluetooth Card
             Rectangle {
                 id: btCard
                 Layout.fillWidth: true
@@ -1167,9 +1108,7 @@ done
                             Layout.preferredWidth: 44
                             Layout.preferredHeight: 44
                             radius: 12
-                            color: popup.btPowered
-                                ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18)
-                                : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06)
+                            color: popup.btPowered ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06)
                             Text {
                                 anchors.centerIn: parent
                                 text: "󰂯"
@@ -1189,23 +1128,19 @@ done
                             }
                             Text {
                                 text: {
-                                    if (!popup.btPowered) return "Off"
-                                    if (popup.btConnectingMac !== "") {
-                                        const name = popup.btDeviceName(popup.btConnectingMac)
-                                        const verb = popup.btConnectingAction === "disconnect" ? "Disconnecting"
-                                            : (popup.btConnectingAction === "pair" ? "Pairing" : "Connecting")
-                                        return verb + (name ? " " + (popup.btConnectingAction === "disconnect" ? "from " : "to ") + name : "") + "…"
+                                    if (!popup.btPowered)
+                                        return "Off";
+                                    if (popup.btPendingDevice) {
+                                        const name = popup.btPendingDevice.name || popup.btPendingDevice.deviceName || popup.btPendingDevice.address;
+                                        const verb = popup.btPendingAction === "disconnect" ? "Disconnecting from " : (popup.btPendingAction === "pair" ? "Pairing " : "Connecting to ");
+                                        return verb + name + "…";
                                     }
-                                    if (popup.btConnectErrorMac !== "") {
-                                        const name = popup.btDeviceName(popup.btConnectErrorMac)
-                                        return "Couldn't connect" + (name ? " to " + name : "")
-                                    }
-                                    const connected = popup.connectedBtDevices()
-                                    return connected.length > 0 ? connected.map(d => d.name).join(", ") : "Not connected"
+                                    if (popup.btConnectErrorAddr !== "")
+                                        return "Couldn't connect";
+                                    const connected = popup.btConnectedDevices;
+                                    return connected.length > 0 ? connected.map(d => d.name || d.deviceName || d.address).join(", ") : "Not connected";
                                 }
-                                color: popup.btConnectErrorMac !== ""
-                                    ? Qt.rgba(1, 0.5, 0.5, 0.85)
-                                    : (popup.btConnectingMac !== "" ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5))
+                                color: popup.btConnectErrorAddr !== "" ? Qt.rgba(1, 0.5, 0.5, 0.85) : (popup.btPendingDevice ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5))
                                 font.pixelSize: 12
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
@@ -1213,20 +1148,21 @@ done
                         }
 
                         Text {
-                            visible: popup.btConnectingMac !== ""
+                            visible: popup.btPendingDevice !== null
                             text: "󰝲"
                             color: Colors.primary
                             font.pixelSize: 14
                             RotationAnimation on rotation {
-                                running: popup.btConnectingMac !== ""
+                                running: popup.btPendingDevice !== null
                                 loops: Animation.Infinite
-                                from: 0; to: 360
+                                from: 0
+                                to: 360
                                 duration: 800
                             }
                         }
 
                         Text {
-                            visible: popup.btConnectingMac === "" && popup.btConnectErrorMac !== ""
+                            visible: popup.btPendingDevice === null && popup.btConnectErrorAddr !== ""
                             text: "󰀦"
                             color: "#f0a050"
                             font.pixelSize: 14
@@ -1235,10 +1171,12 @@ done
                         ToggleSwitch {
                             checked: popup.btPowered
                             onToggled: {
-                                btToggleProc.command = ["bash", "-c", "bluetoothctl power " + (popup.btPowered ? "off" : "on")]
-                                btToggleProc.running = true
-                                popup.btPowered = !popup.btPowered
-                                if (!popup.btPowered) popup.btExpanded = false
+                                if (!popup.btAdapter)
+                                    return;
+                                const next = !popup.btPowered;
+                                popup.btAdapter.enabled = next;
+                                if (!next)
+                                    popup.btExpanded = false;
                             }
                         }
 
@@ -1248,7 +1186,9 @@ done
                             radius: 8
                             color: btExpandHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08) : "transparent"
 
-                            HoverHandler { id: btExpandHover }
+                            HoverHandler {
+                                id: btExpandHover
+                            }
 
                             Text {
                                 anchors.centerIn: parent
@@ -1256,11 +1196,17 @@ done
                                 font.pixelSize: 13
                                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.6)
                                 rotation: popup.btExpanded ? 180 : 0
-                                Behavior on rotation { NumberAnimation { duration: 200; easing.type: Easing.OutQuad } }
+                                Behavior on rotation {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutQuad
+                                    }
+                                }
                             }
 
                             TapHandler {
-                                onTapped: if (popup.btPowered) popup.btExpanded = !popup.btExpanded
+                                onTapped: if (popup.btPowered)
+                                    popup.btExpanded = !popup.btExpanded
                             }
                         }
                     }
@@ -1272,10 +1218,13 @@ done
 
                         property real expandProgress: popup.btExpanded ? 1 : 0
                         Behavior on expandProgress {
-                            NumberAnimation { duration: 200; easing.type: Easing.OutQuad }
+                            NumberAnimation {
+                                duration: 200
+                                easing.type: Easing.OutQuad
+                            }
                         }
 
-                        Layout.preferredHeight: expandProgress * Math.min(280, btListCol.implicitHeight)
+                        Layout.preferredHeight: expandProgress * popup.btExpandedH
                         opacity: expandProgress
 
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
@@ -1288,97 +1237,105 @@ done
                             contentItem: Rectangle {
                                 implicitWidth: 6
                                 radius: 3
-                                color: btScrollBar.hovered || btScrollBar.active
-                                    ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.5)
-                                    : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.15)
-                                Behavior on color { ColorAnimation { duration: 150 } }
+                                color: btScrollBar.hovered || btScrollBar.active ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.5) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.15)
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: 150
+                                    }
+                                }
                             }
                         }
 
-                        ColumnLayout {
-                            id: btListCol
+                        Loader {
+                            id: btListLoader
                             width: btListWrap.availableWidth
-                            spacing: 4
+                            active: popup.btExpanded || btListWrap.expandProgress > 0
+                            sourceComponent: ColumnLayout {
+                                width: btListWrap.availableWidth
+                                spacing: 4
 
-                            Text {
-                                visible: btDevicesModel.count === 0
-                                text: "No paired devices"
-                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
-                                font.pixelSize: 13
-                                Layout.leftMargin: 2
-                            }
-
-                            Repeater {
-                                model: btDevicesModel
-                                delegate: BtRow {
-                                    mac: model.mac
-                                    devName: model.name
-                                    connected: model.connected
-                                    pairedRow: true
-                                }
-                            }
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 44
-                                Layout.topMargin: 4
-                                radius: 10
-                                color: scanRowHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06) : "transparent"
-
-                                HoverHandler { id: scanRowHover }
-                                TapHandler {
-                                    onTapped: popup.startBtScan()
+                                Text {
+                                    visible: popup.btPairedDevices.length === 0
+                                    text: "No paired devices"
+                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
+                                    font.pixelSize: 13
+                                    Layout.leftMargin: 2
                                 }
 
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 10
-                                    spacing: 12
-                                    Text {
-                                        text: "󰜉"
-                                        color: Colors.primary
-                                        font.pixelSize: 14
-                                        RotationAnimation on rotation {
-                                            running: popup.btScanning
-                                            loops: Animation.Infinite
-                                            from: 0; to: 360; duration: 1000
+                                Repeater {
+                                    model: popup.btPairedDevices
+                                    delegate: BtRow {
+                                        required property var modelData
+                                        device: modelData
+                                        pairedRow: true
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 44
+                                    Layout.topMargin: 4
+                                    radius: 10
+                                    color: scanRowHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06) : "transparent"
+
+                                    HoverHandler {
+                                        id: scanRowHover
+                                    }
+                                    TapHandler {
+                                        onTapped: popup.startBtScan()
+                                    }
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 10
+                                        spacing: 12
+                                        Text {
+                                            text: "󰜉"
+                                            color: Colors.primary
+                                            font.pixelSize: 14
+                                            RotationAnimation on rotation {
+                                                running: popup.btScanning
+                                                loops: Animation.Infinite
+                                                from: 0
+                                                to: 360
+                                                duration: 1000
+                                            }
+                                        }
+                                        Text {
+                                            text: popup.btScanning ? "Scanning…" : "Scan for devices"
+                                            color: Colors.primary
+                                            font.pixelSize: 13
+                                            font.bold: true
                                         }
                                     }
-                                    Text {
-                                        text: popup.btScanning ? "Scanning…" : "Scan for devices"
-                                        color: Colors.primary
-                                        font.pixelSize: 13
-                                        font.bold: true
+                                }
+
+                                Text {
+                                    visible: popup.btDiscoveredDevices.length > 0
+                                    text: "Available devices"
+                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
+                                    font.pixelSize: 12
+                                    Layout.topMargin: 6
+                                    Layout.leftMargin: 2
+                                }
+
+                                Repeater {
+                                    model: popup.btDiscoveredDevices
+                                    delegate: BtRow {
+                                        required property var modelData
+                                        device: modelData
+                                        pairedRow: false
                                     }
                                 }
-                            }
 
-                            Text {
-                                visible: btDiscoveredModel.count > 0
-                                text: "Available devices"
-                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
-                                font.pixelSize: 12
-                                Layout.topMargin: 6
-                                Layout.leftMargin: 2
-                            }
-
-                            Repeater {
-                                model: btDiscoveredModel
-                                delegate: BtRow {
-                                    mac: model.mac
-                                    devName: model.name
-                                    connected: false
-                                    pairedRow: false
+                                Text {
+                                    visible: popup.btDiscoveredDevices.length === 0 && !popup.btScanning
+                                    text: "No new devices found"
+                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
+                                    font.pixelSize: 13
+                                    Layout.topMargin: 4
+                                    Layout.leftMargin: 2
                                 }
-                            }
-
-                            Text {
-                                visible: btDiscoveredModel.count === 0 && !popup.btScanning
-                                text: "No new devices found"
-                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
-                                font.pixelSize: 13
-                                Layout.topMargin: 4
-                                Layout.leftMargin: 2
                             }
                         }
                     }
@@ -1390,7 +1347,7 @@ done
     component ToggleSwitch: Item {
         id: sw
         property bool checked: false
-        signal toggled()
+        signal toggled
 
         implicitWidth: 46
         implicitHeight: 26
@@ -1401,7 +1358,11 @@ done
             anchors.fill: parent
             radius: height / 2
             color: sw.checked ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.15)
-            Behavior on color { ColorAnimation { duration: 120 } }
+            Behavior on color {
+                ColorAnimation {
+                    duration: 120
+                }
+            }
 
             Rectangle {
                 width: 20
@@ -1410,17 +1371,33 @@ done
                 color: "#ffffff"
                 anchors.verticalCenter: parent.verticalCenter
                 x: sw.checked ? parent.width - width - 3 : 3
-                Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                Behavior on x {
+                    NumberAnimation {
+                        duration: 150
+                        easing.type: Easing.OutCubic
+                    }
+                }
             }
         }
 
-        TapHandler { onTapped: sw.toggled() }
+        TapHandler {
+            onTapped: sw.toggled()
+        }
     }
 
     component AudioDeviceRow: ColumnLayout {
         id: audioRow
         property var node: null
         readonly property bool isDefault: node ? popup.isNodeDefault(node) : false
+
+        function makeDefault() {
+            if (!audioRow.isDefault && audioRow.node) {
+                if (audioRow.node.isSink)
+                    Pipewire.preferredDefaultAudioSink = audioRow.node;
+                else
+                    Pipewire.preferredDefaultAudioSource = audioRow.node;
+            }
+        }
 
         Layout.fillWidth: true
         spacing: 6
@@ -1443,12 +1420,7 @@ done
                 }
 
                 TapHandler {
-                    onTapped: {
-                        if (!audioRow.isDefault && audioRow.node) {
-                            setDefaultAudioProc.command = ["bash", "-c", "wpctl set-default " + audioRow.node.id]
-                            setDefaultAudioProc.running = true
-                        }
-                    }
+                    onTapped: audioRow.makeDefault()
                 }
             }
 
@@ -1461,24 +1433,18 @@ done
                 elide: Text.ElideRight
 
                 TapHandler {
-                    onTapped: {
-                        if (!audioRow.isDefault && audioRow.node) {
-                            setDefaultAudioProc.command = ["bash", "-c", "wpctl set-default " + audioRow.node.id]
-                            setDefaultAudioProc.running = true
-                        }
-                    }
+                    onTapped: audioRow.makeDefault()
                 }
             }
 
             Text {
                 text: "󰕾"
                 font.pixelSize: 14
-                color: (audioRow.node && audioRow.node.audio && audioRow.node.audio.muted)
-                    ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
-                    : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.7)
+                color: (audioRow.node && audioRow.node.audio && audioRow.node.audio.muted) ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.7)
                 TapHandler {
                     onTapped: {
-                        if (audioRow.node && audioRow.node.audio) audioRow.node.audio.muted = !audioRow.node.audio.muted
+                        if (audioRow.node && audioRow.node.audio)
+                            audioRow.node.audio.muted = !audioRow.node.audio.muted;
                     }
                 }
             }
@@ -1513,25 +1479,34 @@ done
                 acceptedButtons: Qt.LeftButton
 
                 function applyVol(mx) {
-                    let v = Math.max(0, Math.min(1, mx / devVolSlider.width))
+                    let v = Math.max(0, Math.min(1, mx / devVolSlider.width));
                     if (audioRow.node && audioRow.node.audio) {
-                        audioRow.node.audio.volume = v
-                        if (v > 0) audioRow.node.audio.muted = false
+                        audioRow.node.audio.volume = v;
+                        if (v > 0)
+                            audioRow.node.audio.muted = false;
                     }
                 }
 
-                onPressed: (mouse) => applyVol(mouse.x)
-                onPositionChanged: (mouse) => applyVol(mouse.x)
+                onPressed: mouse => {
+                    if (audioRow.isDefault)
+                        ShellState.suppressVolumeOSD = true;
+                    applyVol(mouse.x);
+                }
+                onPositionChanged: mouse => applyVol(mouse.x)
+                onReleased: ShellState.suppressVolumeOSD = false
+                onCanceled: ShellState.suppressVolumeOSD = false
             }
         }
     }
 
     component NetworkRow: ColumnLayout {
         id: netRow
-        property string ssid: ""
-        property int signalStrength: 0
-        property string security: ""
-        property bool active: false
+        property var network: null
+        readonly property string ssid: network ? (network.name || "") : ""
+        readonly property real rawStrength: network ? (network.signalStrength || 0) : 0
+        readonly property real normStrength: rawStrength > 1.0 ? Math.min(1.0, rawStrength / 100.0) : Math.max(0.0, rawStrength)
+        readonly property bool isSecured: !!(network && network.security !== WifiSecurityType.Open && network.security !== WifiSecurityType.Unknown)
+        readonly property bool active: !!(network && network.connected)
 
         Layout.fillWidth: true
         spacing: 0
@@ -1541,20 +1516,25 @@ done
             Layout.preferredHeight: 46
             radius: 10
             color: netRowHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06) : "transparent"
-            Behavior on color { ColorAnimation { duration: 100 } }
+            Behavior on color {
+                ColorAnimation {
+                    duration: 100
+                }
+            }
 
-            HoverHandler { id: netRowHover }
+            HoverHandler {
+                id: netRowHover
+            }
             TapHandler {
                 onTapped: {
-                    if (netRow.active) return
-                    if (netRow.security === "") {
-                        wifiConnectProc.command = ["bash", "-c",
-                            'nmcli connection up "$1" >/dev/null 2>&1 || nmcli device wifi connect "$1" >/dev/null 2>&1',
-                            "bash", netRow.ssid]
-                        wifiConnectProc.running = true
+                    if (!netRow.network || netRow.active)
+                        return;
+                    if (!netRow.isSecured || netRow.network.known) {
+                        popup.wifiConnectFailed = false;
+                        popup.connectingNet = netRow.network;
+                        netRow.network.connect();
                     } else {
-                        popup.pendingSsid = (popup.pendingSsid === netRow.ssid) ? "" : netRow.ssid
-                        popup.pendingSecurity = netRow.security
+                        popup.pendingSsid = (popup.pendingSsid === netRow.ssid) ? "" : netRow.ssid;
                     }
                 }
             }
@@ -1569,7 +1549,7 @@ done
                     text: "󰖩"
                     font.pixelSize: 15
                     color: Colors.surfaceText
-                    opacity: 0.35 + 0.65 * Math.min(1, netRow.signalStrength / 100)
+                    opacity: 0.35 + 0.65 * netRow.normStrength
                 }
 
                 Text {
@@ -1582,7 +1562,7 @@ done
                 }
 
                 Text {
-                    visible: netRow.security !== ""
+                    visible: netRow.isSecured
                     text: "󰌾"
                     font.pixelSize: 12
                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
@@ -1603,7 +1583,7 @@ done
             Layout.rightMargin: 10
             Layout.topMargin: 4
             Layout.bottomMargin: 8
-            visible: popup.pendingSsid === netRow.ssid
+            visible: popup.pendingSsid === netRow.ssid && netRow.ssid !== ""
             spacing: 6
 
             RowLayout {
@@ -1615,11 +1595,13 @@ done
                     Layout.preferredHeight: 42
                     radius: 10
                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07)
-                    border.color: passField.activeFocus
-                        ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.5)
-                        : (popup.wifiConnectFailed ? Qt.rgba(1, 0.4, 0.4, 0.5) : "transparent")
+                    border.color: passField.activeFocus ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.5) : (popup.wifiConnectFailed ? Qt.rgba(1, 0.4, 0.4, 0.5) : "transparent")
                     border.width: 1
-                    Behavior on border.color { ColorAnimation { duration: 120 } }
+                    Behavior on border.color {
+                        ColorAnimation {
+                            duration: 120
+                        }
+                    }
 
                     TextField {
                         id: passField
@@ -1637,7 +1619,13 @@ done
                         onAccepted: connectGlyph.doConnect()
                         onTextChanged: popup.wifiConnectFailed = false
 
-                        Component.onCompleted: forceActiveFocus()
+                        Connections {
+                            target: popup
+                            function onPendingSsidChanged() {
+                                if (popup.pendingSsid === netRow.ssid && netRow.ssid !== "")
+                                    Qt.callLater(() => passField.forceActiveFocus());
+                            }
+                        }
                     }
 
                     Text {
@@ -1647,7 +1635,9 @@ done
                         text: popup.wifiShowPassword ? "󰈉" : "󰈈"
                         font.pixelSize: 14
                         color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
-                        TapHandler { onTapped: popup.wifiShowPassword = !popup.wifiShowPassword }
+                        TapHandler {
+                            onTapped: popup.wifiShowPassword = !popup.wifiShowPassword
+                        }
                     }
                 }
 
@@ -1656,9 +1646,15 @@ done
                     Layout.preferredHeight: 42
                     radius: 10
                     color: connectBtnHover.hovered ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.25) : Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.15)
-                    Behavior on color { ColorAnimation { duration: 100 } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: 100
+                        }
+                    }
 
-                    HoverHandler { id: connectBtnHover }
+                    HoverHandler {
+                        id: connectBtnHover
+                    }
 
                     Text {
                         id: connectGlyph
@@ -1670,28 +1666,31 @@ done
                         RotationAnimation on rotation {
                             running: popup.wifiConnecting
                             loops: Animation.Infinite
-                            from: 0; to: 360
+                            from: 0
+                            to: 360
                             duration: 800
                         }
 
                         function doConnect() {
-                            if (passField.text.length === 0) return
-                            popup.wifiConnecting = true
-                            popup.wifiConnectFailed = false
-                            wifiConnectProc.command = ["bash", "-c",
-                                'nmcli device wifi connect "$1" password "$2" 2>&1 | grep -q "successfully activated" && echo OK || echo FAIL',
-                                "bash", netRow.ssid, passField.text]
-                            wifiConnectProc.running = true
+                            if (!netRow.network || passField.text.length === 0)
+                                return;
+                            popup.wifiConnectFailed = false;
+                            popup.connectingNet = netRow.network;
+                            netRow.network.connectWithPsk(passField.text);
                         }
                     }
-                    TapHandler { onTapped: connectGlyph.doConnect() }
+                    TapHandler {
+                        onTapped: connectGlyph.doConnect()
+                    }
                 }
 
                 Text {
                     text: "󰅖"
                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
                     font.pixelSize: 14
-                    TapHandler { onTapped: popup.pendingSsid = "" }
+                    TapHandler {
+                        onTapped: popup.pendingSsid = ""
+                    }
                 }
             }
 
@@ -1707,42 +1706,45 @@ done
 
     component BtRow: Rectangle {
         id: btRow
-        property string mac: ""
-        property string devName: ""
-        property bool connected: false
+        property var device: null
         property bool pairedRow: true
-        readonly property bool isBusy: popup.btConnectingMac === btRow.mac
-        readonly property bool hasError: popup.btConnectErrorMac === btRow.mac
+        readonly property string addr: device ? (device.address || "") : ""
+        readonly property string devName: device ? (device.name || device.deviceName || addr) : ""
+        readonly property bool connected: !!(device && device.connected)
+        readonly property bool isBusy: (popup.btPendingDevice && popup.btPendingDevice === device) || !!(device && (device.pairing || device.state === BluetoothDeviceState.Connecting || device.state === BluetoothDeviceState.Disconnecting))
+        readonly property bool hasError: popup.btConnectErrorAddr !== "" && popup.btConnectErrorAddr === addr
 
         Layout.fillWidth: true
         Layout.preferredHeight: 46
         radius: 10
         color: btRowHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06) : "transparent"
-        Behavior on color { ColorAnimation { duration: 100 } }
+        Behavior on color {
+            ColorAnimation {
+                duration: 100
+            }
+        }
 
-        HoverHandler { id: btRowHover }
+        HoverHandler {
+            id: btRowHover
+        }
         TapHandler {
             onTapped: {
-                if (btConnectProc.running || btPairProc.running) return
-                popup.btConnectErrorMac = ""
-                popup.btConnectingMac = btRow.mac
+                if (!btRow.device || btRow.isBusy)
+                    return;
+                popup.btConnectErrorAddr = "";
+                popup.btPendingDevice = btRow.device;
                 if (btRow.pairedRow) {
-                    popup.btConnectingAction = btRow.connected ? "disconnect" : "connect"
-                    btConnectProc.actionMac = btRow.mac
-                    btConnectProc.command = ["bash", "-c",
-                        'bluetoothctl "$2" "$1" 2>&1',
-                        "bash", btRow.mac, btRow.connected ? "disconnect" : "connect"]
-                    btConnectProc.running = true
+                    if (btRow.connected) {
+                        popup.btPendingAction = "disconnect";
+                        btRow.device.disconnect();
+                    } else {
+                        popup.btPendingAction = "connect";
+                        btRow.device.connect();
+                    }
                 } else {
-                    popup.btConnectingAction = "pair"
-                    btPairProc.actionMac = btRow.mac
-                    btPairProc.command = ["bash", "-c", `
-                    mac="$1"
-                    bluetoothctl pair "$mac" 2>&1
-                    bluetoothctl trust "$mac" 2>&1
-                    bluetoothctl connect "$mac" 2>&1
-                    `, "bash", btRow.mac]
-                    btPairProc.running = true
+                    popup.btPendingAction = "pair";
+                    btRow.device.trusted = true;
+                    btRow.device.pair();
                 }
             }
         }
@@ -1776,7 +1778,8 @@ done
                 RotationAnimation on rotation {
                     running: btRow.isBusy
                     loops: Animation.Infinite
-                    from: 0; to: 360
+                    from: 0
+                    to: 360
                     duration: 800
                 }
             }

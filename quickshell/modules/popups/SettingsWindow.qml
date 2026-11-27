@@ -5,10 +5,10 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Effects
-import Qt5Compat.GraphicalEffects
 import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
+import Quickshell.Widgets
 
 FloatingWindow {
     id: settingsWin
@@ -19,17 +19,15 @@ FloatingWindow {
         const mon = Hyprland.focusedMonitor;
         if (mon) {
             for (const s of Quickshell.screens) {
-                if (s.name === mon.name) return s;
+                if (s.name === mon.name)
+                    return s;
             }
         }
         return Quickshell.screens[0];
     }
     screen: activeScreen
 
-    onClosed: {
-        ShellState.settingsWindowOpen = false;
-        settingsWin.visible = Qt.binding(function() { return ShellState.settingsWindowOpen; });
-    }
+    onClosed: ShellState.settingsWindowOpen = false
 
     visible: ShellState.settingsWindowOpen
     color: "transparent"
@@ -37,7 +35,7 @@ FloatingWindow {
     implicitWidth: 760
     implicitHeight: 560
 
-    property string currentSection: "bar"
+    property string currentSection: ShellState.settingsSection || "bar"
 
     Connections {
         target: ShellState
@@ -56,39 +54,6 @@ FloatingWindow {
         blur: 24
         spread: 0
         offset: Qt.point(0, 6)
-    }
-
-    QtObject {
-        id: hyprlockState
-        property int blur_passes: 2
-        property real contrast: 0.8916
-        property real brightness: 0.8172
-        property real vibrancy: 0.1696
-        property real vibrancy_darkness: 0.0
-
-        function updateConf(key, val) {
-            hlWriteProc.command = ["bash", "-c", `sed -i -E "s/^[[:space:]]*${key}[[:space:]]*=.*/    ${key} = ${val}/" ~/.config/hypr/hyprlock.conf`];
-            hlWriteProc.running = true;
-        }
-    }
-
-    Process { id: hlWriteProc }
-
-    FileView {
-        id: hlConfReader
-        path: Quickshell.env("HOME") + "/.config/hypr/hyprlock.conf"
-        watchChanges: true
-        printErrors: false
-        onLoaded: {
-            const t = hlConfReader.text();
-            let m;
-            m = t.match(/^\s*blur_passes\s*=\s*([0-9.]+)/m); if (m) hyprlockState.blur_passes = parseInt(m[1]);
-            m = t.match(/^\s*contrast\s*=\s*([0-9.]+)/m); if (m) hyprlockState.contrast = parseFloat(m[1]);
-            m = t.match(/^\s*brightness\s*=\s*([0-9.]+)/m); if (m) hyprlockState.brightness = parseFloat(m[1]);
-            m = t.match(/^\s*vibrancy\s*=\s*([0-9.]+)/m); if (m) hyprlockState.vibrancy = parseFloat(m[1]);
-            m = t.match(/^\s*vibrancy_darkness\s*=\s*([0-9.]+)/m); if (m) hyprlockState.vibrancy_darkness = parseFloat(m[1]);
-        }
-        onFileChanged: reload()
     }
 
     Rectangle {
@@ -132,9 +97,15 @@ FloatingWindow {
                     height: 26
                     radius: 8
                     color: closeHover.hovered ? Qt.rgba(1, 1, 1, 0.1) : "transparent"
-                    Behavior on color { ColorAnimation { duration: 150 } }
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: 150
+                        }
+                    }
 
-                    HoverHandler { id: closeHover }
+                    HoverHandler {
+                        id: closeHover
+                    }
                     Text {
                         anchors.centerIn: parent
                         text: "󰅖"
@@ -190,7 +161,9 @@ FloatingWindow {
                         onClicked: settingsWin.currentSection = "about"
                     }
 
-                    Item { Layout.fillHeight: true }
+                    Item {
+                        Layout.fillHeight: true
+                    }
                 }
 
                 Rectangle {
@@ -199,764 +172,998 @@ FloatingWindow {
                     color: Qt.rgba(1, 1, 1, 0.08)
                 }
 
-                ColumnLayout {
+                Item {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    spacing: 14
 
-                    ColumnLayout {
-                        visible: settingsWin.currentSection === "bar"
-                        Layout.fillWidth: true
-                        spacing: 10
-
-                        Text {
-                            text: "PANEL POSITION"
-                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
-                            font.pixelSize: 11
-                            font.bold: true
-                            font.letterSpacing: 1
-                        }
-
-                        GridLayout {
-                            Layout.fillWidth: true
-                            columns: 2
-                            columnSpacing: 12
-                            rowSpacing: 12
-
-                            PositionOption {
-                                label: "Top"
-                                pos: "top"
-                                selected: AppSettings.barPosition === "top"
-                                onClicked: AppSettings.barPosition = "top"
-                            }
-                            PositionOption {
-                                label: "Bottom"
-                                pos: "bottom"
-                                selected: AppSettings.barPosition === "bottom"
-                                onClicked: AppSettings.barPosition = "bottom"
-                            }
-                            PositionOption {
-                                label: "Left"
-                                pos: "left"
-                                selected: AppSettings.barPosition === "left"
-                                onClicked: AppSettings.barPosition = "left"
-                            }
-                            PositionOption {
-                                label: "Right"
-                                pos: "right"
-                                selected: AppSettings.barPosition === "right"
-                                onClicked: AppSettings.barPosition = "right"
-                            }
-                        }
-
-                        Text {
-                            text: "MODULES"
-                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
-                            font.pixelSize: 11
-                            font.bold: true
-                            font.letterSpacing: 1
-                            Layout.topMargin: 8
-                        }
-
-                        SettingRow {
-                            label: "Media player"
-                            checked: AppSettings.barShowPlayer
-                            onToggled: AppSettings.barShowPlayer = !AppSettings.barShowPlayer
-                        }
-                        SettingRow {
-                            label: "Tray icons"
-                            checked: AppSettings.barShowTray
-                            onToggled: AppSettings.barShowTray = !AppSettings.barShowTray
-                        }
-
-                        Text {
-                            text: "LAYOUT"
-                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
-                            font.pixelSize: 11
-                            font.bold: true
-                            font.letterSpacing: 1
-                            Layout.topMargin: 8
-                        }
-
-                        SettingRow {
-                            label: "Edge-to-edge"
-                            checked: AppSettings.edgeToEdge
-                            onToggled: AppSettings.edgeToEdge = !AppSettings.edgeToEdge
-                        }
+                    Loader {
+                        anchors.fill: parent
+                        active: settingsWin.currentSection === "bar"
+                        visible: active
+                        sourceComponent: barSectionComp
                     }
 
-                    ColumnLayout {
-                        visible: settingsWin.currentSection === "keybinds"
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        spacing: 10
-
-                        Text {
-                            text: "KEYBINDS (read-only, edit bind.lua to change)"
-                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
-                            font.pixelSize: 11
-                            font.bold: true
-                            font.letterSpacing: 1
-                        }
-
-                        FileView {
-                            id: bindFile
-                            path: Quickshell.env("HOME") + "/.config/hypr/conf/bind.lua"
-                            watchChanges: true
-                            printErrors: false
-                            onLoaded: keybindsModel.parse(bindFile.text())
-                            onFileChanged: reload()
-                        }
-
-                        QtObject {
-                            id: keybindsModel
-                            property var rows: []
-
-                            function dirName(d) {
-                                const m = { l: "left", r: "right", u: "up", d: "down",
-                                            left: "left", right: "right", up: "up", down: "down" };
-                                return m[(d + "").toLowerCase()] || d;
-                            }
-
-                            function keyLabel(key) {
-                                if (key === "mouse:272") return "Mouse Left";
-                                if (key === "mouse:273") return "Mouse Right";
-                                if (key === "grave") return "` (grave)";
-                                return key;
-                            }
-
-                            function stripComments(t) {
-                                return t.replace(/--[^\n]*/g, "");
-                            }
-
-                            function expandLoops(t) {
-                                const loopRe = /for\s+(\w+)\s*=\s*(\d+)\s*,\s*(\d+)\s*do([\s\S]*?)end/g;
-                                return t.replace(loopRe, (full, varName, startStr, endStr, body) => {
-                                    const start = parseInt(startStr, 10);
-                                    const end = parseInt(endStr, 10);
-                                    const wordRe = new RegExp("\\b" + varName + "\\b", "g");
-                                    let out = "";
-                                    for (let i = start; i <= end; i++) {
-                                        out += body.replace(wordRe, String(i)) + "\n";
-                                    }
-                                    return out;
-                                });
-                            }
-
-                            function extractLocals(t) {
-                                const vars = {};
-                                const re = /local\s+(\w+)\s*=\s*"([^"]*)"/g;
-                                let m;
-                                while ((m = re.exec(t)) !== null) vars[m[1]] = m[2];
-                                return vars;
-                            }
-
-                            function findCalls(t, name) {
-                                const calls = [];
-                                const marker = name + "(";
-                                let idx = 0;
-                                while (true) {
-                                    const start = t.indexOf(marker, idx);
-                                    if (start === -1) break;
-                                    let depth = 1;
-                                    let i = start + marker.length;
-                                    let inStr = false, strCh = "";
-                                    while (i < t.length && depth > 0) {
-                                        const c = t[i];
-                                        if (inStr) {
-                                            if (c === strCh) inStr = false;
-                                        } else if (c === '"' || c === "'") {
-                                            inStr = true; strCh = c;
-                                        } else if (c === "(") depth++;
-                                        else if (c === ")") depth--;
-                                        i++;
-                                    }
-                                    calls.push(t.slice(start + marker.length, i - 1));
-                                    idx = i;
-                                }
-                                return calls;
-                            }
-
-                            function splitTopLevel(s) {
-                                const parts = [];
-                                let depth = 0, cur = "", inStr = false, strCh = "";
-                                for (let i = 0; i < s.length; i++) {
-                                    const c = s[i];
-                                    if (inStr) {
-                                        cur += c;
-                                        if (c === strCh) inStr = false;
-                                        continue;
-                                    }
-                                    if (c === '"' || c === "'") { inStr = true; strCh = c; cur += c; continue; }
-                                    if (c === "(" || c === "{" || c === "[") { depth++; cur += c; continue; }
-                                    if (c === ")" || c === "}" || c === "]") { depth--; cur += c; continue; }
-                                    if (c === "," && depth === 0) { parts.push(cur.trim()); cur = ""; continue; }
-                                    cur += c;
-                                }
-                                if (cur.trim() !== "") parts.push(cur.trim());
-                                return parts;
-                            }
-
-                            function evalCombo(expr, vars) {
-                                const tokens = expr.split(/\.\./).map(t => t.trim());
-                                let out = "";
-                                for (const tok of tokens) {
-                                    if (/^".*"$/.test(tok)) out += tok.slice(1, -1);
-                                    else if (/^\d+$/.test(tok)) out += tok;
-                                    else if (vars[tok] !== undefined) out += vars[tok];
-                                    else out += tok;
-                                }
-                                return out;
-                            }
-
-                            function parseTable(s) {
-                                const obj = {};
-                                if (!s) return obj;
-                                const inner = s.trim().replace(/^\{/, "").replace(/\}$/, "");
-                                const re = /(\w+)\s*=\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false)/g;
-                                let m;
-                                while ((m = re.exec(inner)) !== null) {
-                                    let v = m[2];
-                                    if (/^".*"$/.test(v)) v = v.slice(1, -1);
-                                    else if (v === "true") v = true;
-                                    else if (v === "false") v = false;
-                                    else v = parseFloat(v);
-                                    obj[m[1]] = v;
-                                }
-                                return obj;
-                            }
-
-                            function parseDispatch(expr) {
-                                const m = expr.match(/^([\w.]+)\s*\(([\s\S]*)\)\s*$/);
-                                if (!m) return { path: expr, argRaw: "" };
-                                return { path: m[1], argRaw: m[2].trim() };
-                            }
-
-                            function dispatchArgs(argRaw, vars) {
-                                if (argRaw === "") return { type: "none" };
-                                if (/^".*"$/.test(argRaw)) return { type: "string", value: argRaw.slice(1, -1) };
-                                if (/^\{[\s\S]*\}$/.test(argRaw)) return { type: "table", value: parseTable(argRaw) };
-                                if (/^\w+$/.test(argRaw) && vars[argRaw] !== undefined) return { type: "string", value: vars[argRaw] };
-                                return { type: "raw", value: argRaw };
-                            }
-
-                            function describeDispatch(path, argRaw, vars) {
-                                const a = keybindsModel.dispatchArgs(argRaw, vars);
-                                const t = a.value;
-                                switch (path) {
-                                    case "hl.dsp.exec_cmd": {
-                                        const cmd = (a.type === "string" ? t : argRaw) || "";
-                                        if (/set-volume.*5%\+/.test(cmd)) return "Volume up (+5%)";
-                                        if (/set-volume.*5%-/.test(cmd)) return "Volume down (−5%)";
-                                        if (/set-mute/.test(cmd)) return "Mute / unmute volume";
-                                        if (/screenshot full/.test(cmd)) return "Screenshot — full screen";
-                                        if (/screenshot region/.test(cmd)) return "Screenshot — select region";
-                                        if (/clipboard toggle/.test(cmd)) return "Toggle clipboard history";
-                                        if (/launcher toggle/.test(cmd)) return "Toggle app launcher";
-                                        return "Launch " + cmd;
-                                    }
-                                    case "hl.dsp.window.close": return "Close active window";
-                                    case "hl.dsp.window.float": return "Toggle floating";
-                                    case "hl.dsp.window.fullscreen": return "Toggle fullscreen";
-                                    case "hl.dsp.window.resize": return "Resize window (drag)";
-                                    case "hl.dsp.window.drag": return "Move window (drag)";
-                                    case "hl.dsp.workspace.toggle_special": return "Toggle special workspace focus";
-                                    case "hl.dsp.focus": {
-                                        if (t && t.workspace !== undefined) return "Switch to workspace " + t.workspace;
-                                        if (t && t.direction !== undefined) return "Focus " + keybindsModel.dirName(t.direction) + " window";
-                                        return path;
-                                    }
-                                    case "hl.dsp.window.move": {
-                                        if (t && t.workspace !== undefined) {
-                                            return t.workspace === "special"
-                                                ? "Move window to special workspace"
-                                                : "Move window to workspace " + t.workspace;
-                                        }
-                                        if (t && t.direction !== undefined) return "Move window " + keybindsModel.dirName(t.direction);
-                                        return path;
-                                    }
-                                    default:
-                                        return path.replace(/^hl\.dsp\./, "") + (argRaw ? " " + argRaw : "");
-                                }
-                            }
-
-                            function parse(text) {
-                                let t = keybindsModel.stripComments(text);
-                                t = keybindsModel.expandLoops(t);
-                                const vars = keybindsModel.extractLocals(t);
-                                const calls = keybindsModel.findCalls(t, "hl.bind");
-
-                                const out = [];
-                                for (const callArgs of calls) {
-                                    const parts = keybindsModel.splitTopLevel(callArgs);
-                                    if (parts.length < 2) continue;
-
-                                    const comboRaw = keybindsModel.evalCombo(parts[0], vars);
-                                    const comboParts = comboRaw.split(/\s*\+\s*/).map(p => p.trim()).filter(Boolean);
-                                    if (comboParts.length === 0) continue;
-                                    const keyPart = comboParts.pop();
-                                    const combo = (comboParts.length ? comboParts.join(" + ") + " + " : "")
-                                        + keybindsModel.keyLabel(keyPart);
-
-                                    const { path, argRaw } = keybindsModel.parseDispatch(parts[1]);
-
-                                    out.push({
-                                        combo: combo,
-                                        action: keybindsModel.describeDispatch(path, argRaw, vars)
-                                    });
-                                }
-                                keybindsModel.rows = out;
-                            }
-                        }
-
-                        Flickable {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            clip: true
-                            contentHeight: keybindsCol.height
-                            ScrollBar.vertical: ScrollBar {}
-
-                            ColumnLayout {
-                                id: keybindsCol
-                                width: parent.width
-                                spacing: 8
-
-                                Repeater {
-                                    model: keybindsModel.rows
-                                    delegate: RowLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 12
-
-                                        Rectangle {
-                                            Layout.preferredWidth: 210
-                                            Layout.preferredHeight: 32
-                                            radius: 8
-                                            color: Qt.rgba(1, 1, 1, 0.07)
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: modelData.combo
-                                                color: Colors.primary
-                                                font.pixelSize: 14
-                                                font.bold: true
-                                                elide: Text.ElideRight
-                                            }
-                                        }
-                                        Text {
-                                            Layout.fillWidth: true
-                                            text: modelData.action
-                                            color: Colors.surfaceText
-                                            font.pixelSize: 14
-                                            elide: Text.ElideRight
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                    Loader {
+                        anchors.fill: parent
+                        active: settingsWin.currentSection === "keybinds"
+                        visible: active
+                        sourceComponent: keybindsSectionComp
                     }
 
-                    ColumnLayout {
-                        visible: settingsWin.currentSection === "hyprlock"
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        spacing: 14
+                    Loader {
+                        anchors.fill: parent
+                        active: settingsWin.currentSection === "hyprlock"
+                        visible: active
+                        sourceComponent: hyprlockSectionComp
+                    }
 
-                        Text {
-                            text: "LOCK SCREEN (HYPRLOCK)"
-                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
-                            font.pixelSize: 11
-                            font.bold: true
-                            font.letterSpacing: 1
+                    Loader {
+                        anchors.fill: parent
+                        active: settingsWin.currentSection === "about"
+                        visible: active
+                        sourceComponent: aboutSectionComp
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: barSectionComp
+        ColumnLayout {
+            spacing: 10
+
+            Text {
+                text: "PANEL POSITION"
+                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                font.pixelSize: 11
+                font.bold: true
+                font.letterSpacing: 1
+            }
+
+            GridLayout {
+                Layout.fillWidth: true
+                columns: 2
+                columnSpacing: 12
+                rowSpacing: 12
+
+                PositionOption {
+                    label: "Top"
+                    pos: "top"
+                    selected: AppSettings.barPosition === "top"
+                    onClicked: AppSettings.barPosition = "top"
+                }
+                PositionOption {
+                    label: "Bottom"
+                    pos: "bottom"
+                    selected: AppSettings.barPosition === "bottom"
+                    onClicked: AppSettings.barPosition = "bottom"
+                }
+                PositionOption {
+                    label: "Left"
+                    pos: "left"
+                    selected: AppSettings.barPosition === "left"
+                    onClicked: AppSettings.barPosition = "left"
+                }
+                PositionOption {
+                    label: "Right"
+                    pos: "right"
+                    selected: AppSettings.barPosition === "right"
+                    onClicked: AppSettings.barPosition = "right"
+                }
+            }
+
+            Text {
+                text: "MODULES"
+                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                font.pixelSize: 11
+                font.bold: true
+                font.letterSpacing: 1
+                Layout.topMargin: 8
+            }
+
+            SettingRow {
+                label: "Media player"
+                checked: AppSettings.barShowPlayer
+                onToggled: AppSettings.barShowPlayer = !AppSettings.barShowPlayer
+            }
+            SettingRow {
+                label: "Tray icons"
+                checked: AppSettings.barShowTray
+                onToggled: AppSettings.barShowTray = !AppSettings.barShowTray
+            }
+
+            Text {
+                text: "LAYOUT"
+                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                font.pixelSize: 11
+                font.bold: true
+                font.letterSpacing: 1
+                Layout.topMargin: 8
+            }
+
+            SettingRow {
+                label: "Edge-to-edge"
+                checked: AppSettings.edgeToEdge
+                onToggled: AppSettings.edgeToEdge = !AppSettings.edgeToEdge
+            }
+
+            Item {
+                Layout.fillHeight: true
+            }
+        }
+    }
+
+    Component {
+        id: keybindsSectionComp
+        ColumnLayout {
+            spacing: 10
+
+            Text {
+                text: "KEYBINDS (read-only, edit bind.lua to change)"
+                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                font.pixelSize: 11
+                font.bold: true
+                font.letterSpacing: 1
+            }
+
+            FileView {
+                id: bindFile
+                path: Quickshell.env("HOME") + "/.config/hypr/conf/bind.lua"
+                watchChanges: true
+                printErrors: false
+                onLoaded: keybindsModel.parse(bindFile.text())
+                onFileChanged: reload()
+            }
+
+            QtObject {
+                id: keybindsModel
+                property var rows: []
+
+                function dirName(d) {
+                    const m = {
+                        l: "left",
+                        r: "right",
+                        u: "up",
+                        d: "down",
+                        left: "left",
+                        right: "right",
+                        up: "up",
+                        down: "down"
+                    };
+                    return m[(d + "").toLowerCase()] || d;
+                }
+
+                function keyLabel(key) {
+                    if (key === "mouse:272")
+                        return "Mouse Left";
+                    if (key === "mouse:273")
+                        return "Mouse Right";
+                    if (key === "grave")
+                        return "` (grave)";
+                    return key;
+                }
+
+                function stripComments(t) {
+                    return t.replace(/--[^\n]*/g, "");
+                }
+
+                function expandLoops(t) {
+                    const loopRe = /for\s+(\w+)\s*=\s*(\d+)\s*,\s*(\d+)\s*do([\s\S]*?)end/g;
+                    return t.replace(loopRe, (full, varName, startStr, endStr, body) => {
+                        const start = parseInt(startStr, 10);
+                        const end = parseInt(endStr, 10);
+                        const wordRe = new RegExp("\\b" + varName + "\\b", "g");
+                        let out = "";
+                        for (let i = start; i <= end; i++) {
+                            out += body.replace(wordRe, String(i)) + "\n";
                         }
+                        return out;
+                    });
+                }
 
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            Layout.minimumHeight: 200
-                            Layout.preferredHeight: 320
-                            radius: 16
-                            clip: true
-                            border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.3)
-                            border.width: 1
+                function extractLocals(t) {
+                    const vars = {};
+                    const re = /local\s+(\w+)\s*=\s*"([^"]*)"/g;
+                    let m;
+                    while ((m = re.exec(t)) !== null)
+                        vars[m[1]] = m[2];
+                    return vars;
+                }
 
-                            Image {
-                                id: hlBg
-                                anchors.fill: parent
-                                source: "file://" + Quickshell.env("HOME") + "/.config/hypr/assets/background.jpg?t=" + hyprlockAssetsState.bgTick
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                visible: false 
+                function findCalls(t, name) {
+                    const calls = [];
+                    const marker = name + "(";
+                    let idx = 0;
+                    while (true) {
+                        const start = t.indexOf(marker, idx);
+                        if (start === -1)
+                            break;
+                        let depth = 1;
+                        let i = start + marker.length;
+                        let inStr = false, strCh = "";
+                        while (i < t.length && depth > 0) {
+                            const c = t[i];
+                            if (inStr) {
+                                if (c === strCh)
+                                    inStr = false;
+                            } else if (c === '"' || c === "'") {
+                                inStr = true;
+                                strCh = c;
+                            } else if (c === "(") {
+                                depth++;
+                            } else if (c === ")") {
+                                depth--;
                             }
-
-                            MultiEffect {
-                                anchors.fill: hlBg
-                                source: hlBg
-                                blurEnabled: hyprlockState.blur_passes > 0
-                                blur: Math.min(1.0, hyprlockState.blur_passes * 0.25)
-                                blurMax: 64
-                                contrast: hyprlockState.contrast - 1.0
-                                brightness: hyprlockState.brightness - 1.0
-                            }
-                            
-                            Rectangle {
-                                anchors.fill: parent
-                                color: "black"
-                                opacity: hyprlockState.vibrancy_darkness * 0.5
-                            }
-
-                            ColumnLayout {
-                                anchors.centerIn: parent
-                                spacing: 18
-
-                                ColumnLayout {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    spacing: -4
-                                    Text {
-                                        text: Qt.formatTime(new Date(), "hh:mm")
-                                        font.pixelSize: 42
-                                        font.bold: true
-                                        color: Qt.rgba(1, 1, 1, 0.8)
-                                        Layout.alignment: Qt.AlignHCenter
-                                    }
-                                    Text {
-                                        text: Qt.formatDate(new Date(), "dddd, dd MMMM")
-                                        font.pixelSize: 12
-                                        color: Qt.rgba(1, 1, 1, 0.8)
-                                        Layout.alignment: Qt.AlignHCenter
-                                    }
-                                }
-
-                                Item {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    Layout.preferredWidth: 64
-                                    Layout.preferredHeight: 64
-
-                                    Image {
-                                        id: hlAvatar
-                                        anchors.fill: parent
-                                        source: "file://" + Quickshell.env("HOME") + "/.config/hypr/assets/user.jpg?t=" + hyprlockAssetsState.avatarTick
-                                        fillMode: Image.PreserveAspectCrop
-                                        asynchronous: true
-                                        visible: status === Image.Ready
-                                        layer.enabled: true
-                                        layer.effect: OpacityMask {
-                                            maskSource: Rectangle { width: 64; height: 64; radius: 32 }
-                                        }
-                                        Rectangle {
-                                            anchors.fill: parent
-                                            radius: 32
-                                            border.color: Qt.rgba(1,1,1,0.7)
-                                            border.width: 1.5
-                                            color: "transparent"
-                                        }
-                                    }
-                                }
-
-                                Rectangle {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    width: 180
-                                    height: 36
-                                    radius: 18
-                                    color: Qt.rgba(0, 0, 0, 0.3)
-                                    border.color: Qt.rgba(1, 1, 1, 0.5)
-                                    border.width: 1.5
-                                    
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "<i>Password...</i>"
-                                        color: Qt.rgba(1, 1, 1, 0.6)
-                                        font.pixelSize: 13
-                                    }
-                                }
-                            }
+                            i++;
                         }
+                        calls.push(t.slice(start + marker.length, i - 1));
+                        idx = i;
+                    }
+                    return calls;
+                }
 
-                        RowLayout {
+                function splitTopLevel(s) {
+                    const parts = [];
+                    let depth = 0, cur = "", inStr = false, strCh = "";
+                    for (let i = 0; i < s.length; i++) {
+                        const c = s[i];
+                        if (inStr) {
+                            cur += c;
+                            if (c === strCh)
+                                inStr = false;
+                            continue;
+                        }
+                        if (c === '"' || c === "'") {
+                            inStr = true;
+                            strCh = c;
+                            cur += c;
+                            continue;
+                        }
+                        if (c === "(" || c === "{" || c === "[") {
+                            depth++;
+                            cur += c;
+                            continue;
+                        }
+                        if (c === ")" || c === "}" || c === "]") {
+                            depth--;
+                            cur += c;
+                            continue;
+                        }
+                        if (c === "," && depth === 0) {
+                            parts.push(cur.trim());
+                            cur = "";
+                            continue;
+                        }
+                        cur += c;
+                    }
+                    if (cur.trim() !== "")
+                        parts.push(cur.trim());
+                    return parts;
+                }
+
+                function evalCombo(expr, vars) {
+                    const tokens = expr.split(/\.\./).map(t => t.trim());
+                    let out = "";
+                    for (const tok of tokens) {
+                        if (/^".*"$/.test(tok))
+                            out += tok.slice(1, -1);
+                        else if (/^\d+$/.test(tok))
+                            out += tok;
+                        else if (vars[tok] !== undefined)
+                            out += vars[tok];
+                        else
+                            out += tok;
+                    }
+                    return out;
+                }
+
+                function parseTable(s) {
+                    const obj = {};
+                    if (!s)
+                        return obj;
+                    const inner = s.trim().replace(/^\{/, "").replace(/\}$/, "");
+                    const re = /(\w+)\s*=\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false)/g;
+                    let m;
+                    while ((m = re.exec(inner)) !== null) {
+                        let v = m[2];
+                        if (/^".*"$/.test(v))
+                            v = v.slice(1, -1);
+                        else if (v === "true")
+                            v = true;
+                        else if (v === "false")
+                            v = false;
+                        else
+                            v = parseFloat(v);
+                        obj[m[1]] = v;
+                    }
+                    return obj;
+                }
+
+                function parseDispatch(expr) {
+                    const m = expr.match(/^([\w.]+)\s*\(([\s\S]*)\)\s*$/);
+                    if (!m)
+                        return {
+                            path: expr,
+                            argRaw: ""
+                        };
+                    return {
+                        path: m[1],
+                        argRaw: m[2].trim()
+                    };
+                }
+
+                function dispatchArgs(argRaw, vars) {
+                    if (argRaw === "")
+                        return {
+                            type: "none"
+                        };
+                    if (/^".*"$/.test(argRaw))
+                        return {
+                            type: "string",
+                            value: argRaw.slice(1, -1)
+                        };
+                    if (/^\{[\s\S]*\}$/.test(argRaw))
+                        return {
+                            type: "table",
+                            value: parseTable(argRaw)
+                        };
+                    if (/^\w+$/.test(argRaw) && vars[argRaw] !== undefined)
+                        return {
+                            type: "string",
+                            value: vars[argRaw]
+                        };
+                    return {
+                        type: "raw",
+                        value: argRaw
+                    };
+                }
+
+                function describeDispatch(path, argRaw, vars) {
+                    const a = keybindsModel.dispatchArgs(argRaw, vars);
+                    const t = a.value;
+                    switch (path) {
+                    case "hl.dsp.exec_cmd":
+                        {
+                            const cmd = (a.type === "string" ? t : argRaw) || "";
+                            if (/set-volume.*5%\+/.test(cmd))
+                                return "Volume up (+5%)";
+                            if (/set-volume.*5%-/.test(cmd))
+                                return "Volume down (−5%)";
+                            if (/set-mute/.test(cmd))
+                                return "Mute / unmute volume";
+                            if (/screenshot full/.test(cmd))
+                                return "Screenshot — full screen";
+                            if (/screenshot region/.test(cmd))
+                                return "Screenshot — select region";
+                            if (/clipboard toggle/.test(cmd))
+                                return "Toggle clipboard history";
+                            if (/launcher toggle/.test(cmd))
+                                return "Toggle app launcher";
+                            return "Launch " + cmd;
+                        }
+                    case "hl.dsp.window.close":
+                        return "Close active window";
+                    case "hl.dsp.window.float":
+                        return "Toggle floating";
+                    case "hl.dsp.window.fullscreen":
+                        return "Toggle fullscreen";
+                    case "hl.dsp.window.resize":
+                        return "Resize window (drag)";
+                    case "hl.dsp.window.drag":
+                        return "Move window (drag)";
+                    case "hl.dsp.workspace.toggle_special":
+                        return "Toggle special workspace focus";
+                    case "hl.dsp.focus":
+                        {
+                            if (t && t.workspace !== undefined)
+                                return "Switch to workspace " + t.workspace;
+                            if (t && t.direction !== undefined)
+                                return "Focus " + keybindsModel.dirName(t.direction) + " window";
+                            return path;
+                        }
+                    case "hl.dsp.window.move":
+                        {
+                            if (t && t.workspace !== undefined) {
+                                return t.workspace === "special" ? "Move window to special workspace" : "Move window to workspace " + t.workspace;
+                            }
+                            if (t && t.direction !== undefined)
+                                return "Move window " + keybindsModel.dirName(t.direction);
+                            return path;
+                        }
+                    default:
+                        return path.replace(/^hl\.dsp\./, "") + (argRaw ? " " + argRaw : "");
+                    }
+                }
+
+                function parse(text) {
+                    let t = keybindsModel.stripComments(text);
+                    t = keybindsModel.expandLoops(t);
+                    const vars = keybindsModel.extractLocals(t);
+                    const calls = keybindsModel.findCalls(t, "hl.bind");
+
+                    const out = [];
+                    for (const callArgs of calls) {
+                        const parts = keybindsModel.splitTopLevel(callArgs);
+                        if (parts.length < 2)
+                            continue;
+
+                        const comboRaw = keybindsModel.evalCombo(parts[0], vars);
+                        const comboParts = comboRaw.split(/\s*\+\s*/).map(p => p.trim()).filter(Boolean);
+                        if (comboParts.length === 0)
+                            continue;
+                        const keyPart = comboParts.pop();
+                        const combo = (comboParts.length ? comboParts.join(" + ") + " + " : "") + keybindsModel.keyLabel(keyPart);
+
+                        const {
+                            path,
+                            argRaw
+                        } = keybindsModel.parseDispatch(parts[1]);
+
+                        out.push({
+                            combo: combo,
+                            action: keybindsModel.describeDispatch(path, argRaw, vars)
+                        });
+                    }
+                    keybindsModel.rows = out;
+                }
+            }
+
+            Flickable {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                contentHeight: keybindsCol.height
+                ScrollBar.vertical: ScrollBar {}
+
+                ColumnLayout {
+                    id: keybindsCol
+                    width: parent.width
+                    spacing: 8
+
+                    Repeater {
+                        model: keybindsModel.rows
+                        delegate: RowLayout {
+                            required property var modelData
                             Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignHCenter
                             spacing: 12
 
                             Rectangle {
-                                Layout.preferredWidth: 140
+                                Layout.preferredWidth: 210
                                 Layout.preferredHeight: 32
                                 radius: 8
-                                color: Qt.rgba(1, 1, 1, 0.08)
-                                border.color: Qt.rgba(1, 1, 1, 0.2)
-                                border.width: 1
-                                Text { anchors.centerIn: parent; text: "Change Background"; color: "white"; font.pixelSize: 11; font.bold: true }
-                                HoverHandler { id: bgHover; cursorShape: Qt.PointingHandCursor }
-                                TapHandler { onTapped: hyprlockBackgroundPicker.openAt(hyprlockBackgroundPicker.initialDir) }
-                                opacity: bgHover.hovered ? 1.0 : 0.8
-                            }
-
-                            Rectangle {
-                                Layout.preferredWidth: 140
-                                Layout.preferredHeight: 32
-                                radius: 8
-                                color: Qt.rgba(1, 1, 1, 0.08)
-                                border.color: Qt.rgba(1, 1, 1, 0.2)
-                                border.width: 1
-                                Text { anchors.centerIn: parent; text: "Change Avatar"; color: "white"; font.pixelSize: 11; font.bold: true }
-                                HoverHandler { id: avaHover; cursorShape: Qt.PointingHandCursor }
-                                TapHandler { onTapped: hyprlockAvatarPicker.openAt(hyprlockAvatarPicker.initialDir) }
-                                opacity: avaHover.hovered ? 1.0 : 0.8
-                            }
-                        }
-
-                        Flickable {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            Layout.preferredHeight: 200
-                            clip: true
-                            contentHeight: hlSettingsCol.height
-                            ScrollBar.vertical: ScrollBar {}
-
-                            ColumnLayout {
-                                id: hlSettingsCol
-                                width: parent.width - 14
-                                spacing: 12
-
-                                SettingsSlider {
-                                    label: "Blur Passes"
-                                    value: hyprlockState.blur_passes
-                                    from: 0; to: 5; decimals: 0
-                                    onReleased: val => hyprlockState.updateConf("blur_passes", Math.round(val))
-                                    onMoved: val => hyprlockState.blur_passes = Math.round(val)
-                                }
-                                SettingsSlider {
-                                    label: "Contrast"
-                                    value: hyprlockState.contrast
-                                    from: 0.0; to: 2.0; decimals: 4
-                                    onReleased: val => hyprlockState.updateConf("contrast", val.toFixed(4))
-                                    onMoved: val => hyprlockState.contrast = val
-                                }
-                                SettingsSlider {
-                                    label: "Brightness"
-                                    value: hyprlockState.brightness
-                                    from: 0.0; to: 2.0; decimals: 4
-                                    onReleased: val => hyprlockState.updateConf("brightness", val.toFixed(4))
-                                    onMoved: val => hyprlockState.brightness = val
-                                }
-                                SettingsSlider {
-                                    label: "Vibrancy"
-                                    value: hyprlockState.vibrancy
-                                    from: 0.0; to: 1.0; decimals: 4
-                                    onReleased: val => hyprlockState.updateConf("vibrancy", val.toFixed(4))
-                                    onMoved: val => hyprlockState.vibrancy = val
-                                }
-                                SettingsSlider {
-                                    label: "Vibrancy Darkness"
-                                    value: hyprlockState.vibrancy_darkness
-                                    from: 0.0; to: 1.0; decimals: 4
-                                    onReleased: val => hyprlockState.updateConf("vibrancy_darkness", val.toFixed(4))
-                                    onMoved: val => hyprlockState.vibrancy_darkness = val
+                                color: Qt.rgba(1, 1, 1, 0.07)
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: modelData.combo
+                                    color: Colors.primary
+                                    font.pixelSize: 14
+                                    font.bold: true
+                                    elide: Text.ElideRight
                                 }
                             }
-                        }
-
-                        QtObject {
-                            id: hyprlockAssetsState
-                            property int avatarTick: 0
-                            property int bgTick: 0
-                        }
-
-                        FilePicker {
-                            id: hyprlockAvatarPicker
-                            pickerTitle: "Choose Lock Screen Avatar"
-                            initialDir: Quickshell.env("HOME") + "/Pictures"
-                            nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
-                            onAccepted: (path) => {
-                                pickHyprlockAvatarProc.command = [
-                                    "bash", "-c",
-                                    'mkdir -p ~/.config/hypr/assets && cp -- "$1" ~/.config/hypr/assets/user.jpg && echo ok',
-                                    "bash", path
-                                ]
-                                pickHyprlockAvatarProc.running = true
-                            }
-                        }
-
-                        FilePicker {
-                            id: hyprlockBackgroundPicker
-                            pickerTitle: "Choose Lock Screen Background"
-                            initialDir: AppSettings.wallpaperDir
-                            nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
-                            onAccepted: (path) => {
-                                pickHyprlockBackgroundProc.command = [
-                                    "bash", "-c",
-                                    'mkdir -p ~/.config/hypr/assets && cp -- "$1" ~/.config/hypr/assets/background.jpg && echo ok',
-                                    "bash", path
-                                ]
-                                pickHyprlockBackgroundProc.running = true
-                            }
-                        }
-
-                        Process {
-                            id: pickHyprlockAvatarProc
-                            stdout: StdioCollector {
-                                onStreamFinished: {
-                                    if (this.text.trim() === "ok") hyprlockAssetsState.avatarTick++;
-                                }
-                            }
-                        }
-
-                        Process {
-                            id: pickHyprlockBackgroundProc
-                            stdout: StdioCollector {
-                                onStreamFinished: {
-                                    if (this.text.trim() === "ok") hyprlockAssetsState.bgTick++;
-                                }
+                            Text {
+                                Layout.fillWidth: true
+                                text: modelData.action
+                                color: Colors.surfaceText
+                                font.pixelSize: 14
+                                elide: Text.ElideRight
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: hyprlockSectionComp
+        ColumnLayout {
+            spacing: 14
+
+            SystemClock {
+                id: hlClock
+                precision: SystemClock.Minutes
+            }
+
+            QtObject {
+                id: hyprlockState
+                property int blur_passes: 2
+                property real contrast: 0.8916
+                property real brightness: 0.8172
+                property real vibrancy: 0.1696
+                property real vibrancy_darkness: 0.0
+
+                function updateConf(key, val) {
+                    const content = hlConfReader.text();
+                    if (!content)
+                        return;
+                    const re = new RegExp("^([ \\t]*)" + key + "[ \\t]*=.*$", "m");
+                    const updated = re.test(content) ? content.replace(re, "$1" + key + " = " + val) : content;
+                    if (updated !== content)
+                        hlConfReader.setText(updated);
+                }
+            }
+
+            FileView {
+                id: hlConfReader
+                path: Quickshell.env("HOME") + "/.config/hypr/hyprlock.conf"
+                watchChanges: true
+                printErrors: false
+                onLoaded: {
+                    const t = hlConfReader.text();
+                    let m;
+                    m = t.match(/^\s*blur_passes\s*=\s*([0-9.]+)/m);
+                    if (m)
+                        hyprlockState.blur_passes = parseInt(m[1], 10);
+                    m = t.match(/^\s*contrast\s*=\s*([0-9.]+)/m);
+                    if (m)
+                        hyprlockState.contrast = parseFloat(m[1]);
+                    m = t.match(/^\s*brightness\s*=\s*([0-9.]+)/m);
+                    if (m)
+                        hyprlockState.brightness = parseFloat(m[1]);
+                    m = t.match(/^\s*vibrancy\s*=\s*([0-9.]+)/m);
+                    if (m)
+                        hyprlockState.vibrancy = parseFloat(m[1]);
+                    m = t.match(/^\s*vibrancy_darkness\s*=\s*([0-9.]+)/m);
+                    if (m)
+                        hyprlockState.vibrancy_darkness = parseFloat(m[1]);
+                }
+                onFileChanged: reload()
+            }
+
+            QtObject {
+                id: hyprlockAssetsState
+                property int avatarTick: 0
+                property int bgTick: 0
+            }
+
+            Loader {
+                id: hlAvatarPickerLoader
+                active: false
+                sourceComponent: FilePicker {
+                    pickerTitle: "Choose Lock Screen Avatar"
+                    initialDir: Quickshell.env("HOME") + "/Pictures"
+                    nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
+                    onAccepted: path => {
+                        pickHyprlockAvatarProc.command = ["sh", "-c", "mkdir -p \"$2\" && cp -- \"$1\" \"$2/user.jpg\" && echo ok", "sh", path, Quickshell.env("HOME") + "/.config/hypr/assets"];
+                        pickHyprlockAvatarProc.running = true;
+                    }
+                }
+            }
+
+            Loader {
+                id: hlBgPickerLoader
+                active: false
+                sourceComponent: FilePicker {
+                    pickerTitle: "Choose Lock Screen Background"
+                    initialDir: AppSettings.wallpaperDir
+                    nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
+                    onAccepted: path => {
+                        pickHyprlockBackgroundProc.command = ["sh", "-c", "mkdir -p \"$2\" && cp -- \"$1\" \"$2/background.jpg\" && echo ok", "sh", path, Quickshell.env("HOME") + "/.config/hypr/assets"];
+                        pickHyprlockBackgroundProc.running = true;
+                    }
+                }
+            }
+
+            Process {
+                id: pickHyprlockAvatarProc
+                stdout: StdioCollector {
+                    onStreamFinished: {
+                        if (this.text.trim() === "ok")
+                            hyprlockAssetsState.avatarTick++;
+                    }
+                }
+            }
+
+            Process {
+                id: pickHyprlockBackgroundProc
+                stdout: StdioCollector {
+                    onStreamFinished: {
+                        if (this.text.trim() === "ok")
+                            hyprlockAssetsState.bgTick++;
+                    }
+                }
+            }
+
+            Text {
+                text: "LOCK SCREEN (HYPRLOCK)"
+                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                font.pixelSize: 11
+                font.bold: true
+                font.letterSpacing: 1
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.minimumHeight: 200
+                Layout.preferredHeight: 320
+                radius: 16
+                clip: true
+                border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.3)
+                border.width: 1
+
+                Image {
+                    id: hlBg
+                    anchors.fill: parent
+                    source: "file://" + Quickshell.env("HOME") + "/.config/hypr/assets/background.jpg" + (hyprlockAssetsState.bgTick > 0 ? "?t=" + hyprlockAssetsState.bgTick : "")
+                    sourceSize: Qt.size(720, 400)
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    visible: false
+                }
+
+                MultiEffect {
+                    anchors.fill: hlBg
+                    source: hlBg
+                    blurEnabled: hyprlockState.blur_passes > 0
+                    blur: Math.min(1.0, hyprlockState.blur_passes * 0.25)
+                    blurMax: 64
+                    contrast: hyprlockState.contrast - 1.0
+                    brightness: hyprlockState.brightness - 1.0
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: "black"
+                    opacity: hyprlockState.vibrancy_darkness * 0.5
+                }
+
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    spacing: 18
 
                     ColumnLayout {
-                        visible: settingsWin.currentSection === "about"
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        spacing: 0
-
-                        Item { Layout.fillHeight: true; Layout.preferredHeight: 1 }
-
-                        Item {
-                            Layout.alignment: Qt.AlignHCenter
-                            Layout.preferredWidth: 140
-                            Layout.preferredHeight: 140
-
-                            Rectangle {
-                                id: glowSource
-                                anchors.centerIn: parent
-                                width: 70
-                                height: 70
-                                radius: width / 2
-                                color: Colors.primary
-                                opacity: 0.4
-                                visible: false
-                            }
-
-                            MultiEffect {
-                                anchors.fill: glowSource
-                                source: glowSource
-                                blurEnabled: true
-                                blur: 1.0
-                                blurMax: 64
-                                opacity: 0.2
-                            }
-
-                            Image {
-                                anchors.centerIn: parent
-                                width: 112
-                                height: 112
-                                source: "../../assets/logo.png"
-                                sourceSize.width: 224
-                                sourceSize.height: 224
-                                fillMode: Image.PreserveAspectFit
-                                smooth: true
-                            }
-                        }
-
+                        Layout.alignment: Qt.AlignHCenter
+                        spacing: -4
                         Text {
-                            Layout.alignment: Qt.AlignHCenter
-                            Layout.topMargin: 20
-                            text: "aeonshell"
-                            color: Colors.surfaceText
-                            font.pixelSize: 30
+                            text: Qt.formatTime(hlClock.date, "hh:mm")
+                            font.pixelSize: 42
                             font.bold: true
-                            font.letterSpacing: 1
+                            color: Qt.rgba(1, 1, 1, 0.8)
+                            Layout.alignment: Qt.AlignHCenter
                         }
-
                         Text {
+                            text: Qt.formatDate(hlClock.date, "dddd, dd MMMM")
+                            font.pixelSize: 12
+                            color: Qt.rgba(1, 1, 1, 0.8)
                             Layout.alignment: Qt.AlignHCenter
-                            Layout.topMargin: 8
-                            Layout.preferredWidth: 380
-                            horizontalAlignment: Text.AlignHCenter
-                            text: "A Hyprland + Quickshell desktop that repaints itself\nfrom your wallpaper, powered by pywal."
-                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.65)
-                            font.pixelSize: 13
-                            wrapMode: Text.WordWrap
-                            lineHeight: 1.3
-                        }
-
-                        RowLayout {
-                            Layout.alignment: Qt.AlignHCenter
-                            Layout.topMargin: 24
-                            spacing: 8
-
-                            Repeater {
-                                model: ["Hyprland", "Quickshell", "awww", "pywal"]
-                                delegate: Rectangle {
-                                    radius: 8
-                                    color: Qt.rgba(1, 1, 1, 0.06)
-                                    border.color: Qt.rgba(1, 1, 1, 0.12)
-                                    border.width: 1
-                                    implicitWidth: chipText.implicitWidth + 20
-                                    implicitHeight: 28
-                                    Text {
-                                        id: chipText
-                                        anchors.centerIn: parent
-                                        text: modelData
-                                        color: Colors.surfaceText
-                                        font.pixelSize: 12
-                                        font.bold: true
-                                    }
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            Layout.alignment: Qt.AlignHCenter
-                            Layout.topMargin: 18
-                            radius: 9
-                            color: linkHover.hovered
-                                ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16)
-                                : Qt.rgba(1, 1, 1, 0.06)
-                            border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.3)
-                            border.width: 1
-                            implicitWidth: linkRow.implicitWidth + 24
-                            implicitHeight: 32
-                            Behavior on color { ColorAnimation { duration: 120 } }
-
-                            HoverHandler { id: linkHover }
-                            TapHandler {
-                                onTapped: Qt.openUrlExternally("https://github.com/pzwt4cc/aeonshell")
-                            }
-
-                            RowLayout {
-                                id: linkRow
-                                anchors.centerIn: parent
-                                spacing: 6
-                                Text {
-                                    text: "󰊤"
-                                    font.pixelSize: 13
-                                    color: Colors.primary
-                                }
-                                Text {
-                                    text: "View on GitHub"
-                                    color: Colors.surfaceText
-                                    font.pixelSize: 12
-                                    font.bold: true
-                                }
-                            }
-                        }
-
-                        Item { Layout.fillHeight: true }
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 1
-                            color: Qt.rgba(1, 1, 1, 0.08)
-                        }
-
-                        Text {
-                            Layout.alignment: Qt.AlignHCenter
-                            Layout.topMargin: 12
-                            Layout.bottomMargin: 4
-                            text: "MIT License"
-                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
-                            font.pixelSize: 11
                         }
                     }
 
-                    Item { Layout.fillHeight: true }
+                    Item {
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredWidth: 64
+                        Layout.preferredHeight: 64
+
+                        ClippingRectangle {
+                            anchors.fill: parent
+                            radius: 32
+                            color: "transparent"
+                            visible: hlAvatar.status === Image.Ready
+
+                            Image {
+                                id: hlAvatar
+                                anchors.fill: parent
+                                source: "file://" + Quickshell.env("HOME") + "/.config/hypr/assets/user.jpg" + (hyprlockAssetsState.avatarTick > 0 ? "?t=" + hyprlockAssetsState.avatarTick : "")
+                                sourceSize: Qt.size(128, 128)
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                            }
+                        }
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 32
+                            visible: hlAvatar.status === Image.Ready
+                            border.color: Qt.rgba(1, 1, 1, 0.7)
+                            border.width: 1.5
+                            color: "transparent"
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.alignment: Qt.AlignHCenter
+                        width: 180
+                        height: 36
+                        radius: 18
+                        color: Qt.rgba(0, 0, 0, 0.3)
+                        border.color: Qt.rgba(1, 1, 1, 0.5)
+                        border.width: 1.5
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "<i>Password...</i>"
+                            color: Qt.rgba(1, 1, 1, 0.6)
+                            font.pixelSize: 13
+                        }
+                    }
                 }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignHCenter
+                spacing: 12
+
+                Rectangle {
+                    Layout.preferredWidth: 140
+                    Layout.preferredHeight: 32
+                    radius: 8
+                    color: Qt.rgba(1, 1, 1, 0.08)
+                    border.color: Qt.rgba(1, 1, 1, 0.2)
+                    border.width: 1
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Change Background"
+                        color: "white"
+                        font.pixelSize: 11
+                        font.bold: true
+                    }
+                    HoverHandler {
+                        id: bgHover
+                        cursorShape: Qt.PointingHandCursor
+                    }
+                    TapHandler {
+                        onTapped: {
+                            hlBgPickerLoader.active = true;
+                            Qt.callLater(() => {
+                                if (hlBgPickerLoader.item)
+                                    hlBgPickerLoader.item.openAt(hlBgPickerLoader.item.initialDir);
+                            });
+                        }
+                    }
+                    opacity: bgHover.hovered ? 1.0 : 0.8
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: 140
+                    Layout.preferredHeight: 32
+                    radius: 8
+                    color: Qt.rgba(1, 1, 1, 0.08)
+                    border.color: Qt.rgba(1, 1, 1, 0.2)
+                    border.width: 1
+                    Text {
+                        anchors.centerIn: parent
+                        text: "Change Avatar"
+                        color: "white"
+                        font.pixelSize: 11
+                        font.bold: true
+                    }
+                    HoverHandler {
+                        id: avaHover
+                        cursorShape: Qt.PointingHandCursor
+                    }
+                    TapHandler {
+                        onTapped: {
+                            hlAvatarPickerLoader.active = true;
+                            Qt.callLater(() => {
+                                if (hlAvatarPickerLoader.item)
+                                    hlAvatarPickerLoader.item.openAt(hlAvatarPickerLoader.item.initialDir);
+                            });
+                        }
+                    }
+                    opacity: avaHover.hovered ? 1.0 : 0.8
+                }
+            }
+
+            Flickable {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.preferredHeight: 200
+                clip: true
+                contentHeight: hlSettingsCol.height
+                ScrollBar.vertical: ScrollBar {}
+
+                ColumnLayout {
+                    id: hlSettingsCol
+                    width: parent.width - 14
+                    spacing: 12
+
+                    SettingsSlider {
+                        label: "Blur Passes"
+                        value: hyprlockState.blur_passes
+                        from: 0
+                        to: 5
+                        decimals: 0
+                        onReleased: val => hyprlockState.updateConf("blur_passes", Math.round(val))
+                        onMoved: val => hyprlockState.blur_passes = Math.round(val)
+                    }
+                    SettingsSlider {
+                        label: "Contrast"
+                        value: hyprlockState.contrast
+                        from: 0.0
+                        to: 2.0
+                        decimals: 4
+                        onReleased: val => hyprlockState.updateConf("contrast", val.toFixed(4))
+                        onMoved: val => hyprlockState.contrast = val
+                    }
+                    SettingsSlider {
+                        label: "Brightness"
+                        value: hyprlockState.brightness
+                        from: 0.0
+                        to: 2.0
+                        decimals: 4
+                        onReleased: val => hyprlockState.updateConf("brightness", val.toFixed(4))
+                        onMoved: val => hyprlockState.brightness = val
+                    }
+                    SettingsSlider {
+                        label: "Vibrancy"
+                        value: hyprlockState.vibrancy
+                        from: 0.0
+                        to: 1.0
+                        decimals: 4
+                        onReleased: val => hyprlockState.updateConf("vibrancy", val.toFixed(4))
+                        onMoved: val => hyprlockState.vibrancy = val
+                    }
+                    SettingsSlider {
+                        label: "Vibrancy Darkness"
+                        value: hyprlockState.vibrancy_darkness
+                        from: 0.0
+                        to: 1.0
+                        decimals: 4
+                        onReleased: val => hyprlockState.updateConf("vibrancy_darkness", val.toFixed(4))
+                        onMoved: val => hyprlockState.vibrancy_darkness = val
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: aboutSectionComp
+        ColumnLayout {
+            spacing: 0
+
+            Item {
+                Layout.fillHeight: true
+                Layout.preferredHeight: 1
+            }
+
+            Item {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.preferredWidth: 140
+                Layout.preferredHeight: 140
+
+                Rectangle {
+                    id: glowSource
+                    anchors.centerIn: parent
+                    width: 70
+                    height: 70
+                    radius: width / 2
+                    color: Colors.primary
+                    opacity: 0.4
+                    visible: false
+                }
+
+                MultiEffect {
+                    anchors.fill: glowSource
+                    source: glowSource
+                    blurEnabled: true
+                    blur: 1.0
+                    blurMax: 64
+                    opacity: 0.2
+                }
+
+                Image {
+                    anchors.centerIn: parent
+                    width: 112
+                    height: 112
+                    source: "../../assets/logo.png"
+                    sourceSize.width: 224
+                    sourceSize.height: 224
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                }
+            }
+
+            Text {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: 20
+                text: "aeonshell"
+                color: Colors.surfaceText
+                font.pixelSize: 30
+                font.bold: true
+                font.letterSpacing: 1
+            }
+
+            Text {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: 8
+                Layout.preferredWidth: 380
+                horizontalAlignment: Text.AlignHCenter
+                text: "A Hyprland + Quickshell desktop that repaints itself\nfrom your wallpaper, powered by matugen."
+                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.65)
+                font.pixelSize: 13
+                wrapMode: Text.WordWrap
+                lineHeight: 1.3
+            }
+
+            RowLayout {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: 24
+                spacing: 8
+
+                Repeater {
+                    model: ["Hyprland", "Quickshell", "awww", "matugen"]
+                    delegate: Rectangle {
+                        required property string modelData
+                        radius: 8
+                        color: Qt.rgba(1, 1, 1, 0.06)
+                        border.color: Qt.rgba(1, 1, 1, 0.12)
+                        border.width: 1
+                        implicitWidth: chipText.implicitWidth + 20
+                        implicitHeight: 28
+                        Text {
+                            id: chipText
+                            anchors.centerIn: parent
+                            text: modelData
+                            color: Colors.surfaceText
+                            font.pixelSize: 12
+                            font.bold: true
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: 18
+                radius: 9
+                color: linkHover.hovered ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16) : Qt.rgba(1, 1, 1, 0.06)
+                border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.3)
+                border.width: 1
+                implicitWidth: linkRow.implicitWidth + 24
+                implicitHeight: 32
+                Behavior on color {
+                    ColorAnimation {
+                        duration: 120
+                    }
+                }
+
+                HoverHandler {
+                    id: linkHover
+                }
+                TapHandler {
+                    onTapped: Qt.openUrlExternally("https://github.com/pzwt4cc/aeonshell")
+                }
+
+                RowLayout {
+                    id: linkRow
+                    anchors.centerIn: parent
+                    spacing: 6
+                    Text {
+                        text: "󰊤"
+                        font.pixelSize: 13
+                        color: Colors.primary
+                    }
+                    Text {
+                        text: "View on GitHub"
+                        color: Colors.surfaceText
+                        font.pixelSize: 12
+                        font.bold: true
+                    }
+                }
+            }
+
+            Item {
+                Layout.fillHeight: true
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: Qt.rgba(1, 1, 1, 0.08)
+            }
+
+            Text {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.topMargin: 12
+                Layout.bottomMargin: 4
+                text: "MIT License"
+                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
+                font.pixelSize: 11
             }
         }
     }
@@ -1012,30 +1219,38 @@ FloatingWindow {
                 radius: 3
                 color: Colors.primary
             }
-            
+
             Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
-                x: Math.max(0, Math.min(parent.width - width, fillRect.width - width/2))
+                x: Math.max(0, Math.min(parent.width - width, fillRect.width - width / 2))
                 width: sliderHover.hovered ? 12 : 10
                 height: width
-                radius: width/2
+                radius: width / 2
                 color: "#ffffff"
-                Behavior on width { NumberAnimation { duration: 100 } }
+                Behavior on width {
+                    NumberAnimation {
+                        duration: 100
+                    }
+                }
             }
 
-            HoverHandler { id: sliderHover }
+            HoverHandler {
+                id: sliderHover
+            }
 
             MouseArea {
                 anchors.fill: parent
                 preventStealing: true
-                onPositionChanged: (mouse) => {
-                    let pct = Math.max(0, Math.min(1, mouse.x / width));
+                function emitMoved(mx) {
+                    let pct = Math.max(0, Math.min(1, mx / width));
                     let val = sroot.from + pct * (sroot.to - sroot.from);
                     sroot.moved(val);
+                    return val;
                 }
-                onReleased: (mouse) => {
-                    let pct = Math.max(0, Math.min(1, mouse.x / width));
-                    let val = sroot.from + pct * (sroot.to - sroot.from);
+                onPressed: mouse => emitMoved(mouse.x)
+                onPositionChanged: mouse => emitMoved(mouse.x)
+                onReleased: mouse => {
+                    const val = emitMoved(mouse.x);
                     sroot.released(val);
                 }
             }
@@ -1046,7 +1261,7 @@ FloatingWindow {
         id: rowRoot
         property string label: ""
         property bool checked: false
-        signal toggled()
+        signal toggled
 
         Layout.fillWidth: true
         Layout.preferredHeight: 32
@@ -1064,10 +1279,12 @@ FloatingWindow {
             Layout.preferredWidth: 40
             Layout.preferredHeight: 22
             radius: 11
-            color: rowRoot.checked
-                ? Colors.primary
-                : Qt.rgba(1, 1, 1, 0.14)
-            Behavior on color { ColorAnimation { duration: 120 } }
+            color: rowRoot.checked ? Colors.primary : Qt.rgba(1, 1, 1, 0.14)
+            Behavior on color {
+                ColorAnimation {
+                    duration: 120
+                }
+            }
 
             Rectangle {
                 width: 16
@@ -1076,7 +1293,12 @@ FloatingWindow {
                 color: "white"
                 y: 3
                 x: rowRoot.checked ? parent.width - width - 3 : 3
-                Behavior on x { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                Behavior on x {
+                    NumberAnimation {
+                        duration: 120
+                        easing.type: Easing.OutCubic
+                    }
+                }
             }
 
             TapHandler {
@@ -1091,17 +1313,21 @@ FloatingWindow {
         property string icon: ""
         property bool selected: false
         property string badge: ""
-        signal clicked()
+        signal clicked
 
         Layout.fillWidth: true
         Layout.preferredHeight: 36
         radius: 9
-        color: navRoot.selected
-            ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16)
-            : (navHover.hovered ? Qt.rgba(1, 1, 1, 0.06) : "transparent")
-        Behavior on color { ColorAnimation { duration: 120 } }
+        color: navRoot.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16) : (navHover.hovered ? Qt.rgba(1, 1, 1, 0.06) : "transparent")
+        Behavior on color {
+            ColorAnimation {
+                duration: 120
+            }
+        }
 
-        HoverHandler { id: navHover }
+        HoverHandler {
+            id: navHover
+        }
 
         Rectangle {
             anchors.left: parent.left
@@ -1111,7 +1337,11 @@ FloatingWindow {
             radius: 2
             color: Colors.primary
             opacity: navRoot.selected ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: 120 } }
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: 120
+                }
+            }
         }
 
         RowLayout {
@@ -1124,16 +1354,12 @@ FloatingWindow {
                 text: navRoot.icon
                 font.pixelSize: 13
                 Layout.preferredWidth: 16
-                color: navRoot.enabled
-                    ? (navRoot.selected ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.7))
-                    : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
+                color: navRoot.enabled ? (navRoot.selected ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.7)) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
             }
 
             Text {
                 text: navRoot.label
-                color: navRoot.enabled
-                    ? (navRoot.selected ? Colors.primary : Colors.surfaceText)
-                    : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
+                color: navRoot.enabled ? (navRoot.selected ? Colors.primary : Colors.surfaceText) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
                 font.pixelSize: 12
                 font.bold: navRoot.selected
                 elide: Text.ElideRight
@@ -1166,19 +1392,23 @@ FloatingWindow {
         property string label: ""
         property string pos: "top"
         property bool selected: false
-        signal clicked()
+        signal clicked
 
         Layout.fillWidth: true
         Layout.preferredHeight: 96
         radius: 14
-        color: optRoot.selected
-            ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16)
-            : (optHover.hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
+        color: optRoot.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16) : (optHover.hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
         border.color: optRoot.selected ? Colors.primary : Qt.rgba(1, 1, 1, 0.14)
         border.width: optRoot.selected ? 1.5 : 1
-        Behavior on color { ColorAnimation { duration: 120 } }
+        Behavior on color {
+            ColorAnimation {
+                duration: 120
+            }
+        }
 
-        HoverHandler { id: optHover }
+        HoverHandler {
+            id: optHover
+        }
 
         ColumnLayout {
             anchors.centerIn: parent

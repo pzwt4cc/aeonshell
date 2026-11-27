@@ -10,6 +10,8 @@ PopupWindow {
     id: popup
 
     property bool open: false
+    property bool _animReady: false
+    readonly property bool visualOpen: popup.open && popup._animReady
     property string timeText: "00:00:00"
     readonly property bool isHovered: hover.hovered
 
@@ -43,14 +45,12 @@ PopupWindow {
     readonly property int calendarSectionH: 260
     readonly property int mediaSectionH: 240 + 54
 
-    implicitWidth: stacked
-        ? sideMargins * 2 + Math.max(calendarColW, mediaColW) + shadowMargin * 2
-        : sideMargins * 2 + calendarColW + 1 + colSpacing * 2 + mediaColW + shadowMargin * 2
-    implicitHeight: stacked
-        ? sideMargins * 2 + calendarSectionH + colSpacing + 1 + colSpacing + mediaSectionH + shadowMargin * 2
-        : 350 + shadowMargin * 2
+    implicitWidth: stacked ? sideMargins * 2 + Math.max(calendarColW, mediaColW) + shadowMargin * 2 : sideMargins * 2 + calendarColW + 1 + colSpacing * 2 + mediaColW + shadowMargin * 2
+    implicitHeight: stacked ? sideMargins * 2 + calendarSectionH + colSpacing + 1 + colSpacing + mediaSectionH + shadowMargin * 2 : 350 + shadowMargin * 2
     color: "transparent"
     visible: popup.open || hideTimer.running
+
+    Component.onCompleted: Qt.callLater(() => popup._animReady = true)
 
     Timer {
         id: hideTimer
@@ -58,8 +58,10 @@ PopupWindow {
     }
 
     onOpenChanged: {
-        if (!open) hideTimer.start()
-        else hideTimer.stop()
+        if (!open)
+            hideTimer.start();
+        else
+            hideTimer.stop();
     }
 
     Rectangle {
@@ -84,22 +86,34 @@ PopupWindow {
         clip: true
 
         transformOrigin: {
-            if (AppSettings.barPosition === "bottom") return Item.Bottom
-            if (AppSettings.barPosition === "left") return Item.Left
-            if (AppSettings.barPosition === "right") return Item.Right
-            return Item.Top
+            if (AppSettings.barPosition === "bottom")
+                return Item.Bottom;
+            if (AppSettings.barPosition === "left")
+                return Item.Left;
+            if (AppSettings.barPosition === "right")
+                return Item.Right;
+            return Item.Top;
         }
-        scale: popup.open ? 1.0 : 0.8
-        opacity: popup.open ? 1.0 : 0.0
+        scale: popup.visualOpen ? 1.0 : 0.8
+        opacity: popup.visualOpen ? 1.0 : 0.0
 
         Behavior on scale {
-            NumberAnimation { duration: 220; easing.type: Easing.OutBack; easing.overshoot: 1.2 }
+            NumberAnimation {
+                duration: 220
+                easing.type: Easing.OutBack
+                easing.overshoot: 1.2
+            }
         }
         Behavior on opacity {
-            NumberAnimation { duration: 140; easing.type: Easing.OutQuad }
+            NumberAnimation {
+                duration: 140
+                easing.type: Easing.OutQuad
+            }
         }
 
-        HoverHandler { id: hover }
+        HoverHandler {
+            id: hover
+        }
 
         GridLayout {
             anchors.fill: parent
@@ -179,13 +193,25 @@ PopupWindow {
                 Layout.preferredHeight: popup.stacked ? 1 : -1
                 Layout.fillWidth: popup.stacked
                 Layout.fillHeight: !popup.stacked
-                
+
                 gradient: Gradient {
                     orientation: popup.stacked ? Gradient.Horizontal : Gradient.Vertical
-                    GradientStop { position: 0.0; color: "transparent" }
-                    GradientStop { position: 0.2; color: Qt.rgba(1, 1, 1, 0.1) }
-                    GradientStop { position: 0.8; color: Qt.rgba(1, 1, 1, 0.1) }
-                    GradientStop { position: 1.0; color: "transparent" }
+                    GradientStop {
+                        position: 0.0
+                        color: "transparent"
+                    }
+                    GradientStop {
+                        position: 0.2
+                        color: Qt.rgba(1, 1, 1, 0.1)
+                    }
+                    GradientStop {
+                        position: 0.8
+                        color: Qt.rgba(1, 1, 1, 0.1)
+                    }
+                    GradientStop {
+                        position: 1.0
+                        color: "transparent"
+                    }
                 }
             }
 
@@ -197,7 +223,9 @@ PopupWindow {
                 Layout.fillHeight: true
                 spacing: 12
 
-                Item { Layout.fillHeight: true }
+                Item {
+                    Layout.fillHeight: true
+                }
 
                 ColumnLayout {
                     id: playerSelector
@@ -213,9 +241,11 @@ PopupWindow {
 
                     function step(delta) {
                         const list = popup.players;
-                        if (list.length === 0) return;
+                        if (list.length === 0)
+                            return;
                         let idx = list.indexOf(popup.currentPlayer);
-                        if (idx === -1) idx = 0;
+                        if (idx === -1)
+                            idx = 0;
                         idx = (idx + delta + list.length) % list.length;
                         MprisService.selectPlayer(list[idx]);
                     }
@@ -233,10 +263,18 @@ PopupWindow {
                             border.color: prevSrcHover.hovered ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.3) : "transparent"
                             border.width: 1
                             visible: playerSelector.hasMultiplePlayers
-                            
+
                             scale: prevSrcHover.hovered ? 1.08 : 1.0
-                            Behavior on scale { NumberAnimation { duration: 100 } }
-                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: 100
+                                }
+                            }
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: 120
+                                }
+                            }
 
                             Text {
                                 anchors.centerIn: parent
@@ -246,8 +284,12 @@ PopupWindow {
                                 color: prevSrcHover.hovered ? Colors.primary : Qt.rgba(1, 1, 1, 0.6)
                             }
 
-                            HoverHandler { id: prevSrcHover }
-                            TapHandler { onTapped: playerSelector.step(-1) }
+                            HoverHandler {
+                                id: prevSrcHover
+                            }
+                            TapHandler {
+                                onTapped: playerSelector.step(-1)
+                            }
                         }
 
                         Rectangle {
@@ -282,10 +324,18 @@ PopupWindow {
                             border.color: nextSrcHover.hovered ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.3) : "transparent"
                             border.width: 1
                             visible: playerSelector.hasMultiplePlayers
-                            
+
                             scale: nextSrcHover.hovered ? 1.08 : 1.0
-                            Behavior on scale { NumberAnimation { duration: 100 } }
-                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: 100
+                                }
+                            }
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: 120
+                                }
+                            }
 
                             Text {
                                 anchors.centerIn: parent
@@ -295,8 +345,12 @@ PopupWindow {
                                 color: nextSrcHover.hovered ? Colors.primary : Qt.rgba(1, 1, 1, 0.6)
                             }
 
-                            HoverHandler { id: nextSrcHover }
-                            TapHandler { onTapped: playerSelector.step(1) }
+                            HoverHandler {
+                                id: nextSrcHover
+                            }
+                            TapHandler {
+                                onTapped: playerSelector.step(1)
+                            }
                         }
                     }
 
@@ -308,12 +362,22 @@ PopupWindow {
                         Repeater {
                             model: popup.players.length
                             Rectangle {
+                                required property int index
                                 width: index === playerSelector.currentIndex ? 12 : 5
                                 height: 5
                                 radius: 2.5
                                 color: index === playerSelector.currentIndex ? Colors.primary : Qt.rgba(1, 1, 1, 0.2)
-                                Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
-                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Behavior on width {
+                                    NumberAnimation {
+                                        duration: 150
+                                        easing.type: Easing.OutQuad
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: 150
+                                    }
+                                }
                             }
                         }
                     }
@@ -323,10 +387,16 @@ PopupWindow {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 74
                     radius: 16
-                    
+
                     gradient: Gradient {
-                        GradientStop { position: 0.0; color: Qt.rgba(255, 255, 255, 0.03) }
-                        GradientStop { position: 1.0; color: Qt.rgba(255, 255, 255, 0.01) }
+                        GradientStop {
+                            position: 0.0
+                            color: Qt.rgba(255, 255, 255, 0.03)
+                        }
+                        GradientStop {
+                            position: 1.0
+                            color: Qt.rgba(255, 255, 255, 0.01)
+                        }
                     }
                     border.color: Qt.rgba(255, 255, 255, 0.05)
                     border.width: 1
@@ -371,6 +441,7 @@ PopupWindow {
                         model: 10
                         Rectangle {
                             id: vBar
+                            required property int index
                             width: 4
                             radius: 2
                             color: Colors.primary
@@ -385,13 +456,27 @@ PopupWindow {
                                 running: visualizer.active && popup.open
                                 loops: Animation.Infinite
 
-                                NumberAnimation { target: vBar; property: "height"; to: vBar.maxH; duration: vBar.durationUp; easing.type: Easing.InOutQuad }
-                                NumberAnimation { target: vBar; property: "height"; to: 4; duration: vBar.durationDown; easing.type: Easing.InOutQuad }
+                                NumberAnimation {
+                                    target: vBar
+                                    property: "height"
+                                    to: vBar.maxH
+                                    duration: vBar.durationUp
+                                    easing.type: Easing.InOutQuad
+                                }
+                                NumberAnimation {
+                                    target: vBar
+                                    property: "height"
+                                    to: 4
+                                    duration: vBar.durationDown
+                                    easing.type: Easing.InOutQuad
+                                }
                             }
 
                             Behavior on height {
                                 enabled: !anim.running
-                                NumberAnimation { duration: 180 }
+                                NumberAnimation {
+                                    duration: 180
+                                }
                             }
                         }
                     }
@@ -407,13 +492,29 @@ PopupWindow {
                         color: btnHoverPrev.hovered ? Colors.primary : "#ffffff"
                         opacity: btnHoverPrev.hovered ? 1.0 : 0.75
                         scale: btnHoverPrev.hovered ? 1.15 : 1.0
-                        
-                        Behavior on color { ColorAnimation { duration: 120 } }
-                        Behavior on opacity { NumberAnimation { duration: 120 } }
-                        Behavior on scale { NumberAnimation { duration: 100 } }
 
-                        HoverHandler { id: btnHoverPrev }
-                        TapHandler { onTapped: MprisService.previous() }
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: 120
+                            }
+                        }
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: 120
+                            }
+                        }
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: 100
+                            }
+                        }
+
+                        HoverHandler {
+                            id: btnHoverPrev
+                        }
+                        TapHandler {
+                            onTapped: MprisService.previous()
+                        }
                     }
 
                     Rectangle {
@@ -421,25 +522,41 @@ PopupWindow {
                         Layout.preferredWidth: 46
                         Layout.preferredHeight: 46
                         radius: 23
-                        
+
                         color: btnHoverPlay.hovered ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.15) : "transparent"
                         border.color: btnHoverPlay.hovered ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.4) : Qt.rgba(255, 255, 255, 0.08)
                         border.width: 1
                         scale: btnHoverPlay.hovered ? 1.08 : 1.0
-                        
-                        Behavior on color { ColorAnimation { duration: 150 } }
-                        Behavior on scale { NumberAnimation { duration: 100 } }
+
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: 150
+                            }
+                        }
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: 100
+                            }
+                        }
 
                         Text {
                             anchors.centerIn: parent
                             text: popup.trackPlaying ? "󰏤" : "󰐊"
                             font.pixelSize: 22
                             color: btnHoverPlay.hovered ? Colors.primary : "#ffffff"
-                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: 150
+                                }
+                            }
                         }
 
-                        HoverHandler { id: btnHoverPlay }
-                        TapHandler { onTapped: MprisService.playPause() }
+                        HoverHandler {
+                            id: btnHoverPlay
+                        }
+                        TapHandler {
+                            onTapped: MprisService.playPause()
+                        }
                     }
 
                     Text {
@@ -448,13 +565,29 @@ PopupWindow {
                         color: btnHoverNext.hovered ? Colors.primary : "#ffffff"
                         opacity: btnHoverNext.hovered ? 1.0 : 0.75
                         scale: btnHoverNext.hovered ? 1.15 : 1.0
-                        
-                        Behavior on color { ColorAnimation { duration: 120 } }
-                        Behavior on opacity { NumberAnimation { duration: 120 } }
-                        Behavior on scale { NumberAnimation { duration: 100 } }
 
-                        HoverHandler { id: btnHoverNext }
-                        TapHandler { onTapped: MprisService.next() }
+                        Behavior on color {
+                            ColorAnimation {
+                                duration: 120
+                            }
+                        }
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: 120
+                            }
+                        }
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: 100
+                            }
+                        }
+
+                        HoverHandler {
+                            id: btnHoverNext
+                        }
+                        TapHandler {
+                            onTapped: MprisService.next()
+                        }
                     }
                 }
 
@@ -474,7 +607,11 @@ PopupWindow {
                             height: sliderHover.hovered || popup.seekDragging ? 5 : 3
                             radius: 2.5
                             color: Qt.rgba(255, 255, 255, 0.08)
-                            Behavior on height { NumberAnimation { duration: 80 } }
+                            Behavior on height {
+                                NumberAnimation {
+                                    duration: 80
+                                }
+                            }
                         }
 
                         Rectangle {
@@ -484,31 +621,41 @@ PopupWindow {
                             height: sliderHover.hovered || popup.seekDragging ? 5 : 3
                             radius: 2.5
                             color: Colors.primary
-                            Behavior on height { NumberAnimation { duration: 80 } }
+                            Behavior on height {
+                                NumberAnimation {
+                                    duration: 80
+                                }
+                            }
                         }
 
                         Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
-                            x: Math.min(Math.max(0, parent.width * popup.trackProgress - width/2), parent.width - width)
+                            x: Math.min(Math.max(0, parent.width * popup.trackProgress - width / 2), parent.width - width)
                             width: sliderHover.hovered || popup.seekDragging ? 10 : 0
                             height: width
                             radius: width / 2
                             color: "#ffffff"
-                            Behavior on width { NumberAnimation { duration: 80 } }
+                            Behavior on width {
+                                NumberAnimation {
+                                    duration: 80
+                                }
+                            }
                         }
 
-                        HoverHandler { id: sliderHover }
+                        HoverHandler {
+                            id: sliderHover
+                        }
 
                         MouseArea {
                             anchors.fill: parent
                             hoverEnabled: false
                             acceptedButtons: Qt.LeftButton
 
-                            onPressed: (mouse) => {
+                            onPressed: mouse => {
                                 popup.seekDragging = true;
                                 popup.dragProgress = Math.max(0, Math.min(1, mouse.x / seekSlider.width));
                             }
-                            onPositionChanged: (mouse) => {
+                            onPositionChanged: mouse => {
                                 if (popup.seekDragging) {
                                     popup.dragProgress = Math.max(0, Math.min(1, mouse.x / seekSlider.width));
                                 }
@@ -527,7 +674,9 @@ PopupWindow {
                             color: Qt.rgba(1, 1, 1, 0.35)
                             font.pixelSize: 10
                         }
-                        Item { Layout.fillWidth: true }
+                        Item {
+                            Layout.fillWidth: true
+                        }
                         Text {
                             text: popup.durationStr
                             color: Qt.rgba(1, 1, 1, 0.35)
@@ -567,7 +716,11 @@ PopupWindow {
                                 height: volSliderHover.hovered || popup.volumeDragging ? 5 : 3
                                 radius: 2.5
                                 color: Qt.rgba(255, 255, 255, 0.08)
-                                Behavior on height { NumberAnimation { duration: 80 } }
+                                Behavior on height {
+                                    NumberAnimation {
+                                        duration: 80
+                                    }
+                                }
                             }
 
                             Rectangle {
@@ -577,38 +730,50 @@ PopupWindow {
                                 height: volSliderHover.hovered || popup.volumeDragging ? 5 : 3
                                 radius: 2.5
                                 color: Colors.primary
-                                Behavior on height { NumberAnimation { duration: 80 } }
+                                Behavior on height {
+                                    NumberAnimation {
+                                        duration: 80
+                                    }
+                                }
                             }
 
                             Rectangle {
                                 anchors.verticalCenter: parent.verticalCenter
-                                x: Math.min(Math.max(0, parent.width * popup.volumeLevel - width/2), parent.width - width)
+                                x: Math.min(Math.max(0, parent.width * popup.volumeLevel - width / 2), parent.width - width)
                                 width: volSliderHover.hovered || popup.volumeDragging ? 8 : 0
                                 height: width
                                 radius: width / 2
                                 color: "#ffffff"
-                                Behavior on width { NumberAnimation { duration: 80 } }
+                                Behavior on width {
+                                    NumberAnimation {
+                                        duration: 80
+                                    }
+                                }
                             }
 
-                            HoverHandler { id: volSliderHover }
+                            HoverHandler {
+                                id: volSliderHover
+                            }
 
                             MouseArea {
                                 anchors.fill: parent
                                 hoverEnabled: false
                                 acceptedButtons: Qt.LeftButton
 
-                                onPressed: (mouse) => {
+                                onPressed: mouse => {
                                     popup.volumeDragging = true;
                                     popup.dragVolume = Math.max(0, Math.min(1, mouse.x / volumeSlider.width));
                                     MprisService.setVolume(popup.dragVolume);
                                 }
-                                onPositionChanged: (mouse) => {
+                                onPositionChanged: mouse => {
                                     if (popup.volumeDragging) {
                                         popup.dragVolume = Math.max(0, Math.min(1, mouse.x / volumeSlider.width));
                                         MprisService.setVolume(popup.dragVolume);
                                     }
                                 }
-                                onReleased: { popup.volumeDragging = false; }
+                                onReleased: {
+                                    popup.volumeDragging = false;
+                                }
                             }
                         }
 
@@ -622,7 +787,9 @@ PopupWindow {
                         }
                     }
                 }
-                Item { Layout.fillHeight: true }
+                Item {
+                    Layout.fillHeight: true
+                }
             }
         }
     }
