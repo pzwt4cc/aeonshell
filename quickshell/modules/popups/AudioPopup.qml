@@ -20,7 +20,7 @@ PopupWindow {
     }
 
     readonly property int panelWidth: 396
-    readonly property int panelHeight: 444
+    readonly property int panelHeight: 472
     readonly property int shadowMargin: 14
 
     implicitWidth: panelWidth + shadowMargin * 2
@@ -188,6 +188,7 @@ PopupWindow {
             // Header
             RowLayout {
                 Layout.fillWidth: true
+                Layout.preferredHeight: 36
                 spacing: 10
 
                 Rectangle {
@@ -468,6 +469,8 @@ PopupWindow {
                     boundsBehavior: Flickable.StopAtBounds
                     model: popup.currentListModel
 
+                    readonly property bool scrollable: contentHeight > height + 1
+
                     add: Transition {
                         NumberAnimation {
                             property: "opacity"
@@ -486,13 +489,21 @@ PopupWindow {
                     }
 
                     ScrollBar.vertical: ScrollBar {
-                        policy: ScrollBar.AsNeeded
+                        id: audioScrollBar
+                        policy: deviceList.scrollable ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
+                        interactive: true
                         width: 5
+                        background: Item {}
+                        contentItem: Rectangle {
+                            implicitWidth: 5
+                            radius: 2.5
+                            color: audioScrollBar.pressed ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, audioScrollBar.hovered ? 0.45 : 0.24)
+                        }
                     }
 
                     delegate: AudioRow {
                         required property var modelData
-                        width: deviceList.width
+                        width: deviceList.width - (deviceList.scrollable ? 10 : 0)
                         node: modelData
                     }
                 }
@@ -569,7 +580,7 @@ PopupWindow {
                 Pipewire.preferredDefaultAudioSource = rowRoot.node;
         }
 
-        height: 74
+        height: 72
         radius: 13
         color: rowRoot.isDefault ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.12) : (rowMa.containsMouse ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.045))
         border.color: rowRoot.isDefault ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07)
@@ -596,8 +607,11 @@ PopupWindow {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 12
-            spacing: 8
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            anchors.topMargin: 10
+            anchors.bottomMargin: 10
+            spacing: 6
 
             RowLayout {
                 Layout.fillWidth: true
