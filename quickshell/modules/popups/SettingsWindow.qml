@@ -531,7 +531,7 @@ Scope {
                                             Text {
                                                 text: root._sectionSubtitle(root.currentSection)
                                                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
-                                                font.pixelSize: 11.5
+                                                font.pixelSize: 12
                                                 elide: Text.ElideRight
                                                 Layout.fillWidth: true
                                             }
@@ -1098,7 +1098,7 @@ Scope {
                 Text {
                     text: Lang.t("settings.langNote")
                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
-                    font.pixelSize: 11.5
+                    font.pixelSize: 12
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
                 }
