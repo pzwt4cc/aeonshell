@@ -202,7 +202,7 @@ Item {
             const entry = {
                 localId: service.nextLocalId++,
                 sourceNotif: notification,
-                appName: notification.appName || notification.desktopEntry || "Application",
+                appName: notification.appName || notification.desktopEntry || "",
                 desktopEntry: notification.desktopEntry || "",
                 summary: notification.summary || "",
                 body: notification.body || "",

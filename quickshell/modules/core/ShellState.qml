@@ -13,9 +13,11 @@ QtObject {
     property bool launcherOpen: false
     property bool suppressVolumeOSD: false
 
-    property string cachedWeatherText: "Click to configure"
+    property string cachedWeatherStatus: "unconfigured" // "ok" | "offline" | "not_found" | "unconfigured"
+    property int cachedWeatherCode: -1
+    property int cachedWeatherTemp: 0
     property string cachedWeatherCity: "Moscow"
     property double cachedWeatherTimestamp: 0
-    property string cachedInstallAge: ""
+    property string cachedInstallDate: ""
     property var cachedPkgs: null
 }

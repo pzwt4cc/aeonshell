@@ -21,6 +21,9 @@ Item {
     readonly property string persistStateDir: cacheDir + "/wallpaper-state"
     readonly property string defaultWallpaperDir: homeDir + "/Pictures/Wallpapers"
 
+    property string language: "en"
+    readonly property var qtLocale: Qt.locale(root.language === "ru" ? "ru_RU" : "en_US")
+
     property string barPosition: "top"
     property bool groupNotificationsBySource: false
     property bool barShowPlayer: true
@@ -66,6 +69,7 @@ Item {
     }
 
     function resetDefaults() {
+        root.language = "en";
         root.barPosition = "top";
         root.groupNotificationsBySource = false;
         root.barShowPlayer = true;
@@ -82,6 +86,7 @@ Item {
         category: "Shell"
         location: "file://" + root.confPath
 
+        property alias language: root.language
         property alias barPosition: root.barPosition
         property alias groupNotificationsBySource: root.groupNotificationsBySource
         property alias barShowPlayer: root.barShowPlayer

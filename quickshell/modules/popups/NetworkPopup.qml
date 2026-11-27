@@ -1,5 +1,7 @@
 // NetworkPopup.qml
 
+pragma ComponentBehavior: Bound
+
 import "../"
 import QtQuick
 import QtQuick.Layouts
@@ -7,8 +9,6 @@ import QtQuick.Controls
 import Quickshell
 import Quickshell.Networking
 import Quickshell.Bluetooth
-
-pragma ComponentBehavior: Bound
 
 PopupWindow {
     id: popup
@@ -143,8 +143,10 @@ PopupWindow {
         if (wiredDevice.network && wiredDevice.network.name)
             return wiredDevice.network.name;
         if (wiredDevice.linkSpeed > 0)
-            return "Wired · " + wiredDevice.linkSpeed + " Mbps";
-        return wiredDevice.name || "Connected";
+            return Lang.t("net.ethWiredSpeed", {
+                speed: wiredDevice.linkSpeed
+            });
+        return wiredDevice.name || Lang.t("net.connected");
     }
 
     readonly property bool hasNetworkConnection: popup.ethConnected || (popup.wifiPowered && popup.wifiConnName !== "")
@@ -212,7 +214,7 @@ PopupWindow {
         if (paired.length > 0) {
             entries.push({
                 kind: "header",
-                title: "PAIRED DEVICES"
+                title: Lang.t("net.btPairedHeader")
             });
             for (let i = 0; i < paired.length; i++)
                 entries.push({
@@ -224,7 +226,7 @@ PopupWindow {
         if (disc.length > 0) {
             entries.push({
                 kind: "header",
-                title: "AVAILABLE DEVICES"
+                title: Lang.t("net.btAvailableHeader")
             });
             for (let j = 0; j < disc.length; j++)
                 entries.push({
@@ -459,7 +461,7 @@ PopupWindow {
                     Layout.fillWidth: true
                     spacing: 1
                     Text {
-                        text: "Network & Bluetooth"
+                        text: Lang.t("net.title")
                         color: Colors.surfaceText
                         font.pixelSize: 16
                         font.bold: true
@@ -472,7 +474,7 @@ PopupWindow {
                                 return "Wi-Fi: " + popup.wifiConnName;
                             if (popup.btConnectedDevices.length > 0)
                                 return "BT: " + popup.btConnectedDevices.map(d => d.name || d.deviceName || d.address).join(", ");
-                            return "Offline";
+                            return Lang.t("net.offline");
                         }
                         color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
                         font.pixelSize: 11
@@ -549,7 +551,7 @@ PopupWindow {
                         width: tabBar.cellWidth
                         height: parent.height
                         icon: "󰖩"
-                        label: "Wi-Fi"
+                        label: Lang.t("net.tabWifi")
                         selected: popup.activeTab === "wifi"
                         onClicked: popup.activeTab = "wifi"
                     }
@@ -557,7 +559,7 @@ PopupWindow {
                         width: tabBar.cellWidth
                         height: parent.height
                         icon: "󰂯"
-                        label: "Bluetooth"
+                        label: Lang.t("net.tabBluetooth")
                         selected: popup.activeTab === "bluetooth"
                         onClicked: popup.activeTab = "bluetooth"
                     }
@@ -565,7 +567,7 @@ PopupWindow {
                         width: tabBar.cellWidth
                         height: parent.height
                         icon: "󰌗"
-                        label: "Ethernet"
+                        label: Lang.t("net.tabEthernet")
                         selected: popup.activeTab === "ethernet"
                         onClicked: popup.activeTab = "ethernet"
                     }
@@ -601,7 +603,7 @@ PopupWindow {
                                 Layout.fillWidth: true
                                 spacing: 1
                                 Text {
-                                    text: "Wireless Radio"
+                                    text: Lang.t("net.wifiRadio")
                                     color: Colors.surfaceText
                                     font.pixelSize: 13
                                     font.bold: true
@@ -609,12 +611,14 @@ PopupWindow {
                                 Text {
                                     text: {
                                         if (!popup.wifiPowered)
-                                            return "Turned off";
+                                            return Lang.t("net.turnedOff");
                                         if (popup.wifiConnecting)
-                                            return "Connecting to " + (popup.connectingNet ? popup.connectingNet.name : popup.pendingSsid) + "…";
+                                            return Lang.t("net.connectingTo", {
+                                                ssid: popup.connectingNet ? popup.connectingNet.name : popup.pendingSsid
+                                            });
                                         if (popup.wifiConnectFailed)
-                                            return "Connection failed";
-                                        return popup.wifiConnName || (popup.wifiScanning ? "Scanning…" : "Not connected");
+                                            return Lang.t("net.connFailed");
+                                        return popup.wifiConnName || (popup.wifiScanning ? Lang.t("net.scanning") : Lang.t("net.notConnected"));
                                     }
                                     color: popup.wifiConnectFailed ? "#e07070" : (popup.wifiConnecting ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52))
                                     font.pixelSize: 11
@@ -721,7 +725,7 @@ PopupWindow {
                             }
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                text: popup.wifiPowered ? (popup.wifiScanning ? "Scanning for networks…" : "No Wi-Fi networks found") : "Wi-Fi is turned off"
+                                text: popup.wifiPowered ? (popup.wifiScanning ? Lang.t("net.scanningNetworks") : Lang.t("net.noWifiFound")) : Lang.t("net.wifiOff")
                                 font.pixelSize: 12
                                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.45)
                             }
@@ -763,7 +767,9 @@ PopupWindow {
                             RowLayout {
                                 Layout.fillWidth: true
                                 Text {
-                                    text: "Password for " + popup.pendingSsid
+                                    text: Lang.t("net.passwordFor", {
+                                        ssid: popup.pendingSsid
+                                    })
                                     color: popup.wifiConnectFailed ? "#f08080" : Colors.surfaceText
                                     font.pixelSize: 11
                                     font.bold: true
@@ -804,7 +810,7 @@ PopupWindow {
                                         anchors.rightMargin: 30
                                         verticalAlignment: TextInput.AlignVCenter
                                         echoMode: popup.wifiShowPassword ? TextInput.Normal : TextInput.Password
-                                        placeholderText: "Enter password…"
+                                        placeholderText: Lang.t("net.enterPassword")
                                         placeholderTextColor: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
                                         font.pixelSize: 12
                                         color: Colors.surfaceText
@@ -904,7 +910,7 @@ PopupWindow {
                                 Layout.fillWidth: true
                                 spacing: 1
                                 Text {
-                                    text: "Bluetooth Adapter"
+                                    text: Lang.t("net.btAdapter")
                                     color: Colors.surfaceText
                                     font.pixelSize: 13
                                     font.bold: true
@@ -912,17 +918,26 @@ PopupWindow {
                                 Text {
                                     text: {
                                         if (!popup.btAdapter)
-                                            return "No adapter available";
+                                            return Lang.t("net.btNoAdapter");
                                         if (!popup.btPowered)
-                                            return "Turned off";
+                                            return Lang.t("net.turnedOff");
                                         if (popup.btPendingDevice) {
                                             const name = popup.btPendingDevice.name || popup.btPendingDevice.deviceName || popup.btPendingDevice.address;
-                                            const verb = popup.btPendingAction === "disconnect" ? "Disconnecting " : (popup.btPendingAction === "pair" ? "Pairing " : "Connecting ");
-                                            return verb + name + "…";
+                                            if (popup.btPendingAction === "disconnect")
+                                                return Lang.t("net.btDisconnecting", {
+                                                    name: name
+                                                });
+                                            if (popup.btPendingAction === "pair")
+                                                return Lang.t("net.btPairing", {
+                                                    name: name
+                                                });
+                                            return Lang.t("net.btConnecting", {
+                                                name: name
+                                            });
                                         }
                                         if (popup.btConnectedDevices.length > 0)
                                             return popup.btConnectedDevices.map(d => d.name || d.deviceName || d.address).join(", ");
-                                        return popup.btScanning ? "Discovering nearby devices…" : "Ready";
+                                        return popup.btScanning ? Lang.t("net.btDiscovering") : Lang.t("net.btReady");
                                     }
                                     color: popup.btPendingDevice ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
                                     font.pixelSize: 11
@@ -1047,7 +1062,7 @@ PopupWindow {
                             }
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
-                                text: popup.btPowered ? (popup.btScanning ? "Searching for Bluetooth devices…" : "No devices found") : "Bluetooth is turned off"
+                                text: popup.btPowered ? (popup.btScanning ? Lang.t("net.btSearching") : Lang.t("net.btEmpty")) : Lang.t("net.btOff")
                                 font.pixelSize: 12
                                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.45)
                             }
@@ -1092,13 +1107,13 @@ PopupWindow {
                                 Layout.fillWidth: true
                                 spacing: 2
                                 Text {
-                                    text: popup.ethConnected ? "Wired Connected" : (popup.ethConnecting ? "Connecting…" : "Cable Unplugged")
+                                    text: popup.ethConnected ? Lang.t("net.ethConnectedTitle") : (popup.ethConnecting ? Lang.t("net.ethConnectingTitle") : Lang.t("net.ethUnpluggedTitle"))
                                     color: Colors.surfaceText
                                     font.pixelSize: 14
                                     font.bold: true
                                 }
                                 Text {
-                                    text: popup.ethConnected ? popup.ethConnName : (popup.wiredDevice ? (popup.wiredDevice.name || "Ethernet adapter") : "No wired interface")
+                                    text: popup.ethConnected ? popup.ethConnName : (popup.wiredDevice ? (popup.wiredDevice.name || Lang.t("net.ethAdapterFallback")) : Lang.t("net.ethNoInterface"))
                                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.55)
                                     font.pixelSize: 12
                                     elide: Text.ElideRight
@@ -1116,7 +1131,7 @@ PopupWindow {
                                 Text {
                                     id: ethBadgeTxt
                                     anchors.centerIn: parent
-                                    text: "Online"
+                                    text: Lang.t("net.ethOnline")
                                     font.pixelSize: 11
                                     font.bold: true
                                     color: Colors.primary
@@ -1145,7 +1160,7 @@ PopupWindow {
                                 color: Colors.primary
                             }
                             Text {
-                                text: "Open Network Connection Editor"
+                                text: Lang.t("net.ethOpenEditor")
                                 color: Colors.surfaceText
                                 font.pixelSize: 13
                                 font.bold: true
@@ -1309,7 +1324,7 @@ PopupWindow {
                 Text {
                     id: connBadge
                     anchors.centerIn: parent
-                    text: "Connected"
+                    text: Lang.t("net.connected")
                     font.pixelSize: 10
                     font.bold: true
                     color: Colors.primary
@@ -1417,7 +1432,7 @@ PopupWindow {
                 Text {
                     id: btConnBadge
                     anchors.centerIn: parent
-                    text: "Connected"
+                    text: Lang.t("net.connected")
                     color: Colors.primary
                     font.pixelSize: 10
                     font.bold: true
@@ -1436,7 +1451,7 @@ PopupWindow {
                 Text {
                     id: pairBadge
                     anchors.centerIn: parent
-                    text: "Pair"
+                    text: Lang.t("net.btPair")
                     color: Colors.primary
                     font.pixelSize: 10
                     font.bold: true

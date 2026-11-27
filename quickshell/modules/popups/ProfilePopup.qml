@@ -19,9 +19,22 @@ PopupWindow {
 
     property string username: Quickshell.env("USER") || Quickshell.env("LOGNAME") || "User"
     property string hostname: "..."
-    property string kernel: "..."
-    property string uptime: "..."
-    property string installAge: ShellState.cachedInstallAge !== undefined ? ShellState.cachedInstallAge : "..."
+    property string kernelRaw: ""
+    property bool kernelLoaded: false
+    readonly property string kernel: !popup.kernelLoaded ? "..." : (popup.kernelRaw || Lang.t("common.unknown"))
+    property int uptimeSeconds: -1
+    readonly property string uptime: {
+        if (popup.uptimeSeconds < 0)
+            return "...";
+        const sec = popup.uptimeSeconds;
+        const d = Math.floor(sec / 86400);
+        const h = Math.floor((sec % 86400) / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        return (d > 0 ? d + Lang.t("unit.d") + " " : "") + (h > 0 ? h + Lang.t("unit.h") + " " : "") + m + Lang.t("unit.min");
+    }
+    property string installDateStr: ShellState.cachedInstallDate
+    property bool installDateLoaded: ShellState.cachedInstallDate !== ""
+    readonly property string installAge: !popup.installDateLoaded ? "..." : (popup.installDateStr ? popup.formatAgeFromDateStr(popup.installDateStr) : Lang.t("common.unknown"))
     property string distro: "..."
     property string distroVersion: ""
     property string shellName: {
@@ -29,10 +42,20 @@ PopupWindow {
         const parts = sh.split("/");
         return parts[parts.length - 1] || "sh";
     }
-    property string terminalName: mapTerminalName(Quickshell.env("TERMINAL"))
+    property string terminalRaw: mapTerminalName(Quickshell.env("TERMINAL"))
+    property bool terminalLoaded: terminalRaw !== ""
+    readonly property string terminalName: !popup.terminalLoaded ? "..." : (popup.terminalRaw || Lang.t("common.unknown"))
     property string wmName: Quickshell.env("XDG_CURRENT_DESKTOP") || Quickshell.env("DESKTOP_SESSION") || Quickshell.env("XDG_SESSION_DESKTOP") || "Hyprland"
 
-    property string weatherText: ShellState.cachedWeatherText
+    readonly property string weatherText: {
+        if (ShellState.cachedWeatherStatus === "ok")
+            return popup.weatherDesc(ShellState.cachedWeatherCode) + " " + ShellState.cachedWeatherTemp + "°C";
+        if (ShellState.cachedWeatherStatus === "offline")
+            return Lang.t("profile.weatherOffline");
+        if (ShellState.cachedWeatherStatus === "not_found")
+            return Lang.t("profile.weatherNotFound");
+        return Lang.t("profile.weatherConfigure");
+    }
     property string weatherCity: ShellState.cachedWeatherCity
     property int avatarTick: 0
 
@@ -85,10 +108,10 @@ PopupWindow {
     function formatAgeFromDateStr(dateStr) {
         const parts = dateStr.split("-");
         if (parts.length !== 3)
-            return "Unknown";
+            return Lang.t("common.unknown");
         const instMs = Date.UTC(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
         if (isNaN(instMs))
-            return "Unknown";
+            return Lang.t("common.unknown");
         const daysTotal = Math.max(0, Math.floor((Date.now() - instMs) / 86400000));
         const years = Math.floor(daysTotal / 365);
         const rem = daysTotal % 365;
@@ -99,87 +122,86 @@ PopupWindow {
 
         const out = [];
         if (years > 0) {
-            out.push(years + "y");
+            out.push(years + Lang.t("unit.y"));
             if (months > 0)
-                out.push(months + "m");
+                out.push(months + Lang.t("unit.m"));
             if (weeks > 0)
-                out.push(weeks + "w");
+                out.push(weeks + Lang.t("unit.w"));
         } else if (months > 0) {
-            out.push(months + "m");
+            out.push(months + Lang.t("unit.m"));
             if (weeks > 0)
-                out.push(weeks + "w");
+                out.push(weeks + Lang.t("unit.w"));
             if (days > 0)
-                out.push(days + "d");
+                out.push(days + Lang.t("unit.d"));
         } else if (weeks > 0) {
-            out.push(weeks + "w");
+            out.push(weeks + Lang.t("unit.w"));
             if (days > 0)
-                out.push(days + "d");
+                out.push(days + Lang.t("unit.d"));
         } else {
-            out.push(days + "d");
+            out.push(days + Lang.t("unit.d"));
         }
-        return out.length > 0 ? out.join(" ") : "0d";
+        return out.length > 0 ? out.join(" ") : ("0" + Lang.t("unit.d"));
     }
 
     function weatherDesc(code) {
-        const map = {
-            0: "Clear sky",
-            1: "Mainly clear",
-            2: "Partly cloudy",
-            3: "Overcast",
-            45: "Fog",
-            48: "Fog",
-            51: "Drizzle",
-            53: "Drizzle",
-            55: "Drizzle",
-            56: "Freezing drizzle",
-            57: "Freezing drizzle",
-            61: "Rain",
-            63: "Rain",
-            65: "Rain",
-            66: "Freezing rain",
-            67: "Freezing rain",
-            71: "Snow",
-            73: "Snow",
-            75: "Snow",
-            77: "Snow grains",
-            80: "Rain showers",
-            81: "Rain showers",
-            82: "Rain showers",
-            85: "Snow showers",
-            86: "Snow showers",
-            95: "Thunderstorm",
-            96: "Thunderstorm with hail",
-            99: "Thunderstorm with hail"
+        const keyMap = {
+            0: "0",
+            1: "1",
+            2: "2",
+            3: "3",
+            45: "45",
+            48: "45",
+            51: "51",
+            53: "51",
+            55: "51",
+            56: "56",
+            57: "56",
+            61: "61",
+            63: "61",
+            65: "61",
+            66: "66",
+            67: "66",
+            71: "71",
+            73: "71",
+            75: "71",
+            77: "77",
+            80: "80",
+            81: "80",
+            82: "80",
+            85: "85",
+            86: "85",
+            95: "95",
+            96: "96",
+            99: "96"
         };
-        return map[code] || "Unknown";
+        const key = keyMap[code];
+        return key !== undefined ? Lang.t("wx." + key) : Lang.t("common.unknown");
     }
 
     function fetchWeather(force) {
         const now = Date.now();
-        if (!force && ShellState.cachedWeatherTimestamp > 0 && (now - ShellState.cachedWeatherTimestamp) < 15 * 60 * 1000) {
-            popup.weatherText = ShellState.cachedWeatherText;
+        if (!force && ShellState.cachedWeatherTimestamp > 0 && (now - ShellState.cachedWeatherTimestamp) < 15 * 60 * 1000)
             return;
-        }
         const raw = (popup.weatherCity || "Moscow").trim();
         const comma = raw.indexOf(",");
         const cityPart = comma !== -1 ? raw.slice(0, comma).trim() : raw;
         const countryPart = comma !== -1 ? raw.slice(comma + 1).trim().toLowerCase() : "";
 
-        const geoUrl = "https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(cityPart) + "&count=10&language=en&format=json";
+        const geoUrl = "https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(cityPart) + "&count=10&language=" + encodeURIComponent(AppSettings.language) + "&format=json";
         const xhr = new XMLHttpRequest();
         xhr.timeout = 5000;
         xhr.onreadystatechange = function () {
             if (xhr.readyState !== XMLHttpRequest.DONE)
                 return;
             if (xhr.status !== 200) {
-                popup.weatherText = "No connection";
+                ShellState.cachedWeatherStatus = "offline";
                 return;
             }
             try {
                 const data = JSON.parse(xhr.responseText);
                 const results = data.results || [];
                 if (results.length === 0) {
-                    popup.weatherText = "Location not found";
+                    ShellState.cachedWeatherStatus = "not_found";
                     return;
                 }
                 let pick = null;
@@ -204,32 +226,31 @@ PopupWindow {
                     if (wxReq.readyState !== XMLHttpRequest.DONE)
                         return;
                     if (wxReq.status !== 200) {
-                        popup.weatherText = "No connection";
+                        ShellState.cachedWeatherStatus = "offline";
                         return;
                     }
                     try {
                         const w = JSON.parse(wxReq.responseText);
                         const cw = w.current_weather;
-                        const desc = popup.weatherDesc(cw.weathercode);
-                        const txt = desc + " " + Math.round(cw.temperature) + "°C";
-                        popup.weatherText = txt;
-                        ShellState.cachedWeatherText = txt;
+                        ShellState.cachedWeatherCode = cw.weathercode;
+                        ShellState.cachedWeatherTemp = Math.round(cw.temperature);
+                        ShellState.cachedWeatherStatus = "ok";
                         ShellState.cachedWeatherTimestamp = Date.now();
                     } catch (e) {
-                        popup.weatherText = "No connection";
+                        ShellState.cachedWeatherStatus = "offline";
                     }
                 };
                 wxReq.ontimeout = function () {
-                    popup.weatherText = "No connection";
+                    ShellState.cachedWeatherStatus = "offline";
                 };
                 wxReq.open("GET", wxUrl);
                 wxReq.send();
             } catch (e) {
-                popup.weatherText = "No connection";
+                ShellState.cachedWeatherStatus = "offline";
             }
         };
         xhr.ontimeout = function () {
-            popup.weatherText = "No connection";
+            ShellState.cachedWeatherStatus = "offline";
         };
         xhr.open("GET", geoUrl);
         xhr.send();
@@ -250,9 +271,9 @@ PopupWindow {
         refreshLiveStats();
         if (!ShellState.cachedPkgs && !pkgReader.running)
             pkgReader.running = true;
-        if (!popup.terminalName && !termDetectProc.running)
+        if (!popup.terminalLoaded && !termDetectProc.running)
             termDetectProc.running = true;
-        if ((!popup.installAge || popup.installAge === "...") && !installDateProc.running)
+        if (!popup.installDateLoaded && !installDateProc.running)
             installDateProc.running = true;
         fetchWeather(false);
     }
@@ -288,7 +309,10 @@ PopupWindow {
         id: osreleaseFile
         path: "/proc/sys/kernel/osrelease"
         printErrors: false
-        onLoaded: popup.kernel = text().trim() || "Unknown"
+        onLoaded: {
+            popup.kernelRaw = text().trim();
+            popup.kernelLoaded = true;
+        }
     }
 
     FileView {
@@ -316,11 +340,7 @@ PopupWindow {
         path: "/proc/uptime"
         printErrors: false
         onLoaded: {
-            const sec = parseFloat(text().trim().split(/\s+/)[0]) || 0;
-            const d = Math.floor(sec / 86400);
-            const h = Math.floor((sec % 86400) / 3600);
-            const m = Math.floor((sec % 3600) / 60);
-            popup.uptime = (d > 0 ? d + "d " : "") + (h > 0 ? h + "h " : "") + m + "m";
+            popup.uptimeSeconds = Math.floor(parseFloat(text().trim().split(/\s+/)[0]) || 0);
         }
     }
 
@@ -386,19 +406,21 @@ PopupWindow {
         stdout: StdioCollector {
             onStreamFinished: {
                 const d = this.text.trim();
-                const age = d ? popup.formatAgeFromDateStr(d) : "Unknown";
-                popup.installAge = age;
-                if (typeof ShellState.cachedInstallAge !== "undefined")
-                    ShellState.cachedInstallAge = age;
+                popup.installDateStr = d;
+                popup.installDateLoaded = true;
+                ShellState.cachedInstallDate = d;
             }
         }
     }
 
     Process {
         id: termDetectProc
-        command: ["sh", "-c", "for t in kitty alacritty wezterm foot konsole gnome-terminal tilix xfce4-terminal terminator lxterminal xterm; do command -v \"$t\" >/dev/null 2>&1 && { echo \"$t\"; exit 0; }; done; echo Unknown"]
+        command: ["sh", "-c", "for t in kitty alacritty wezterm foot konsole gnome-terminal tilix xfce4-terminal terminator lxterminal xterm; do command -v \"$t\" >/dev/null 2>&1 && { echo \"$t\"; exit 0; }; done; echo \"\""]
         stdout: StdioCollector {
-            onStreamFinished: popup.terminalName = popup.mapTerminalName(this.text.trim()) || "Unknown"
+            onStreamFinished: {
+                popup.terminalRaw = popup.mapTerminalName(this.text.trim());
+                popup.terminalLoaded = true;
+            }
         }
     }
 
@@ -504,7 +526,7 @@ PopupWindow {
         id: avatarPickerLoader
         active: false
         sourceComponent: FilePicker {
-            pickerTitle: "Choose Avatar"
+            pickerTitle: Lang.t("profile.avatarTitle")
             initialDir: Quickshell.env("HOME") + "/Pictures"
             nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
             onAccepted: path => {
@@ -528,8 +550,8 @@ PopupWindow {
         id: weatherInputLoader
         active: false
         sourceComponent: TextInputPopup {
-            popupTitle: "Weather Location"
-            promptText: "Enter City, Country (e.g. London,UK):"
+            popupTitle: Lang.t("profile.weatherTitle")
+            promptText: Lang.t("profile.weatherPrompt")
             onAccepted: value => {
                 popup.weatherCity = value;
                 ShellState.cachedWeatherCity = value;
@@ -808,7 +830,7 @@ PopupWindow {
                 MiniStatCard {
                     Layout.fillWidth: true
                     icon: "󰘚"
-                    title: "CPU usage"
+                    title: Lang.t("profile.cpu")
                     value: popup.cpuUsagePct + "%"
                     subValue: popup.cpuTempC + "°C"
                     progress: popup.cpuUsagePct / 100
@@ -818,7 +840,7 @@ PopupWindow {
                 MiniStatCard {
                     Layout.fillWidth: true
                     icon: "󰔂"
-                    title: "GPU usage"
+                    title: Lang.t("profile.gpu")
                     value: popup.gpuUsageLabel + "%"
                     subValue: popup.gpuTempC + "°C"
                     progress: (parseFloat(popup.gpuUsageLabel) || 0) / 100
@@ -829,9 +851,9 @@ PopupWindow {
                 MiniStatCard {
                     Layout.fillWidth: true
                     icon: "󰆼"
-                    title: "RAM memory"
+                    title: Lang.t("profile.ram")
                     value: popup.ramUsagePct + "%"
-                    subValue: popup.ramUsedGb.toFixed(1) + " GB"
+                    subValue: popup.ramUsedGb.toFixed(1) + " " + Lang.t("profile.gb")
                     progress: popup.ramUsagePct / 100
                     progressColor: popup.ramUsagePct > 85 ? Colors.error : Colors.primary
                 }
@@ -842,7 +864,7 @@ PopupWindow {
                 spacing: 8
 
                 Text {
-                    text: "System Information"
+                    text: Lang.t("profile.sysInfo")
                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
                     font.pixelSize: 13
                     font.bold: true
@@ -857,37 +879,37 @@ PopupWindow {
                     SysTile {
                         Layout.fillWidth: true
                         icon: "󰌽"
-                        label: "OS Distro"
+                        label: Lang.t("profile.osDistro")
                         value: popup.distro + (popup.distroVersion && popup.distroVersion !== "Rolling" ? " " + popup.distroVersion : "")
                     }
                     SysTile {
                         Layout.fillWidth: true
                         icon: "󰖯"
-                        label: "WM / Desktop"
+                        label: Lang.t("profile.wmDesktop")
                         value: popup.wmName
                     }
                     SysTile {
                         Layout.fillWidth: true
                         icon: "󰒓"
-                        label: "Kernel Version"
+                        label: Lang.t("profile.kernel")
                         value: popup.kernel
                     }
                     SysTile {
                         Layout.fillWidth: true
                         icon: "󰒼"
-                        label: "Terminal"
-                        value: popup.terminalName || "..."
+                        label: Lang.t("profile.terminal")
+                        value: popup.terminalName
                     }
                     SysTile {
                         Layout.fillWidth: true
                         icon: "󰋚"
-                        label: "Installed"
+                        label: Lang.t("profile.installed")
                         value: popup.installAge
                     }
                     SysTile {
                         Layout.fillWidth: true
                         icon: "󰆍"
-                        label: "User Shell"
+                        label: Lang.t("profile.userShell")
                         value: popup.shellName
                     }
 
@@ -896,7 +918,7 @@ PopupWindow {
                         Layout.columnSpan: 2
                         wrap: true
                         icon: "\uf487"
-                        label: "Packages"
+                        label: Lang.t("profile.packages")
                         value: {
                             var parts = [];
                             if (popup.pacmanPkgs > 0)
@@ -909,7 +931,10 @@ PopupWindow {
                                 parts.push("snap: " + popup.snapPkgs);
                             if (popup.brewPkgs > 0)
                                 parts.push("brew: " + popup.brewPkgs);
-                            return parts.length > 0 ? popup.totalPkgs + " total (" + parts.join(", ") + ")" : "0 total";
+                            return parts.length > 0 ? Lang.t("profile.packagesTotal", {
+                                total: popup.totalPkgs,
+                                details: parts.join(", ")
+                            }) : Lang.t("profile.packagesZero");
                         }
                     }
                 }
@@ -920,7 +945,7 @@ PopupWindow {
                 spacing: 8
 
                 Text {
-                    text: "Storage & Drives"
+                    text: Lang.t("profile.storage")
                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
                     font.pixelSize: 13
                     font.bold: true
@@ -976,14 +1001,18 @@ PopupWindow {
                                         RowLayout {
                                             Layout.fillWidth: true
                                             Text {
-                                                text: modelData.name === "Root" ? "System Drive (Root)" : modelData.name
+                                                text: modelData.name === "Root" ? Lang.t("profile.systemDrive") : modelData.name
                                                 color: Colors.surfaceText
                                                 font.pixelSize: 14
                                                 font.bold: true
                                                 Layout.fillWidth: true
                                             }
                                             Text {
-                                                text: modelData.used + " of " + modelData.size + " (" + modelData.pct + "%)"
+                                                text: Lang.t("profile.driveUsedOf", {
+                                                    used: modelData.used,
+                                                    size: modelData.size,
+                                                    pct: modelData.pct
+                                                })
                                                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.7)
                                                 font.pixelSize: 12
                                                 font.bold: true
@@ -1015,7 +1044,7 @@ PopupWindow {
 
                         Text {
                             visible: popup.diskList.length === 0
-                            text: "No mounted storage drives detected"
+                            text: Lang.t("profile.noDrives")
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
                             font.pixelSize: 13
                         }

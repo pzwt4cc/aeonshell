@@ -64,7 +64,7 @@ Rectangle {
 
         Text {
             visible: !root.vertical
-            text: root.muted ? "Mute" : (root.volumePct + "%")
+            text: root.muted ? Lang.t("audio.muteShort") : (root.volumePct + "%")
             font.pixelSize: 11
             font.bold: true
             color: root.active ? Colors.primary : (root.muted ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.45) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.8))

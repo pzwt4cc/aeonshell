@@ -9,7 +9,7 @@ import Quickshell
 FloatingWindow {
     id: popup
 
-    property string popupTitle: "Enter Value"
+    property string popupTitle: Lang.t("input.defaultTitle")
     property string promptText: ""
     property string currentValue: ""
     property bool _handled: false
@@ -169,7 +169,7 @@ FloatingWindow {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "Cancel"
+                        text: Lang.t("common.cancel")
                         color: Colors.surfaceText
                         font.pixelSize: 13
                     }
@@ -198,7 +198,7 @@ FloatingWindow {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "Save"
+                        text: Lang.t("common.save")
                         color: Colors.background
                         font.pixelSize: 13
                         font.bold: true

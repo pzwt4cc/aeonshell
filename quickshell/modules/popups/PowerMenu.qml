@@ -1,11 +1,11 @@
 // PowerMenu.qml
 
+pragma ComponentBehavior: Bound
+
 import "../"
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-
-pragma ComponentBehavior: Bound
 
 PopupWindow {
     id: popup
@@ -109,19 +109,19 @@ PopupWindow {
                 spacing: 12
                 PowerMenuAction {
                     glyph: "󰌾"
-                    label: "Lock"
+                    label: Lang.t("power.lock")
                     command: ["hyprlock"]
                     onActivated: popup.open = false
                 }
                 PowerMenuAction {
                     glyph: "󰤄"
-                    label: "Suspend"
+                    label: Lang.t("power.suspend")
                     command: ["sh", "-c", "hyprlock & systemctl suspend"]
                     onActivated: popup.open = false
                 }
                 PowerMenuAction {
                     glyph: "󰍃"
-                    label: "Logout"
+                    label: Lang.t("power.logout")
                     command: ["hyprctl", "dispatch", "exit"]
                     onActivated: popup.open = false
                 }
@@ -133,14 +133,14 @@ PopupWindow {
                 PowerMenuAction {
                     stretched: true
                     glyph: "󰜉"
-                    label: "Reboot"
+                    label: Lang.t("power.reboot")
                     command: ["systemctl", "reboot"]
                     onActivated: popup.open = false
                 }
                 PowerMenuAction {
                     stretched: true
                     glyph: "󰐥"
-                    label: "Power Off"
+                    label: Lang.t("power.poweroff")
                     danger: true
                     command: ["systemctl", "poweroff"]
                     onActivated: popup.open = false

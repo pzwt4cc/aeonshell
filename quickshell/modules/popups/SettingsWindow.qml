@@ -1,5 +1,7 @@
 // SettingsWindow.qml
 
+pragma ComponentBehavior: Bound
+
 import "../"
 import QtQuick
 import QtQuick.Layouts
@@ -8,8 +10,6 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Services.Pipewire
-
-pragma ComponentBehavior: Bound
 
 Scope {
     id: root
@@ -34,22 +34,22 @@ Scope {
 
     function _sectionTitle(sec) {
         if (sec === "launcher")
-            return "Launcher & Wallpapers";
+            return Lang.t("settings.secLauncherTitle");
         if (sec === "behavior")
-            return "Behavior";
+            return Lang.t("settings.secBehaviorTitle");
         if (sec === "about")
-            return "System & About";
-        return "Panel & Theme";
+            return Lang.t("settings.secAboutTitle");
+        return Lang.t("settings.secPanelTitle");
     }
 
     function _sectionSubtitle(sec) {
         if (sec === "launcher")
-            return "App grid mode, wallpaper directory, and hidden entries";
+            return Lang.t("settings.secLauncherSub");
         if (sec === "behavior")
-            return "Notification grouping, Do Not Disturb, audio, and MPRIS";
+            return Lang.t("settings.secBehaviorSub");
         if (sec === "about")
-            return "Local storage paths, preferences reset, and shell info";
-        return "Bar screen edge, transparency, modules, and dynamic palette";
+            return Lang.t("settings.secAboutSub");
+        return Lang.t("settings.secPanelSub");
     }
 
     function _resolveActiveScreen() {
@@ -251,37 +251,41 @@ Scope {
                                         anchors.fill: parent
                                         spacing: 10
 
-                                    Rectangle {
-                                        Layout.preferredWidth: 38
-                                        Layout.preferredHeight: 38
-                                        radius: 11
-                                        color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16)
-                                        border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.28)
-                                        border.width: 1
+                                        Rectangle {
+                                            Layout.preferredWidth: 38
+                                            Layout.preferredHeight: 38
+                                            radius: 11
+                                            color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16)
+                                            border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.28)
+                                            border.width: 1
 
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: "󰒓"
-                                            font.pixelSize: 18
-                                            color: Colors.primary
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "󰒓"
+                                                font.pixelSize: 18
+                                                color: Colors.primary
+                                            }
                                         }
-                                    }
 
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 1
-                                        Text {
-                                            text: "Shell Settings"
-                                            color: Colors.surfaceText
-                                            font.pixelSize: 15
-                                            font.bold: true
+                                        ColumnLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 1
+                                            Text {
+                                                text: Lang.t("settings.title")
+                                                color: Colors.surfaceText
+                                                font.pixelSize: 15
+                                                font.bold: true
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                            }
+                                            Text {
+                                                text: Lang.t("settings.subtitle")
+                                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.48)
+                                                font.pixelSize: 11
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                            }
                                         }
-                                        Text {
-                                            text: "aeonshell · local"
-                                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.48)
-                                            font.pixelSize: 11
-                                        }
-                                    }
                                     }
                                 }
 
@@ -298,29 +302,29 @@ Scope {
 
                                     SidebarTab {
                                         icon: "󰍜"
-                                        label: "Panel & Theme"
-                                        subtitle: "Bar, layout & palette"
+                                        label: Lang.t("settings.tabPanel")
+                                        subtitle: Lang.t("settings.tabPanelSub")
                                         selected: root.currentSection === "panel"
                                         onClicked: root.currentSection = "panel"
                                     }
                                     SidebarTab {
                                         icon: "󰀻"
-                                        label: "Launcher"
-                                        subtitle: "View, wallpapers & hidden"
+                                        label: Lang.t("settings.tabLauncher")
+                                        subtitle: Lang.t("settings.tabLauncherSub")
                                         selected: root.currentSection === "launcher"
                                         onClicked: root.currentSection = "launcher"
                                     }
                                     SidebarTab {
                                         icon: "󰂚"
-                                        label: "Behavior"
-                                        subtitle: "Notifications & media"
+                                        label: Lang.t("settings.tabBehavior")
+                                        subtitle: Lang.t("settings.tabBehaviorSub")
                                         selected: root.currentSection === "behavior"
                                         onClicked: root.currentSection = "behavior"
                                     }
                                     SidebarTab {
                                         icon: "󰋼"
-                                        label: "System"
-                                        subtitle: "Paths, reset & about"
+                                        label: Lang.t("settings.tabAbout")
+                                        subtitle: Lang.t("settings.tabAboutSub")
                                         selected: root.currentSection === "about"
                                         onClicked: root.currentSection = "about"
                                     }
@@ -350,12 +354,13 @@ Scope {
                                         RowLayout {
                                             Layout.fillWidth: true
                                             Text {
-                                                text: "ACTIVE PALETTE"
+                                                text: Lang.t("settings.activePalette")
                                                 font.pixelSize: 9
                                                 font.bold: true
                                                 font.letterSpacing: 0.8
                                                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.45)
                                                 Layout.fillWidth: true
+                                                elide: Text.ElideRight
                                             }
                                             Text {
                                                 text: Colors.themeSource
@@ -443,6 +448,8 @@ Scope {
                                             color: Colors.surfaceText
                                             font.pixelSize: 20
                                             font.bold: true
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
                                         }
                                         Text {
                                             text: root._sectionSubtitle(root.currentSection)
@@ -523,32 +530,52 @@ Scope {
             id: panelScroll
 
             SectionCard {
-                title: "PANEL PLACEMENT"
+                title: Lang.t("settings.languageCard")
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    Repeater {
+                        model: Lang.availableLanguages
+                        delegate: ModeChip {
+                            required property var modelData
+                            icon: modelData.shortLabel
+                            label: modelData.label
+                            selected: AppSettings.language === modelData.code
+                            onClicked: AppSettings.language = modelData.code
+                        }
+                    }
+                }
+            }
+
+            SectionCard {
+                title: Lang.t("settings.placementCard")
 
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 10
 
                     PlacementChip {
-                        label: "Top"
+                        label: Lang.t("settings.posTop")
                         pos: "top"
                         selected: AppSettings.barPosition === "top"
                         onClicked: AppSettings.barPosition = "top"
                     }
                     PlacementChip {
-                        label: "Bottom"
+                        label: Lang.t("settings.posBottom")
                         pos: "bottom"
                         selected: AppSettings.barPosition === "bottom"
                         onClicked: AppSettings.barPosition = "bottom"
                     }
                     PlacementChip {
-                        label: "Left"
+                        label: Lang.t("settings.posLeft")
                         pos: "left"
                         selected: AppSettings.barPosition === "left"
                         onClicked: AppSettings.barPosition = "left"
                     }
                     PlacementChip {
-                        label: "Right"
+                        label: Lang.t("settings.posRight")
                         pos: "right"
                         selected: AppSettings.barPosition === "right"
                         onClicked: AppSettings.barPosition = "right"
@@ -557,11 +584,11 @@ Scope {
             }
 
             SectionCard {
-                title: "BAR MODULES & LAYOUT"
+                title: Lang.t("settings.modulesCard")
 
                 SwitchRow {
-                    label: "Edge-to-edge layout"
-                    subtitle: "Flush screen-edge bar with square panel corners"
+                    label: Lang.t("settings.edgeToEdge")
+                    subtitle: Lang.t("settings.edgeToEdgeSub")
                     checked: AppSettings.edgeToEdge
                     onToggled: AppSettings.edgeToEdge = !AppSettings.edgeToEdge
                 }
@@ -569,8 +596,8 @@ Scope {
                 RowDivider {}
 
                 SwitchRow {
-                    label: "Media player in bar"
-                    subtitle: "Show active MPRIS track indicator"
+                    label: Lang.t("settings.mediaInBar")
+                    subtitle: Lang.t("settings.mediaInBarSub")
                     checked: AppSettings.barShowPlayer
                     onToggled: AppSettings.barShowPlayer = !AppSettings.barShowPlayer
                 }
@@ -578,19 +605,19 @@ Scope {
                 RowDivider {}
 
                 SwitchRow {
-                    label: "System tray icons"
-                    subtitle: "Display pinned and background tray apps"
+                    label: Lang.t("settings.trayIcons")
+                    subtitle: Lang.t("settings.trayIconsSub")
                     checked: AppSettings.barShowTray
                     onToggled: AppSettings.barShowTray = !AppSettings.barShowTray
                 }
             }
 
             SectionCard {
-                title: "TRANSPARENCY"
+                title: Lang.t("settings.transparencyCard")
 
                 SliderRow {
-                    label: "Bar opacity"
-                    subtitle: "Adjust top, bottom, or side panel background opacity"
+                    label: Lang.t("settings.barOpacity")
+                    subtitle: Lang.t("settings.barOpacitySub")
                     value: AppSettings.barOpacity
                     minValue: 0.25
                     maxValue: 1.0
@@ -600,8 +627,8 @@ Scope {
                 RowDivider {}
 
                 SliderRow {
-                    label: "Popups & panels opacity"
-                    subtitle: "Adjust popups, launcher, notifications, and settings window"
+                    label: Lang.t("settings.popupOpacity")
+                    subtitle: Lang.t("settings.popupOpacitySub")
                     value: AppSettings.popupOpacity
                     minValue: 0.40
                     maxValue: 1.0
@@ -610,7 +637,7 @@ Scope {
             }
 
             SectionCard {
-                title: "COLOR PALETTE"
+                title: Lang.t("settings.paletteCard")
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -638,19 +665,21 @@ Scope {
                         Text {
                             text: {
                                 if (Colors.themeSource === "matugen")
-                                    return "Extracted via matugen";
+                                    return Lang.t("settings.paletteMatugen");
                                 if (Colors.themeSource === "quantizer")
-                                    return "Extracted via ColorQuantizer";
+                                    return Lang.t("settings.paletteQuantizer");
                                 if (Colors.themeSource === "cache")
-                                    return "Loaded from local cache";
-                                return "Default palette";
+                                    return Lang.t("settings.paletteCache");
+                                return Lang.t("settings.paletteDefault");
                             }
                             color: Colors.surfaceText
                             font.pixelSize: 13
                             font.bold: true
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
                         }
                         Text {
-                            text: "Updates aeonshell palette on wallpaper change"
+                            text: Lang.t("settings.paletteSub")
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
                             font.pixelSize: 11
                             elide: Text.ElideRight
@@ -659,7 +688,7 @@ Scope {
                     }
 
                     ActionPill {
-                        label: "Wallpapers"
+                        label: Lang.t("settings.wallpapersBtn")
                         icon: "󰸉"
                         accent: true
                         onClicked: {
@@ -682,7 +711,7 @@ Scope {
             readonly property int hiddenCount: AppSettings.launcherHiddenApps.length ? AppSettings.launcherHiddenApps.split(",").filter(Boolean).length : 0
 
             SectionCard {
-                title: "APP VIEW MODE"
+                title: Lang.t("settings.viewModeCard")
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -690,13 +719,13 @@ Scope {
 
                     ModeChip {
                         icon: "󰉹"
-                        label: "List View"
+                        label: Lang.t("settings.listView")
                         selected: AppSettings.launcherViewMode !== "grid"
                         onClicked: AppSettings.launcherViewMode = "list"
                     }
                     ModeChip {
                         icon: "󰕰"
-                        label: "Grid View"
+                        label: Lang.t("settings.gridView")
                         selected: AppSettings.launcherViewMode === "grid"
                         onClicked: AppSettings.launcherViewMode = "grid"
                     }
@@ -704,7 +733,7 @@ Scope {
             }
 
             SectionCard {
-                title: "WALLPAPER SOURCE"
+                title: Lang.t("settings.wpSourceCard")
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -714,7 +743,7 @@ Scope {
                         Layout.fillWidth: true
                         spacing: 2
                         Text {
-                            text: "Wallpapers directory"
+                            text: Lang.t("settings.wpDirLabel")
                             color: Colors.surfaceText
                             font.pixelSize: 13
                             font.bold: true
@@ -729,7 +758,7 @@ Scope {
                     }
 
                     ActionPill {
-                        label: root.editingWpDir ? "Cancel" : "Edit"
+                        label: root.editingWpDir ? Lang.t("common.cancel") : Lang.t("common.edit")
                         icon: root.editingWpDir ? "󰅖" : "󰏫"
                         onClicked: {
                             root.editingWpDir = !root.editingWpDir;
@@ -741,7 +770,7 @@ Scope {
                     }
 
                     ActionPill {
-                        label: "Default"
+                        label: Lang.t("common.default")
                         visible: AppSettings.wallpaperDir !== AppSettings.defaultWallpaperDir
                         onClicked: {
                             AppSettings.wallpaperDir = AppSettings.defaultWallpaperDir;
@@ -789,7 +818,7 @@ Scope {
                     }
 
                     ActionPill {
-                        label: "Save"
+                        label: Lang.t("common.save")
                         icon: "󰄬"
                         accent: true
                         onClicked: {
@@ -803,7 +832,7 @@ Scope {
             }
 
             SectionCard {
-                title: "HIDDEN APPLICATIONS"
+                title: Lang.t("settings.hiddenAppsCard")
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -813,13 +842,13 @@ Scope {
                         Layout.fillWidth: true
                         spacing: 2
                         Text {
-                            text: launcherScroll.hiddenCount === 0 ? "No hidden apps" : launcherScroll.hiddenCount + (launcherScroll.hiddenCount === 1 ? " hidden app" : " hidden apps")
+                            text: launcherScroll.hiddenCount === 0 ? Lang.t("settings.hiddenAppsNone") : Lang.tp("settings.hiddenAppsCount", launcherScroll.hiddenCount)
                             color: Colors.surfaceText
                             font.pixelSize: 13
                             font.bold: true
                         }
                         Text {
-                            text: "Use >hidden-apps in launcher to manage individual apps"
+                            text: Lang.t("settings.hiddenAppsSub")
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
                             font.pixelSize: 11
                             elide: Text.ElideRight
@@ -828,7 +857,7 @@ Scope {
                     }
 
                     ActionPill {
-                        label: "Restore all"
+                        label: Lang.t("settings.restoreAll")
                         icon: "󰜉"
                         enabled: launcherScroll.hiddenCount > 0
                         opacity: launcherScroll.hiddenCount > 0 ? 1.0 : 0.4
@@ -856,11 +885,11 @@ Scope {
             }
 
             SectionCard {
-                title: "NOTIFICATIONS"
+                title: Lang.t("settings.notificationsCard")
 
                 SwitchRow {
-                    label: "Do Not Disturb"
-                    subtitle: "Silence popups and mute chat app streams"
+                    label: Lang.t("settings.dndLabel")
+                    subtitle: Lang.t("settings.dndSub")
                     checked: NotificationService.dnd
                     onToggled: NotificationService.dnd = !NotificationService.dnd
                 }
@@ -868,8 +897,8 @@ Scope {
                 RowDivider {}
 
                 SwitchRow {
-                    label: "Group by application"
-                    subtitle: "Cluster notifications per source in Notification Center"
+                    label: Lang.t("settings.groupByApp")
+                    subtitle: Lang.t("settings.groupByAppSub")
                     checked: AppSettings.groupNotificationsBySource
                     onToggled: AppSettings.groupNotificationsBySource = !AppSettings.groupNotificationsBySource
                 }
@@ -884,20 +913,23 @@ Scope {
                         Layout.fillWidth: true
                         spacing: 2
                         Text {
-                            text: "Notification history"
+                            text: Lang.t("settings.notifHistory")
                             color: Colors.surfaceText
                             font.pixelSize: 13
                             font.bold: true
                         }
                         Text {
-                            text: NotificationService.history.length + " stored · " + NotificationService.unreadCount + " unread"
+                            text: Lang.t("settings.notifHistorySub", {
+                                stored: NotificationService.history.length,
+                                unread: NotificationService.unreadCount
+                            })
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
                             font.pixelSize: 11
                         }
                     }
 
                     ActionPill {
-                        label: "Clear all"
+                        label: Lang.t("common.clearAll")
                         icon: "󰎟"
                         enabled: NotificationService.history.length > 0
                         opacity: NotificationService.history.length > 0 ? 1.0 : 0.4
@@ -907,7 +939,7 @@ Scope {
             }
 
             SectionCard {
-                title: "AUDIO & MEDIA"
+                title: Lang.t("settings.audioMediaCard")
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -917,7 +949,7 @@ Scope {
                         Layout.fillWidth: true
                         spacing: 2
                         Text {
-                            text: behaviorScroll.defaultSink ? (behaviorScroll.defaultSink.description || behaviorScroll.defaultSink.nickname || behaviorScroll.defaultSink.name || "Output device") : "No output device"
+                            text: behaviorScroll.defaultSink ? (behaviorScroll.defaultSink.description || behaviorScroll.defaultSink.nickname || behaviorScroll.defaultSink.name || Lang.t("settings.outputDevice")) : Lang.t("settings.noOutputDevice")
                             color: Colors.surfaceText
                             font.pixelSize: 13
                             font.bold: true
@@ -925,14 +957,16 @@ Scope {
                             Layout.fillWidth: true
                         }
                         Text {
-                            text: behaviorScroll.sinkMuted ? "Muted" : ("Master output volume: " + behaviorScroll.sinkVolPct + "%")
+                            text: behaviorScroll.sinkMuted ? Lang.t("audio.muted") : Lang.t("settings.masterVol", {
+                                pct: behaviorScroll.sinkVolPct
+                            })
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
                             font.pixelSize: 11
                         }
                     }
 
                     ActionPill {
-                        label: behaviorScroll.sinkMuted ? "Unmute" : "Mute"
+                        label: behaviorScroll.sinkMuted ? Lang.t("settings.unmute") : Lang.t("settings.mute")
                         icon: behaviorScroll.sinkMuted ? "󰖁" : "󰕾"
                         enabled: behaviorScroll.defaultSink !== null && behaviorScroll.defaultSink.audio !== null
                         onClicked: {
@@ -952,7 +986,7 @@ Scope {
                         Layout.fillWidth: true
                         spacing: 2
                         Text {
-                            text: MprisService.active ? (MprisService.trackTitle || "Active player") : "No active media player"
+                            text: MprisService.active ? (MprisService.trackTitle || Lang.t("settings.activePlayer")) : Lang.t("settings.noActivePlayer")
                             color: Colors.surfaceText
                             font.pixelSize: 13
                             font.bold: true
@@ -960,7 +994,7 @@ Scope {
                             Layout.fillWidth: true
                         }
                         Text {
-                            text: MprisService.active ? ((MprisService.playerName || "MPRIS") + (MprisService.trackArtist ? " · " + MprisService.trackArtist : "")) : "Start playback in any MPRIS player"
+                            text: MprisService.active ? ((MprisService.playerName || "MPRIS") + (MprisService.trackArtist ? " · " + MprisService.trackArtist : "")) : Lang.t("settings.startPlayback")
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
                             font.pixelSize: 11
                             elide: Text.ElideRight
@@ -969,7 +1003,7 @@ Scope {
                     }
 
                     ActionPill {
-                        label: MprisService.isPlaying ? "Pause" : "Play"
+                        label: MprisService.isPlaying ? Lang.t("settings.pause") : Lang.t("settings.play")
                         icon: MprisService.isPlaying ? "󰏤" : "󰐊"
                         enabled: MprisService.active
                         opacity: MprisService.active ? 1.0 : 0.4
@@ -987,20 +1021,20 @@ Scope {
         id: aboutSectionComp
         SectionScroll {
             SectionCard {
-                title: "AUTONOMOUS STORAGE"
+                title: Lang.t("settings.storageCard")
 
                 InfoLine {
-                    label: "User data dir"
+                    label: Lang.t("settings.userDataDir")
                     value: AppSettings.configDir
                 }
                 RowDivider {}
                 InfoLine {
-                    label: "Shell settings"
+                    label: Lang.t("settings.shellSettingsPath")
                     value: AppSettings.confPath
                 }
                 RowDivider {}
                 InfoLine {
-                    label: "Palette cache"
+                    label: Lang.t("settings.paletteCachePath")
                     value: Colors.cacheJsonPath
                 }
                 RowDivider {}
@@ -1013,20 +1047,22 @@ Scope {
                         Layout.fillWidth: true
                         spacing: 2
                         Text {
-                            text: "Reset shell preferences"
+                            text: Lang.t("settings.resetTitle")
                             color: Colors.surfaceText
                             font.pixelSize: 13
                             font.bold: true
                         }
                         Text {
-                            text: "Restores bar position, transparency, layout, view mode, and wallpaper path"
+                            text: Lang.t("settings.resetSub")
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
                             font.pixelSize: 11
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
                         }
                     }
 
                     ActionPill {
-                        label: root.confirmReset ? "Confirm reset" : "Reset"
+                        label: root.confirmReset ? Lang.t("common.confirmReset") : Lang.t("common.reset")
                         icon: "󰑓"
                         accent: root.confirmReset
                         onClicked: {
@@ -1042,7 +1078,7 @@ Scope {
             }
 
             SectionCard {
-                title: "ABOUT AEONSHELL"
+                title: Lang.t("settings.aboutCard")
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -1077,7 +1113,7 @@ Scope {
                             font.bold: true
                         }
                         Text {
-                            text: "Autonomous Quickshell + Hyprland desktop with matugen & ColorQuantizer theming."
+                            text: Lang.t("settings.aboutDesc")
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.65)
                             font.pixelSize: 12
                             wrapMode: Text.WordWrap
@@ -1086,7 +1122,7 @@ Scope {
                     }
 
                     ActionPill {
-                        label: "GitHub"
+                        label: Lang.t("settings.github")
                         icon: "󰊤"
                         onClicked: Qt.openUrlExternally("https://github.com/pzwt4cc/aeonshell")
                     }
@@ -1617,7 +1653,7 @@ Scope {
             color: Colors.surfaceText
             font.pixelSize: 12
             font.bold: true
-            Layout.preferredWidth: 120
+            Layout.preferredWidth: 140
         }
         Text {
             text: infoLine.value

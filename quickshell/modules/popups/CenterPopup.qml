@@ -18,8 +18,8 @@ PopupWindow {
     readonly property bool isHovered: hover.hovered
 
     readonly property bool trackPlaying: MprisService.isPlaying
-    readonly property string trackTitle: MprisService.active ? (MprisService.trackTitle || "Unknown track") : "Nothing playing"
-    readonly property string trackArtist: MprisService.active ? (MprisService.trackArtist || "Unknown artist") : "Player inactive"
+    readonly property string trackTitle: MprisService.active ? (MprisService.trackTitle || Lang.t("media.unknownTrack")) : Lang.t("media.nothingPlaying")
+    readonly property string trackArtist: MprisService.active ? (MprisService.trackArtist || Lang.t("media.unknownArtist")) : Lang.t("media.playerInactive")
     readonly property string positionStr: MprisService.positionStr
     readonly property string durationStr: MprisService.durationStr
 
@@ -170,7 +170,7 @@ PopupWindow {
                     Layout.fillWidth: true
                     Layout.fillHeight: !popup.stacked
                     Layout.preferredHeight: popup.stacked ? 180 : -1
-                    locale: Qt.locale()
+                    locale: AppSettings.qtLocale
                     delegate: Text {
                         id: dayText
                         required property var model
@@ -241,7 +241,7 @@ PopupWindow {
                     Layout.bottomMargin: 4
                     spacing: 7
 
-                    readonly property string currentLabel: MprisService.identityFor(popup.currentPlayer) || "Unknown source"
+                    readonly property string currentLabel: MprisService.identityFor(popup.currentPlayer) || Lang.t("media.unknownSource")
                     readonly property int currentIndex: Math.max(0, popup.players.indexOf(popup.currentPlayer))
                     readonly property bool hasMultiplePlayers: popup.players.length > 1
 

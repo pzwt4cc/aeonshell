@@ -12,7 +12,7 @@ import Quickshell
 FloatingWindow {
     id: picker
 
-    property string pickerTitle: "Select File"
+    property string pickerTitle: Lang.t("picker.defaultTitle")
     property string initialDir: Quickshell.env("HOME")
     property var nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
 
@@ -303,7 +303,7 @@ FloatingWindow {
 
                 Text {
                     Layout.fillWidth: true
-                    text: picker.selectedName || "No file selected"
+                    text: picker.selectedName || Lang.t("picker.noFile")
                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, picker.selectedName ? 0.85 : 0.4)
                     font.pixelSize: 13
                     elide: Text.ElideMiddle
@@ -321,7 +321,7 @@ FloatingWindow {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "Cancel"
+                        text: Lang.t("common.cancel")
                         color: Colors.surfaceText
                         font.pixelSize: 13
                     }
@@ -340,7 +340,7 @@ FloatingWindow {
 
                     Text {
                         anchors.centerIn: parent
-                        text: "Select"
+                        text: Lang.t("picker.select")
                         color: Colors.background
                         font.pixelSize: 13
                         font.bold: true

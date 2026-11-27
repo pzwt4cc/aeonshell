@@ -1,13 +1,13 @@
 // AudioPopup.qml
 
+pragma ComponentBehavior: Bound
+
 import "../"
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
 import Quickshell.Services.Pipewire
-
-pragma ComponentBehavior: Bound
 
 PopupWindow {
     id: popup
@@ -72,7 +72,7 @@ PopupWindow {
 
     function nodeLabel(node) {
         if (!node)
-            return "Unknown";
+            return Lang.t("common.unknown");
         if (node.isStream && node.properties) {
             const app = node.properties["application.name"] || "";
             const media = node.properties["media.name"] || "";
@@ -81,7 +81,7 @@ PopupWindow {
             if (app)
                 return app;
         }
-        return node.description || node.nickname || node.name || "Audio Device";
+        return node.description || node.nickname || node.name || Lang.t("audio.deviceFallback");
     }
 
     function isNodeDefault(node) {
@@ -214,13 +214,13 @@ PopupWindow {
                     Layout.fillWidth: true
                     spacing: 1
                     Text {
-                        text: "Audio Mixer"
+                        text: Lang.t("audio.title")
                         color: Colors.surfaceText
                         font.pixelSize: 16
                         font.bold: true
                     }
                     Text {
-                        text: popup.activeMasterNode ? popup.nodeLabel(popup.activeMasterNode) : "No active device"
+                        text: popup.activeMasterNode ? popup.nodeLabel(popup.activeMasterNode) : Lang.t("audio.noActiveDevice")
                         color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.52)
                         font.pixelSize: 11
                         elide: Text.ElideRight
@@ -308,14 +308,14 @@ PopupWindow {
                         RowLayout {
                             Layout.fillWidth: true
                             Text {
-                                text: popup.activeTab === "input" ? "Default Input" : "Master Output"
+                                text: popup.activeTab === "input" ? Lang.t("audio.defaultInput") : Lang.t("audio.masterOutput")
                                 color: Colors.surfaceText
                                 font.pixelSize: 12
                                 font.bold: true
                                 Layout.fillWidth: true
                             }
                             Text {
-                                text: popup.masterMuted ? "Muted" : (Math.round(Math.min(1, popup.masterVol) * 100) + "%")
+                                text: popup.masterMuted ? Lang.t("audio.muted") : (Math.round(Math.min(1, popup.masterVol) * 100) + "%")
                                 color: popup.masterMuted ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.45) : Colors.primary
                                 font.pixelSize: 12
                                 font.bold: true
@@ -436,7 +436,7 @@ PopupWindow {
                         width: tabBar.cellWidth
                         height: parent.height
                         icon: "󰓃"
-                        label: "Output"
+                        label: Lang.t("audio.tabOutput")
                         selected: popup.activeTab === "output"
                         onClicked: popup.activeTab = "output"
                     }
@@ -444,7 +444,7 @@ PopupWindow {
                         width: tabBar.cellWidth
                         height: parent.height
                         icon: "󰍬"
-                        label: "Input"
+                        label: Lang.t("audio.tabInput")
                         selected: popup.activeTab === "input"
                         onClicked: popup.activeTab = "input"
                     }
@@ -452,7 +452,7 @@ PopupWindow {
                         width: tabBar.cellWidth
                         height: parent.height
                         icon: "󰎆"
-                        label: "Apps"
+                        label: Lang.t("audio.tabApps")
                         selected: popup.activeTab === "apps"
                         onClicked: popup.activeTab = "apps"
                     }
@@ -524,7 +524,7 @@ PopupWindow {
                     }
                     Text {
                         Layout.alignment: Qt.AlignHCenter
-                        text: popup.activeTab === "apps" ? "No active audio streams" : (popup.activeTab === "input" ? "No input devices found" : "No output devices found")
+                        text: popup.activeTab === "apps" ? Lang.t("audio.emptyApps") : (popup.activeTab === "input" ? Lang.t("audio.emptyInput") : Lang.t("audio.emptyOutput"))
                         font.pixelSize: 12
                         color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.45)
                     }
@@ -645,7 +645,7 @@ PopupWindow {
                     Text {
                         id: defTxt
                         anchors.centerIn: parent
-                        text: "Active"
+                        text: Lang.t("audio.active")
                         font.pixelSize: 10
                         font.bold: true
                         color: Colors.primary
@@ -730,9 +730,9 @@ PopupWindow {
                 }
 
                 Text {
-                    Layout.preferredWidth: 34
+                    Layout.minimumWidth: 34
                     horizontalAlignment: Text.AlignRight
-                    text: rowRoot.muted ? "Mute" : (rowRoot.volPct + "%")
+                    text: rowRoot.muted ? Lang.t("audio.muteShort") : (rowRoot.volPct + "%")
                     font.pixelSize: 11
                     font.bold: true
                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.65)

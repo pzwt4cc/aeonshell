@@ -24,7 +24,7 @@ GridLayout {
     }
 
     readonly property string timeStr: Qt.formatDateTime(sysClock.date, "hh:mm")
-    readonly property string dateStr: Qt.formatDateTime(sysClock.date, root.vertical ? "ddd, d MMM" : "dddd, MMM d")
+    readonly property string dateStr: sysClock.date.toLocaleString(AppSettings.qtLocale, root.vertical ? "ddd, d MMM" : (AppSettings.language === "ru" ? "dddd, d MMM" : "dddd, MMM d"))
     readonly property string timeSecStr: root.showSeconds ? Qt.formatDateTime(sysClock.date, "hh:mm:ss") : ""
 
     Layout.alignment: root.vertical ? Qt.AlignHCenter : Qt.AlignVCenter

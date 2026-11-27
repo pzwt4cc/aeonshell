@@ -204,7 +204,7 @@ Scope {
 
                     Text {
                         Layout.alignment: Qt.AlignHCenter
-                        text: root.muted ? "Mute" : (root.volumePct + "%")
+                        text: root.muted ? Lang.t("audio.muteShort") : (root.volumePct + "%")
                         color: root.boosted ? "#e0a030" : Colors.surfaceText
                         font.pixelSize: 12
                         font.bold: true
@@ -253,11 +253,12 @@ Scope {
                     }
 
                     Text {
-                        text: root.muted ? "Mute" : (root.volumePct + "%")
+                        text: root.muted ? Lang.t("audio.muteShort") : (root.volumePct + "%")
                         color: root.boosted ? "#e0a030" : Colors.surfaceText
                         font.pixelSize: 12
                         font.bold: true
-                        Layout.preferredWidth: 34
+                        Layout.minimumWidth: 34
+                        horizontalAlignment: Text.AlignRight
                     }
                 }
             }

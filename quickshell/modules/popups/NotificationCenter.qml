@@ -1,13 +1,13 @@
 // NotificationCenter.qml
 
+pragma ComponentBehavior: Bound
+
 import "../"
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
 import Quickshell
 import Quickshell.Widgets
-
-pragma ComponentBehavior: Bound
 
 PopupWindow {
     id: popup
@@ -49,7 +49,8 @@ PopupWindow {
         const withIdx = [];
         for (let i = 0; i < src.length; i++) {
             const item = Object.assign({}, src[i], {
-                _origIndex: i
+                _origIndex: i,
+                appName: src[i].appName || Lang.t("notif.defaultApp")
             });
             withIdx.push(item);
         }
@@ -59,7 +60,7 @@ PopupWindow {
         const order = [];
         const groups = {};
         for (const item of withIdx) {
-            const key = item.appName || "—";
+            const key = item.appName || Lang.t("notif.defaultApp");
             if (!groups[key]) {
                 groups[key] = [];
                 order.push(key);
@@ -162,7 +163,7 @@ PopupWindow {
                     spacing: 10
 
                     Text {
-                        text: "Notifications"
+                        text: Lang.t("notif.title")
                         color: Colors.surfaceText
                         font.pixelSize: 18
                         font.bold: true
@@ -170,7 +171,7 @@ PopupWindow {
                     }
 
                     Text {
-                        text: "Do Not Disturb"
+                        text: Lang.t("notif.dnd")
                         color: NotificationService.dnd ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
                         font.pixelSize: 16
                         font.bold: NotificationService.dnd
@@ -274,7 +275,7 @@ PopupWindow {
                             }
 
                             Text {
-                                text: "Group by app"
+                                text: Lang.t("notif.groupByApp")
                                 font.pixelSize: 12
                                 font.bold: AppSettings.groupNotificationsBySource
                                 color: AppSettings.groupNotificationsBySource ? "white" : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.55)
@@ -471,7 +472,7 @@ PopupWindow {
                 Layout.alignment: Qt.AlignHCenter
                 Layout.topMargin: 48
                 Layout.bottomMargin: 8
-                text: "No notifications"
+                text: Lang.t("notif.empty")
                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
                 font.pixelSize: 18
             }
@@ -483,7 +484,7 @@ PopupWindow {
                     Layout.fillWidth: true
                 }
                 Text {
-                    text: "Clear all"
+                    text: Lang.t("common.clearAll")
                     color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.6)
                     font.pixelSize: 14
                     font.bold: true

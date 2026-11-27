@@ -311,50 +311,50 @@ Scope {
     readonly property var availableCommands: [
         {
             id: "wallpaper",
-            label: "Wallpaper",
-            desc: "Browse and set a desktop wallpaper",
+            label: Lang.t("launcher.cmdWallpaperLabel"),
+            desc: Lang.t("launcher.cmdWallpaperDesc"),
             icon: "󰈟"
         },
         {
             id: "random-wallpaper",
-            label: "Random wallpaper",
-            desc: "Pick and apply a random one from your folder",
+            label: Lang.t("launcher.cmdRandomWpLabel"),
+            desc: Lang.t("launcher.cmdRandomWpDesc"),
             icon: "󰒝"
         },
         {
             id: "settings",
-            label: "Settings",
-            desc: "Open aeonshell settings",
+            label: Lang.t("launcher.cmdSettingsLabel"),
+            desc: Lang.t("launcher.cmdSettingsDesc"),
             icon: "󰒓"
         },
         {
             id: "settings-launcher",
-            label: "Settings → Launcher",
-            desc: "Jump to launcher & wallpaper settings",
+            label: Lang.t("launcher.cmdSettingsLauncherLabel"),
+            desc: Lang.t("launcher.cmdSettingsLauncherDesc"),
             icon: "󰀻"
         },
         {
             id: "settings-behavior",
-            label: "Settings → Notifications & Media",
-            desc: "Jump to notifications and media behavior",
+            label: Lang.t("launcher.cmdSettingsBehaviorLabel"),
+            desc: Lang.t("launcher.cmdSettingsBehaviorDesc"),
             icon: "󰂚"
         },
         {
             id: "settings-about",
-            label: "Settings → System & About",
-            desc: "Jump to storage, reset, and about",
+            label: Lang.t("launcher.cmdSettingsAboutLabel"),
+            desc: Lang.t("launcher.cmdSettingsAboutDesc"),
             icon: "󰋼"
         },
         {
             id: "reload",
-            label: "Reload Hyprland",
-            desc: "hyprctl reload — reapply config changes",
+            label: Lang.t("launcher.cmdReloadLabel"),
+            desc: Lang.t("launcher.cmdReloadDesc"),
             icon: "󰜉"
         },
         {
             id: "hidden-apps",
-            label: "Hidden apps",
-            desc: "Show apps hidden from the launcher, click to restore",
+            label: Lang.t("launcher.cmdHiddenLabel"),
+            desc: Lang.t("launcher.cmdHiddenDesc"),
             icon: "󰈈"
         }
     ]
@@ -404,14 +404,14 @@ Scope {
     readonly property var allApps: {
         let list = [...DesktopEntries.applications.values];
         list = list.filter(a => a && a.name && !a.noDisplay && !AppSettings.isAppHidden(a.id));
-        list.sort((a, b) => a.name.localeCompare(b.name));
+        list.sort((a, b) => a.name.localeCompare(b.name, AppSettings.language));
         return list;
     }
 
     readonly property var hiddenApps: {
         let list = [...DesktopEntries.applications.values];
         list = list.filter(a => a && a.name && !a.noDisplay && AppSettings.isAppHidden(a.id));
-        list.sort((a, b) => a.name.localeCompare(b.name));
+        list.sort((a, b) => a.name.localeCompare(b.name, AppSettings.language));
         return list;
     }
 
@@ -464,7 +464,7 @@ Scope {
                     score: score
                 });
         }
-        scored.sort((x, y) => (y.score - x.score) || x.app.name.localeCompare(y.app.name));
+        scored.sort((x, y) => (y.score - x.score) || x.app.name.localeCompare(y.app.name, AppSettings.language));
         return scored.map(s => s.app);
     }
 
@@ -476,7 +476,7 @@ Scope {
             if (hiddenApps.length > 0) {
                 fm.push({
                     kind: "header",
-                    label: "Hidden apps — click to restore",
+                    label: Lang.t("launcher.hiddenHeader"),
                     clearable: false
                 });
                 for (const a of hiddenApps)
@@ -491,7 +491,7 @@ Scope {
             if (recentApps.length > 0) {
                 fm.push({
                     kind: "header",
-                    label: "Recently used",
+                    label: Lang.t("launcher.recentHeader"),
                     clearable: true
                 });
                 for (const a of recentApps)
@@ -505,7 +505,7 @@ Scope {
             if (rest.length > 0) {
                 fm.push({
                     kind: "header",
-                    label: "All applications",
+                    label: Lang.t("launcher.allAppsHeader"),
                     clearable: false
                 });
                 for (const a of rest)
@@ -818,7 +818,7 @@ Scope {
                                 Layout.fillWidth: true
                                 readOnly: root.wallpaperPickerOpen
 
-                                placeholderText: root.wallpaperPickerOpen ? "Esc to go back" : (root.commandMode ? "Type a command…" : "Search applications...")
+                                placeholderText: root.wallpaperPickerOpen ? Lang.t("launcher.phEscBack") : (root.commandMode ? Lang.t("launcher.phCommand") : Lang.t("launcher.phSearch"))
                                 placeholderTextColor: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
                                 text: root.searchText
 
@@ -1028,7 +1028,9 @@ Scope {
 
                                 ToolTip.visible: hiddenToggleHover.hovered
                                 ToolTip.delay: 400
-                                ToolTip.text: root.hiddenAppsMode ? "Show all apps" : "Hidden apps (" + root.hiddenApps.length + ")"
+                                ToolTip.text: root.hiddenAppsMode ? Lang.t("launcher.showAllApps") : Lang.t("launcher.hiddenTooltip", {
+                                    n: root.hiddenApps.length
+                                })
                             }
 
                             Rectangle {
@@ -1066,7 +1068,7 @@ Scope {
 
                                 ToolTip.visible: viewModeHover.hovered
                                 ToolTip.delay: 400
-                                ToolTip.text: root.gridView ? "List view" : "Grid view"
+                                ToolTip.text: root.gridView ? Lang.t("launcher.listView") : Lang.t("launcher.gridView")
                             }
                         }
                     }
@@ -1145,35 +1147,37 @@ Scope {
                         spacing: 14
 
                         Text {
-                            text: root.wallpaperPickerOpen ? "↑ ↓  Select Section" : (root.gridView && !root.commandMode ? "↑↓← →  Navigate" : "↑ ↓  Navigate")
+                            text: root.wallpaperPickerOpen ? Lang.t("launcher.hintSelectSection") : (root.gridView && !root.commandMode ? Lang.t("launcher.hintNavGrid") : Lang.t("launcher.hintNavList"))
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
                             font.pixelSize: 11
                         }
                         Text {
-                            text: root.wallpaperPickerOpen ? "← →  Choose" : "↵  Open"
+                            text: root.wallpaperPickerOpen ? Lang.t("launcher.hintChoose") : Lang.t("launcher.hintOpen")
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
                             font.pixelSize: 11
                         }
                         Text {
-                            text: root.wallpaperPickerOpen ? "↵  Apply" : ""
+                            text: root.wallpaperPickerOpen ? Lang.t("launcher.hintApply") : ""
                             visible: root.wallpaperPickerOpen
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
                             font.pixelSize: 11
                         }
                         Text {
-                            text: "RMB  Hide"
+                            text: Lang.t("launcher.hintHide")
                             visible: !root.wallpaperPickerOpen && !root.commandMode && !root.hiddenAppsMode
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
                             font.pixelSize: 11
                         }
                         Text {
-                            text: "⌫  Restore"
+                            text: Lang.t("launcher.hintRestore")
                             visible: root.hiddenAppsMode
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
                             font.pixelSize: 11
                         }
                         Text {
-                            text: "Esc  " + ((root.wallpaperPickerOpen || root.commandMode || root.hiddenAppsMode) ? "Back" : "Close")
+                            text: Lang.t("launcher.hintEsc", {
+                                action: (root.wallpaperPickerOpen || root.commandMode || root.hiddenAppsMode) ? Lang.t("common.back") : Lang.t("common.close")
+                            })
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
                             font.pixelSize: 11
                         }
@@ -1183,7 +1187,7 @@ Scope {
                         }
 
                         Text {
-                            text: root.wallpaperPickerOpen ? (root.wallpaperFiles.length + " wallpapers") : (root.commandMode ? (root.filteredCommands.length + " commands") : (root.hiddenAppsMode ? (root.hiddenApps.length + " hidden") : (root.appPositions.length + " applications")))
+                            text: root.wallpaperPickerOpen ? Lang.tp("launcher.countWallpapers", root.wallpaperFiles.length) : (root.commandMode ? Lang.tp("launcher.countCommands", root.filteredCommands.length) : (root.hiddenAppsMode ? Lang.tp("launcher.countHidden", root.hiddenApps.length) : Lang.tp("launcher.countApps", root.appPositions.length)))
                             color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
                             font.pixelSize: 11
                         }
@@ -1238,7 +1242,7 @@ Scope {
 
                     Text {
                         visible: rowRoot.rowKind === "header" && !!rowRoot.modelData.clearable
-                        text: "Clear"
+                        text: Lang.t("common.clear")
                         color: clearHover.hovered ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
                         font.pixelSize: 12
                         Behavior on color {
@@ -1350,7 +1354,7 @@ Scope {
 
                             ToolTip.visible: restoreHover.hovered
                             ToolTip.delay: 400
-                            ToolTip.text: "Restore to list"
+                            ToolTip.text: Lang.t("launcher.restoreToList")
                         }
                     }
 
@@ -1380,7 +1384,7 @@ Scope {
             Text {
                 visible: root.flatModel.length === 0
                 anchors.centerIn: parent
-                text: root.hiddenAppsMode ? "No hidden apps" : "No applications found"
+                text: root.hiddenAppsMode ? Lang.t("launcher.noHiddenApps") : Lang.t("launcher.noAppsFound")
                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
                 font.pixelSize: 15
             }
@@ -1538,7 +1542,7 @@ Scope {
 
                         ToolTip.visible: restoreTileHover.hovered
                         ToolTip.delay: 400
-                        ToolTip.text: "Restore to list"
+                        ToolTip.text: Lang.t("launcher.restoreToList")
                     }
                 }
             }
@@ -1546,7 +1550,7 @@ Scope {
             Text {
                 visible: root.gridApps.length === 0
                 anchors.centerIn: parent
-                text: root.hiddenAppsMode ? "No hidden apps" : "No applications found"
+                text: root.hiddenAppsMode ? Lang.t("launcher.noHiddenApps") : Lang.t("launcher.noAppsFound")
                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
                 font.pixelSize: 15
             }
@@ -1647,7 +1651,7 @@ Scope {
             Text {
                 visible: root.filteredCommands.length === 0
                 anchors.centerIn: parent
-                text: "No matching commands"
+                text: Lang.t("launcher.noMatchingCmds")
                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
                 font.pixelSize: 15
             }
@@ -1668,7 +1672,9 @@ Scope {
 
                 Text {
                     Layout.alignment: Qt.AlignHCenter
-                    text: root.wallpaperFiles.length === 0 ? "No wallpapers found in " + AppSettings.wallpaperDir : "Select Monitor & Wallpaper"
+                    text: root.wallpaperFiles.length === 0 ? Lang.t("launcher.noWallpapersIn", {
+                        dir: AppSettings.wallpaperDir
+                    }) : Lang.t("launcher.selectMonWp")
                     color: root.wpFocusSection === 0 ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
                     font.pixelSize: 12
                     font.bold: true
@@ -1720,7 +1726,7 @@ Scope {
                                     color: monChip.isSel ? Colors.primary : Colors.surfaceText
                                 }
                                 Text {
-                                    text: monChip.modelData.name + (monChip.isPrim ? " (Colors)" : " (Image only)")
+                                    text: monChip.modelData.name + (monChip.isPrim ? Lang.t("launcher.monColors") : Lang.t("launcher.monImageOnly"))
                                     font.pixelSize: 11
                                     font.bold: monChip.isSel
                                     color: monChip.isSel ? Colors.primary : Colors.surfaceText

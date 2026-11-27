@@ -2,6 +2,7 @@ module modules
 
 singleton Colors 1.0 core/Colors.qml
 singleton AppSettings 1.0 core/AppSettings.qml
+singleton Lang 1.0 core/Lang.qml
 singleton ShellState 1.0 core/ShellState.qml
 singleton NotificationService 1.0 core/NotificationService.qml
 singleton MprisService 1.0 core/MprisService.qml

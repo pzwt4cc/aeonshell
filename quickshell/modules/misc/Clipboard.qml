@@ -276,13 +276,13 @@ Scope {
                             spacing: 0
 
                             Text {
-                                text: "Clipboard"
+                                text: Lang.t("clip.title")
                                 color: Colors.surfaceText
                                 font.pixelSize: 15
                                 font.bold: true
                             }
                             Text {
-                                text: root.items.length + " items"
+                                text: Lang.tp("clip.items", root.items.length)
                                 color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.45)
                                 font.pixelSize: 12
                             }
@@ -420,7 +420,7 @@ Scope {
                     }
 
                     Text {
-                        text: root.items.length === 0 ? "Clipboard is empty" : ""
+                        text: root.items.length === 0 ? Lang.t("clip.empty") : ""
                         color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
                         font.pixelSize: 15
                         Layout.alignment: Qt.AlignHCenter

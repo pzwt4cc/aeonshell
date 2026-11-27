@@ -182,7 +182,7 @@ Scope {
                             Layout.fillWidth: true
                             spacing: 2
                             Text {
-                                text: "Screenshot saved"
+                                text: Lang.t("shot.saved")
                                 color: Colors.surfaceText
                                 font.pixelSize: 14
                                 font.bold: true
@@ -213,7 +213,7 @@ Scope {
 
                         ActionButton {
                             icon: "󰆏"
-                            label: "Copy"
+                            label: Lang.t("shot.copy")
                             onClicked: {
                                 copyProc.command = ["sh", "-c", "wl-copy --type image/png < \"$1\"", "sh", root.shotPath];
                                 copyProc.running = true;
@@ -222,7 +222,7 @@ Scope {
                         }
                         ActionButton {
                             icon: "󰏫"
-                            label: "Edit"
+                            label: Lang.t("shot.edit")
                             onClicked: {
                                 Quickshell.execDetached(["swappy", "-f", root.shotPath]);
                                 root.resultShown = false;
@@ -230,7 +230,7 @@ Scope {
                         }
                         ActionButton {
                             icon: "󰝰"
-                            label: "Folder"
+                            label: Lang.t("shot.folder")
                             onClicked: {
                                 Quickshell.execDetached(["pcmanfm-qt", root.shotsDir]);
                                 root.resultShown = false;
@@ -238,7 +238,7 @@ Scope {
                         }
                         ActionButton {
                             icon: "󰩹"
-                            label: "Delete"
+                            label: Lang.t("shot.delete")
                             onClicked: {
                                 deleteProc.command = ["rm", "-f", root.shotPath];
                                 deleteProc.running = true;
