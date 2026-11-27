@@ -10,8 +10,16 @@ import Quickshell.Io
 Item {
     id: root
 
-    readonly property string confPath: Quickshell.env("HOME") + "/.config/quickshell/settings.conf"
-    readonly property string defaultWallpaperDir: Quickshell.env("HOME") + "/Pictures/Wallpapers"
+    readonly property string homeDir: Quickshell.env("HOME")
+    readonly property string configDir: (Quickshell.env("XDG_CONFIG_HOME") || (homeDir + "/.config")) + "/aeonshell"
+    readonly property string cacheDir: (Quickshell.env("XDG_CACHE_HOME") || (homeDir + "/.cache")) + "/aeonshell"
+    readonly property string confPath: configDir + "/settings.conf"
+    readonly property string weatherConfigPath: configDir + "/weather_city.conf"
+    readonly property string avatarPath: configDir + "/avatar.png"
+    readonly property string colorsCachePath: cacheDir + "/colors.json"
+    readonly property string thumbCacheDir: cacheDir + "/wallpaper-thumbs"
+    readonly property string persistStateDir: cacheDir + "/wallpaper-state"
+    readonly property string defaultWallpaperDir: homeDir + "/Pictures/Wallpapers"
 
     property string barPosition: "top"
     property bool groupNotificationsBySource: false
@@ -81,12 +89,12 @@ Item {
     }
 
     Process {
-        id: wpDirInitProc
-        command: ["mkdir", "-p", root.wallpaperDir]
+        id: dirsInitProc
+        command: ["mkdir", "-p", root.configDir, root.cacheDir, root.wallpaperDir]
     }
 
     Component.onCompleted: {
         root._rebuildHiddenSet();
-        wpDirInitProc.running = true;
+        dirsInitProc.running = true;
     }
 }

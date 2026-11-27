@@ -22,6 +22,7 @@ GridLayout {
     Settings {
         id: traySettings
         category: "Tray"
+        location: "file://" + AppSettings.confPath
         property var pinnedIds: ["telegram", "org.telegram.desktop"]
     }
 

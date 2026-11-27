@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 HOME="${HOME:-/home/$(id -un)}"
-STATE_DIR="$HOME/.cache/aeonshell/wallpaper-state"
+CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+STATE_DIR="$CACHE_HOME/aeonshell/wallpaper-state"
 LOG_DIR="/tmp"
 
 [ -d "$STATE_DIR" ] || exit 0

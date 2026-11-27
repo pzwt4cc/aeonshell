@@ -891,6 +891,11 @@ Scope {
                 title: "AUTONOMOUS STORAGE"
 
                 InfoLine {
+                    label: "User data dir"
+                    value: AppSettings.configDir
+                }
+                RowDivider {}
+                InfoLine {
                     label: "Shell settings"
                     value: AppSettings.confPath
                 }

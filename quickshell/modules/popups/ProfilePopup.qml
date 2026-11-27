@@ -479,7 +479,7 @@ PopupWindow {
         onTriggered: popup.refreshLiveStats()
     }
 
-    readonly property string weatherConfigPath: Quickshell.env("HOME") + "/.config/quickshell/weather_city.conf"
+    readonly property string weatherConfigPath: AppSettings.weatherConfigPath
 
     FileView {
         id: weatherCityFile
@@ -508,7 +508,7 @@ PopupWindow {
             initialDir: Quickshell.env("HOME") + "/Pictures"
             nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
             onAccepted: path => {
-                copyAvatarProc.command = ["sh", "-c", "mkdir -p \"$2\" && cp -- \"$1\" \"$2/avatar.png\" && echo ok", "sh", path, Quickshell.env("HOME") + "/.config/quickshell"];
+                copyAvatarProc.command = ["sh", "-c", "mkdir -p \"$2\" && cp -- \"$1\" \"$2/avatar.png\" && echo ok", "sh", path, AppSettings.configDir];
                 copyAvatarProc.running = true;
             }
         }
@@ -658,7 +658,7 @@ PopupWindow {
                         Image {
                             id: avatarImage
                             anchors.fill: parent
-                            source: "file://" + Quickshell.env("HOME") + "/.config/quickshell/avatar.png" + (popup.avatarTick > 0 ? "?t=" + popup.avatarTick : "")
+                            source: "file://" + AppSettings.avatarPath + (popup.avatarTick > 0 ? "?t=" + popup.avatarTick : "")
                             sourceSize: Qt.size(230, 230)
                             fillMode: Image.PreserveAspectCrop
                             smooth: true

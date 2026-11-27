@@ -10,8 +10,8 @@ Item {
     id: root
 
     Component.onCompleted: {
-        Qt.application.organization = "quickshell-config";
-        Qt.application.name = "quickshell";
+        Qt.application.organization = "aeonshell";
+        Qt.application.name = "aeonshell";
         dirInitProc.running = true;
     }
 
@@ -22,15 +22,13 @@ Item {
     property color secondary: "#c4caa8"
     property color error: "#ffb4ab"
     property color outline: Qt.lighter(surface, 1.8)
-    property color barBackdrop: Qt.rgba(0.075, 0.078, 0.05, 0.55)
 
     property bool generatingTheme: false
     property string themeSource: "default"
     property string _pendingImagePath: ""
     property var _pendingCallback: null
 
-    readonly property string homeDir: Quickshell.env("HOME")
-    readonly property string cacheJsonPath: root.homeDir + "/.cache/aeonshell/colors.json"
+    readonly property string cacheJsonPath: AppSettings.colorsCachePath
 
     function _toHex(c) {
         const col = Qt.color(c);
@@ -63,9 +61,6 @@ Item {
                 root.themeSource = data.source;
             else if (root.themeSource === "default")
                 root.themeSource = "cache";
-
-            const bg = Qt.color(root.background);
-            root.barBackdrop = Qt.rgba(bg.r, bg.g, bg.b, 0.55);
         } catch (e) {
             console.log("[Colors] Theme parsing error:", e);
         }
@@ -79,8 +74,6 @@ Item {
         root.secondary = pal.secondary;
         root.error = pal.error;
         root.outline = pal.outline;
-        const bgCol = Qt.color(pal.background);
-        root.barBackdrop = Qt.rgba(bgCol.r, bgCol.g, bgCol.b, 0.55);
 
         root.themeSource = sourceTag || "cache";
         const jsonPayload = {
@@ -194,7 +187,7 @@ Item {
 
     Process {
         id: dirInitProc
-        command: ["mkdir", "-p", root.homeDir + "/.cache/aeonshell"]
+        command: ["mkdir", "-p", AppSettings.cacheDir]
     }
 
     Process {

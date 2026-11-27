@@ -39,8 +39,8 @@ Scope {
     readonly property int appHeight: 60
     readonly property int listSpacing: 2
     readonly property int contentPadding: 16
-    readonly property string thumbCacheDir: Quickshell.env("HOME") + "/.cache/aeonshell/wallpaper-thumbs"
-    readonly property string persistStateDir: Quickshell.env("HOME") + "/.cache/aeonshell/wallpaper-state"
+    readonly property string thumbCacheDir: AppSettings.thumbCacheDir
+    readonly property string persistStateDir: AppSettings.persistStateDir
     readonly property string videoExtRegex: "\\.(mp4|webm|mkv|avi|mov|m4v)$"
     readonly property bool gridView: AppSettings.launcherViewMode === "grid"
 
@@ -58,6 +58,7 @@ Scope {
     Settings {
         id: launcherSettings
         category: "Launcher"
+        location: "file://" + AppSettings.confPath
         property var recentIds: []
     }
 

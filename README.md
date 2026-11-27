@@ -100,12 +100,12 @@ yay -S --needed \
 1. Edit `~/.config/hypr/conf/local.lua` for your machine (monitors, autostart entries, window rules — comments inside explain each part).
 2. Drop a few images or videos into `~/Pictures/Wallpapers` — it's created automatically on first launch if it doesn't exist.
 3. Open the **app launcher**, type `>` to enter command mode, then `wallpaper` to browse and apply one. Quickshell generates the palette directly and saves it to `~/.cache/aeonshell/colors.json`.
-4. Set your avatar and weather city from aeonshell's popups/settings (optional) — saved to `~/.config/quickshell/avatar.png` and `~/.config/quickshell/weather_city.conf` respectively.
+4. Set your avatar and weather city from aeonshell's popups/settings (optional) — saved to `~/.config/aeonshell/avatar.png` and `~/.config/aeonshell/weather_city.conf` respectively.
 5. Launch Hyprland — everything else starts on its own.
 
 ### Shell settings
 
-Bar position, edge-to-edge panel mode, tray/player visibility, notification grouping, and wallpaper directory are all configurable from the centered Settings modal (`SettingsWindow`) and persist autonomously via `QtCore.Settings` in `~/.config/quickshell/settings.conf` — without modifying Hyprland config files.
+Bar position, edge-to-edge panel mode, tray/player visibility, notification grouping, and wallpaper directory are all configurable from the centered Settings modal (`SettingsWindow`) and persist autonomously via `QtCore.Settings` in `~/.config/aeonshell/settings.conf` — without modifying Hyprland config files.
 
 Your default terminal, file manager, browser, and other binds can be adjusted once at the top of `~/.config/hypr/conf/bind.lua`.
 
@@ -203,12 +203,12 @@ yay -S --needed \
 1. Отредактируй `~/.config/hypr/conf/local.lua` под себя (мониторы, автозапуск, правила окон — внутри есть комментарии).
 2. Скинь несколько изображений или видео в `~/Pictures/Wallpapers` — при первом запуске папка создаётся автоматически, если её нет.
 3. Открой **лаунчер приложений**, набери `>`, чтобы войти в командный режим, затем `wallpaper` — выбери и примени обои. Quickshell сам сгенерирует палитру и сохранит её в `~/.cache/aeonshell/colors.json`.
-4. Задай аватар и город для погоды в интерфейсе aeonshell (по желанию) — они сохраняются в `~/.config/quickshell/avatar.png` и `~/.config/quickshell/weather_city.conf`.
+4. Задай аватар и город для погоды в интерфейсе aeonshell (по желанию) — они сохраняются в `~/.config/aeonshell/avatar.png` и `~/.config/aeonshell/weather_city.conf`.
 5. Запусти Hyprland — всё остальное стартует само.
 
 ### Настройки шелла
 
-Положение панели, режим edge-to-edge для самой панели, видимость трея/плеера, группировка уведомлений и папка обоев меняются прямо из окна настроек и сохраняются автономно через `QtCore.Settings` в `~/.config/quickshell/settings.conf` — без записи в директорию конфигурации Hyprland.
+Положение панели, режим edge-to-edge для самой панели, видимость трея/плеера, группировка уведомлений и папка обоев меняются прямо из окна настроек и сохраняются автономно через `QtCore.Settings` в `~/.config/aeonshell/settings.conf` — без записи в директорию конфигурации Hyprland.
 
 Терминал, файловый менеджер, браузер и другие хоткеи можно задать один раз в начале `~/.config/hypr/conf/bind.lua`.
 
