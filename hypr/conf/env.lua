@@ -5,8 +5,7 @@ hl.env("QT_QPA_PLATFORM", "wayland;xcb")
 hl.env("QT_QPA_PLATFORMTHEME", "qt6ct")
 hl.env("QT_WAYLAND_DISABLE_WINDOWDECORATION", "1")
 hl.env("QT_AUTO_SCREEN_SCALE_FACTOR", "1")
-hl.env("QT_STYLE_OVERRIDE", "kvantum")
-hl.env("QT_ORGANIZATION_NAME", "aeonshell")
+hl.env("QT_ORGANIZATION_NAME", "aeonshellaeonshell")
 
 -- Toolkit Backend Variables
 hl.env("GDK_BACKEND", "wayland,x11,*")
@@ -18,19 +17,19 @@ hl.env("XDG_CURRENT_DESKTOP", "Hyprland")
 hl.env("XDG_SESSION_TYPE", "wayland")
 hl.env("XDG_SESSION_DESKTOP", "Hyprland")
 
--- Electron / Vesktop
+-- Electron / Chromium Wayland hint
 hl.env("ELECTRON_OZONE_PLATFORM_HINT", "auto")
 
--- Wayland for Firefox/Zen
+-- Wayland for Firefox / Zen
 hl.env("MOZ_ENABLE_WAYLAND", "1")
 hl.env("MOZ_DISABLE_RDD_SANDBOX", "1")
 
--- NVIDIA (для стабильной работы Wayland/EGL)
-hl.env("LIBVA_DRIVER_NAME", "nvidia")
-hl.env("GBM_BACKEND", "nvidia-drm")
-hl.env("__GLX_VENDOR_LIBRARY_NAME", "nvidia")
-hl.env("__GL_GSYNC_ALLOWED", "0")
-hl.env("__GL_VRR_ALLOWED", "0")
-hl.env("__NV_PRIME_RENDER_OFFLOAD", "1")
-hl.env("WLR_DRM_DEVICES", "/dev/dri/by-path/pci-0000:01:00.0-card")
-hl.env("AQ_DRM_DEVICES", "/dev/dri/card1")
+-- NVIDIA (раскомментируйте при необходимости для вашей системы)
+-- hl.env("LIBVA_DRIVER_NAME", "nvidia")
+-- hl.env("GBM_BACKEND", "nvidia-drm")
+-- hl.env("__GLX_VENDOR_LIBRARY_NAME", "nvidia")
+-- hl.env("__GL_GSYNC_ALLOWED", "0")
+-- hl.env("__GL_VRR_ALLOWED", "0")
+-- hl.env("__NV_PRIME_RENDER_OFFLOAD", "1")
+-- hl.env("WLR_DRM_DEVICES", "/dev/dri/by-path/pci-0000:01:00.0-card")
+-- hl.env("AQ_DRM_DEVICES", "/dev/dri/card1")

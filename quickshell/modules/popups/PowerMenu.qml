@@ -120,7 +120,7 @@ PopupWindow {
                 PowerMenuAction {
                     glyph: "󰍃"
                     label: "Logout"
-                    command: ["sudo", "systemctl", "restart", "sddm"]
+                    command: ["hyprctl", "dispatch", "exit"]
                     onActivated: popup.open = false
                 }
             }

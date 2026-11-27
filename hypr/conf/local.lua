@@ -1,11 +1,11 @@
 -- local.lua
--- Личный конфиг: настройки поведения окон, автозапуска и прочего
+-- Личный конфиг: переопределите мониторы, раскладку, автозапуск и правила окон под свою систему
 
 -- ==================================================
--- --- Язык ---
+-- --- Язык (по умолчанию берётся системная локаль) ---
 -- ==================================================
 
-hl.env("LANG", "ru_RU.UTF-8")
+-- hl.env("LANG", "ru_RU.UTF-8")
 
 -- ==================================================
 -- --- Курсор ---
@@ -21,17 +21,14 @@ hl.env("HYPRCURSOR_SIZE", "24")
 -- ==================================================
 
 hl.on("hyprland.start", function()
-    hl.dispatch(hl.dsp.focus({ monitor = "DP-2" }))
-    hl.dispatch(hl.dsp.focus({ workspace = "1" }))
-    hl.dispatch(hl.dsp.focus({ monitor = "DP-2" }))
-
-    hl.exec_cmd("gsr-ui &")
-    hl.exec_cmd("udiskie &")
-    hl.exec_cmd("sleep 2 && vesktop --enable-features=UseOzonePlatform --ozone-platform=wayland &")
-    hl.exec_cmd("steam &")
     hl.exec_cmd("/usr/lib/polkit-kde-authentication-agent-1 &")
-    hl.exec_cmd("/home/pzwt4cc/Projects/LEOBOG-GUI/run.sh --tray &")
-    hl.exec_cmd("openrgb --profile 'MY' &")
+    hl.exec_cmd("udiskie &")
+
+    -- Примеры личного автозапуска:
+    -- hl.dispatch(hl.dsp.focus({ monitor = "DP-2" }))
+    -- hl.dispatch(hl.dsp.focus({ workspace = "1" }))
+    -- hl.exec_cmd("sleep 2 && vesktop --enable-features=UseOzonePlatform --ozone-platform=wayland &")
+    -- hl.exec_cmd("steam &")
 end)
 
 -- ==================================================
@@ -46,22 +43,30 @@ hl.config({
 })
 
 -- ==================================================
--- --- Мониторы ---
+-- --- Мониторы и рабочие столы (пример для 2 мониторов) ---
+-- По умолчанию используется автоопределение из conf/monitor.lua
 -- ==================================================
 
-hl.monitor({
-    output = "DP-2",
-    mode = "2560x1440@180",
-    position = "0x0",
-    scale = 1
-})
-
-hl.monitor({
-    output = "HDMI-A-1",
-    mode = "1920x1080@60",
-    position = "-1920x0",
-    scale = 1
-})
+-- hl.monitor({
+--     output = "DP-2",
+--     mode = "2560x1440@180",
+--     position = "0x0",
+--     scale = 1
+-- })
+--
+-- hl.monitor({
+--     output = "HDMI-A-1",
+--     mode = "1920x1080@60",
+--     position = "-1920x0",
+--     scale = 1
+-- })
+--
+-- hl.workspace_rule({ workspace = "1", monitor = "DP-2", default = true, persistent = true })
+-- hl.workspace_rule({ workspace = "2", monitor = "DP-2", persistent = true })
+-- hl.workspace_rule({ workspace = "3", monitor = "DP-2", persistent = true })
+-- hl.workspace_rule({ workspace = "4", monitor = "DP-2", persistent = true })
+-- hl.workspace_rule({ workspace = "5", monitor = "DP-2", persistent = true })
+-- hl.workspace_rule({ workspace = "6", monitor = "HDMI-A-1", default = true, persistent = true })
 
 -- ==================================================
 -- --- X11 / Steam ---
@@ -83,88 +88,16 @@ hl.window_rule({
 })
 
 -- ==================================================
--- --- Рабочие столы ---
--- ==================================================
-
--- DP-2: основной монитор, 5 постоянных рабочих столов
-hl.workspace_rule({
-    workspace = "1",
-    monitor = "DP-2",
-    default = true,
-    persistent = true
-})
-
-hl.workspace_rule({
-    workspace = "2",
-    monitor = "DP-2",
-    persistent = true
-})
-
-hl.workspace_rule({
-    workspace = "3",
-    monitor = "DP-2",
-    persistent = true
-})
-
-hl.workspace_rule({
-    workspace = "4",
-    monitor = "DP-2",
-    persistent = true
-})
-
-hl.workspace_rule({
-    workspace = "5",
-    monitor = "DP-2",
-    persistent = true
-})
-
--- HDMI-A-1: отдельный монитор, только свой workspace
-hl.workspace_rule({
-    workspace = "6",
-    monitor = "HDMI-A-1",
-    default = true,
-    persistent = true
-})
-
--- ==================================================
--- --- Правила окон ---
-
--- hyprctl clients | grep -A2 class
+-- --- Примеры плавающих окон (дополняйте под свои программы) ---
 -- hyprctl clients -j | jq -r '.[] | "\(.class): \(.size)"'
 -- ==================================================
 
 local floatRules = {
-    { class = "codium",                                          size = "1500 1000" },
-    { class = "dev.zed.Zed",                                     size = "1500 1000" },
-    { class = "vesktop",                                         size = "1500 900"  },
-    { class = "org.xfce.mousepad",                               size = "800 600"   },
-    { class = "org.telegram.desktop",                            size = "1500 900"  },
-    { class = "openrgb",                                         size = "1200 900"  },
-    { class = "mpv",                                             size = "900 700"   },
-    { class = "zen",                                             size = "1400 900"  },
-    { class = "helium",                                          size = "1400 900"  },
-    { class = "localsend",                                       size = "1400 900"  },
-    { class = "twintaillauncher",                                size = "1280 720"  },
-    { class = "org.gnome.Loupe",                                 size = "1200 780"  },
-    { class = "org.gnome.Calculator",                            size = "395 616"   },
-    { class = "warp-taskbar",                                    size = "750 660"   },
-    { class = "org.mozilla.Thunderbird",                         size = "1570 990"  },
-    { class = "xdg-desktop-portal-gtk",                          size = "925 635"   },
-    { class = "io.github.elyprismlauncher.ElyPrismLauncher",     size = "1350 900"  },
-    { class = "DBeaver",                                         size = "1500 1000" },
-    { class = "local",                                           size = "1300 900"  },
-    { class = "gimp",                                            size = "1550 950"  },
-    { class = "system-config-printer",                           size = "650 450"   },
-    { class = "GParted",                                         size = "1200 500"  },
-    { class = "org.keepassxc.KeePassXC",                         size = "850 600"   },
-    { class = "octopi",                                          size = "1075 700"  },
-    { class = "org.localsend.localsend_app",                     size = "1270 830"  },
-    { class = "org.qbittorrent.qBittorrent",                     size = "1500 1000" },
-    { class = "xyz.chatboxapp.app",                              size = "1520 1000" },
-    { class = "org.nickvision.tubeconverter",                    size = "920 650"   },
-    { class = "Upscayl",                                         size = "1350 900"  },
-    { class = "sonora",                                          size = "1400 900"  },
-    { class = "vidbee",                                          size = "1300 800"  },
+    { class = "org.telegram.desktop",        size = "1400 900" },
+    { class = "org.gnome.Loupe",             size = "1200 780" },
+    { class = "org.gnome.Calculator",        size = "395 616" },
+    { class = "xdg-desktop-portal-gtk",      size = "925 635" },
+    { class = "org.localsend.localsend_app", size = "1270 830" },
 }
 
 for _, rule in ipairs(floatRules) do

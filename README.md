@@ -86,7 +86,7 @@ sudo pacman -S --needed \
 ```bash
 yay -S --needed \
   quickshell-git awww mpvpaper matugen-bin \
-  bibata-cursor-theme otf-font-awesome ttf-jetbrains-mono-nerd
+  bibata-cursor-theme ttf-jetbrains-mono-nerd
 ```
 
 > `awww` handles static wallpapers and `mpvpaper` handles video wallpapers from
@@ -105,7 +105,7 @@ yay -S --needed \
 
 ### Shell settings
 
-Bar position, edge-to-edge panel mode, tray/player visibility, notification grouping, and wallpaper directory are all configurable from the centered Settings modal (`SettingsWindow`) and persist autonomously via `QtCore.Settings` in `~/.config/aeonshell/settings.conf` — without modifying Hyprland config files.
+Bar position, edge-to-edge panel mode, bar & popup transparency, tray/player visibility, notification grouping, and wallpaper directory are all configurable from the draggable Settings popup (`SettingsWindow`) and persist autonomously via `QtCore.Settings` in `~/.config/aeonshell/settings.conf` (alongside your avatar and weather city in `~/.config/aeonshell/`) — without modifying Hyprland config files.
 
 Your default terminal, file manager, browser, and other binds can be adjusted once at the top of `~/.config/hypr/conf/bind.lua`.
 
@@ -189,7 +189,7 @@ sudo pacman -S --needed \
 ```bash
 yay -S --needed \
   quickshell-git awww mpvpaper matugen-bin \
-  bibata-cursor-theme otf-font-awesome ttf-jetbrains-mono-nerd
+  bibata-cursor-theme ttf-jetbrains-mono-nerd
 ```
 
 > `awww` отвечает за статичные обои, а `mpvpaper` — за видео-обои в `>wallpaper`.
@@ -208,7 +208,7 @@ yay -S --needed \
 
 ### Настройки шелла
 
-Положение панели, режим edge-to-edge для самой панели, видимость трея/плеера, группировка уведомлений и папка обоев меняются прямо из окна настроек и сохраняются автономно через `QtCore.Settings` в `~/.config/aeonshell/settings.conf` — без записи в директорию конфигурации Hyprland.
+Положение панели, режим edge-to-edge, прозрачность панели и попапов, видимость трея/плеера, группировка уведомлений и папка обоев настраиваются прямо из перетаскиваемого окна настроек и сохраняются автономно в `~/.config/aeonshell/settings.conf` (вместе с аватаром и городом погоды в `~/.config/aeonshell/`) — без записи в директорию конфигурации Hyprland.
 
 Терминал, файловый менеджер, браузер и другие хоткеи можно задать один раз в начале `~/.config/hypr/conf/bind.lua`.
 

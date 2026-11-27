@@ -9,11 +9,6 @@ ShellRoot {
     // Keep fullscreen/watchdog active even while Launcher is lazy-unloaded
     readonly property var _mpvWatcherKeepAlive: launcherOnly ? null : MpvFullscreenWatcher
 
-    FontLoader {
-        id: materialSymbols
-        source: "./assets/MaterialSymbolsRounded.ttf"
-    }
-
     LazyLoader {
         id: barLoader
         active: !launcherOnly
