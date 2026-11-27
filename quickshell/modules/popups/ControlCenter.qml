@@ -33,7 +33,11 @@ PopupWindow {
     readonly property real wifiExpandedH: wifiListLoader.item ? Math.min(240, wifiListLoader.item.implicitHeight) : 0
     readonly property real btExpandedH: btListLoader.item ? Math.min(280, btListLoader.item.implicitHeight) : 0
 
-    readonly property real targetContentHeight: contentCol.implicitHeight - audioListWrap.height + (popup.audioExpanded ? audioExpandedH : 0) - wifiListWrap.height + (popup.wifiExpanded ? wifiExpandedH : 0) - btListWrap.height + (popup.btExpanded ? btExpandedH : 0)
+    readonly property real audioTargetH: (popup.audioExpanded || audioListWrap.expandProgress > 0) ? audioExpandedH : 0
+    readonly property real wifiTargetH: (popup.wifiExpanded || wifiListWrap.expandProgress > 0) ? wifiExpandedH : 0
+    readonly property real btTargetH: (popup.btExpanded || btListWrap.expandProgress > 0) ? btExpandedH : 0
+
+    readonly property real targetContentHeight: contentCol.implicitHeight - audioListWrap.Layout.preferredHeight + audioTargetH - wifiListWrap.Layout.preferredHeight + wifiTargetH - btListWrap.Layout.preferredHeight + btTargetH
 
     implicitWidth: panelWidth + shadowMargin * 2
     implicitHeight: targetContentHeight + panelMargin * 2 + shadowMargin * 2
@@ -74,6 +78,14 @@ PopupWindow {
     }
 
     property bool audioExpanded: false
+    onAudioExpandedChanged: {
+        if (audioExpanded) {
+            if (audioListLoader.status === Loader.Ready && audioListLoader.item)
+                Qt.callLater(() => audioListWrap.animExpanded = true);
+        } else {
+            audioListWrap.animExpanded = false;
+        }
+    }
 
     // --- Networking (Quickshell.Networking) ---
     readonly property var wifiDevice: {
@@ -169,11 +181,14 @@ PopupWindow {
 
     onWifiExpandedChanged: {
         if (wifiExpanded) {
+            if (wifiListLoader.status === Loader.Ready && wifiListLoader.item)
+                Qt.callLater(() => wifiListWrap.animExpanded = true);
             if (popup.wifiDevice) {
                 popup.wifiDevice.scannerEnabled = true;
                 wifiScanTimeout.restart();
             }
         } else {
+            wifiListWrap.animExpanded = false;
             wifiScanTimeout.stop();
             if (popup.wifiDevice)
                 popup.wifiDevice.scannerEnabled = false;
@@ -316,8 +331,11 @@ PopupWindow {
 
     onBtExpandedChanged: {
         if (btExpanded) {
+            if (btListLoader.status === Loader.Ready && btListLoader.item)
+                Qt.callLater(() => btListWrap.animExpanded = true);
             startBtScan();
         } else {
+            btListWrap.animExpanded = false;
             btScanTimeout.stop();
             if (popup.btAdapter && popup.btAdapter.discovering)
                 popup.btAdapter.discovering = false;
@@ -641,7 +659,7 @@ PopupWindow {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.margins: 18
-                    spacing: 10
+                    spacing: 0
 
                     RowLayout {
                         id: audioHeader
@@ -719,24 +737,36 @@ PopupWindow {
                         Layout.fillWidth: true
                         clip: true
 
-                        property real expandProgress: popup.audioExpanded ? 1 : 0
+                        property bool animExpanded: false
+                        property real expandProgress: animExpanded ? 1 : 0
                         Behavior on expandProgress {
                             NumberAnimation {
-                                duration: 200
-                                easing.type: Easing.OutQuad
+                                duration: 280
+                                easing.type: Easing.OutCubic
                             }
                         }
 
                         Layout.preferredHeight: expandProgress * popup.audioExpandedH
-                        opacity: expandProgress
+                        opacity: Math.min(1, expandProgress * 1.35)
 
                         Loader {
                             id: audioListLoader
                             width: parent.width
                             active: popup.audioExpanded || audioListWrap.expandProgress > 0
+                            onLoaded: {
+                                if (popup.audioExpanded)
+                                    Qt.callLater(() => audioListWrap.animExpanded = true);
+                            }
+                            transform: Translate {
+                                y: (1 - audioListWrap.expandProgress) * -6
+                            }
                             sourceComponent: ColumnLayout {
                                 width: audioListWrap.width
                                 spacing: 10
+
+                                Item {
+                                    Layout.preferredHeight: 2
+                                }
 
                                 ColumnLayout {
                                     Layout.fillWidth: true
@@ -818,7 +848,7 @@ PopupWindow {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.margins: 18
-                    spacing: 10
+                    spacing: 0
 
                     RowLayout {
                         id: wifiHeader
@@ -930,16 +960,17 @@ PopupWindow {
                         Layout.fillWidth: true
                         clip: true
 
-                        property real expandProgress: popup.wifiExpanded ? 1 : 0
+                        property bool animExpanded: false
+                        property real expandProgress: animExpanded ? 1 : 0
                         Behavior on expandProgress {
                             NumberAnimation {
-                                duration: 200
-                                easing.type: Easing.OutQuad
+                                duration: 280
+                                easing.type: Easing.OutCubic
                             }
                         }
 
                         Layout.preferredHeight: expandProgress * popup.wifiExpandedH
-                        opacity: expandProgress
+                        opacity: Math.min(1, expandProgress * 1.35)
 
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                         ScrollBar.vertical: ScrollBar {
@@ -964,9 +995,20 @@ PopupWindow {
                             id: wifiListLoader
                             width: wifiListWrap.availableWidth
                             active: popup.wifiExpanded || wifiListWrap.expandProgress > 0
+                            onLoaded: {
+                                if (popup.wifiExpanded)
+                                    Qt.callLater(() => wifiListWrap.animExpanded = true);
+                            }
+                            transform: Translate {
+                                y: (1 - wifiListWrap.expandProgress) * -6
+                            }
                             sourceComponent: ColumnLayout {
                                 width: wifiListWrap.availableWidth
                                 spacing: 4
+
+                                Item {
+                                    Layout.preferredHeight: 6
+                                }
 
                                 Text {
                                     visible: popup.wifiScanning
@@ -1097,7 +1139,7 @@ PopupWindow {
                     anchors.right: parent.right
                     anchors.top: parent.top
                     anchors.margins: 18
-                    spacing: 10
+                    spacing: 0
 
                     RowLayout {
                         id: btHeader
@@ -1216,16 +1258,17 @@ PopupWindow {
                         Layout.fillWidth: true
                         clip: true
 
-                        property real expandProgress: popup.btExpanded ? 1 : 0
+                        property bool animExpanded: false
+                        property real expandProgress: animExpanded ? 1 : 0
                         Behavior on expandProgress {
                             NumberAnimation {
-                                duration: 200
-                                easing.type: Easing.OutQuad
+                                duration: 280
+                                easing.type: Easing.OutCubic
                             }
                         }
 
                         Layout.preferredHeight: expandProgress * popup.btExpandedH
-                        opacity: expandProgress
+                        opacity: Math.min(1, expandProgress * 1.35)
 
                         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                         ScrollBar.vertical: ScrollBar {
@@ -1250,9 +1293,20 @@ PopupWindow {
                             id: btListLoader
                             width: btListWrap.availableWidth
                             active: popup.btExpanded || btListWrap.expandProgress > 0
+                            onLoaded: {
+                                if (popup.btExpanded)
+                                    Qt.callLater(() => btListWrap.animExpanded = true);
+                            }
+                            transform: Translate {
+                                y: (1 - btListWrap.expandProgress) * -6
+                            }
                             sourceComponent: ColumnLayout {
                                 width: btListWrap.availableWidth
                                 spacing: 4
+
+                                Item {
+                                    Layout.preferredHeight: 6
+                                }
 
                                 Text {
                                     visible: popup.btPairedDevices.length === 0
