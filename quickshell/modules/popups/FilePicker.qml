@@ -144,8 +144,8 @@ FloatingWindow {
                 spacing: 10
 
                 Rectangle {
-                    width: 32
-                    height: 32
+                    Layout.preferredWidth: 32
+                    Layout.preferredHeight: 32
                     radius: 10
                     color: upHover.hovered ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.15) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06)
 
@@ -306,8 +306,8 @@ FloatingWindow {
                 }
 
                 Rectangle {
-                    width: 92
-                    height: 34
+                    Layout.preferredWidth: 92
+                    Layout.preferredHeight: 34
                     radius: 10
                     color: cancelHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.12) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07)
 
@@ -328,8 +328,8 @@ FloatingWindow {
                 }
 
                 Rectangle {
-                    width: 92
-                    height: 34
+                    Layout.preferredWidth: 92
+                    Layout.preferredHeight: 34
                     radius: 10
                     opacity: picker.selectedPath ? 1.0 : 0.4
                     color: Colors.primary

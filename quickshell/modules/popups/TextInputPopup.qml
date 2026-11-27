@@ -158,8 +158,8 @@ FloatingWindow {
                 }
 
                 Rectangle {
-                    width: 90
-                    height: 34
+                    Layout.preferredWidth: 90
+                    Layout.preferredHeight: 34
                     radius: 10
                     color: cancelHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.12) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07)
 
@@ -181,8 +181,8 @@ FloatingWindow {
 
                 Rectangle {
                     id: confirmBtn
-                    width: 90
-                    height: 34
+                    Layout.preferredWidth: 90
+                    Layout.preferredHeight: 34
                     radius: 10
                     opacity: field.text.trim().length > 0 ? 1.0 : 0.4
                     color: Colors.primary

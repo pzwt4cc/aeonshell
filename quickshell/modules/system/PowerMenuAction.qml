@@ -53,8 +53,8 @@ Item {
 
             Rectangle {
                 Layout.alignment: Qt.AlignHCenter
-                width: 40
-                height: 40
+                Layout.preferredWidth: 40
+                Layout.preferredHeight: 40
                 radius: 20
                 color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, hover.hovered ? 0.22 : 0.14)
                 Behavior on color {
@@ -91,8 +91,8 @@ Item {
             visible: root.stretched
 
             Rectangle {
-                width: 32
-                height: 32
+                Layout.preferredWidth: 32
+                Layout.preferredHeight: 32
                 radius: 16
                 color: Qt.rgba(root.accentColor.r, root.accentColor.g, root.accentColor.b, hover.hovered ? 0.22 : 0.14)
                 Behavior on color {
