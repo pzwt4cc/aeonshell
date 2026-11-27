@@ -6,648 +6,285 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Effects
 import Quickshell
-import Quickshell.Io
+import Quickshell.Wayland
 import Quickshell.Hyprland
-import Quickshell.Widgets
+import Quickshell.Services.Pipewire
 
-FloatingWindow {
-    id: settingsWin
+Scope {
+    id: root
 
-    title: "Quickshell Settings"
+    property string currentSection: _normalizeSection(ShellState.settingsSection)
+    property bool confirmReset: false
+
+    function _normalizeSection(sec) {
+        if (sec === "launcher" || sec === "behavior" || sec === "about" || sec === "panel")
+            return sec;
+        if (sec === "bar")
+            return "panel";
+        if (sec === "keybinds" || sec === "hyprlock")
+            return "behavior";
+        return "panel";
+    }
+
+    function _close() {
+        root.confirmReset = false;
+        ShellState.settingsWindowOpen = false;
+    }
 
     readonly property var activeScreen: {
         const mon = Hyprland.focusedMonitor;
         if (mon) {
-            for (const s of Quickshell.screens) {
-                if (s.name === mon.name)
-                    return s;
+            const screens = Quickshell.screens;
+            for (let i = 0; i < screens.length; i++) {
+                if (screens[i].name === mon.name)
+                    return screens[i];
             }
         }
-        return Quickshell.screens[0];
+        return Quickshell.screens.length > 0 ? Quickshell.screens[0] : null;
     }
-    screen: activeScreen
 
-    onClosed: ShellState.settingsWindowOpen = false
-
-    visible: ShellState.settingsWindowOpen
-    color: "transparent"
-
-    implicitWidth: 760
-    implicitHeight: 560
-
-    property string currentSection: ShellState.settingsSection || "bar"
+    Timer {
+        id: hideTimer
+        interval: 210
+    }
 
     Connections {
         target: ShellState
         function onSettingsWindowOpenChanged() {
             if (ShellState.settingsWindowOpen) {
-                settingsWin.currentSection = ShellState.settingsSection;
+                hideTimer.stop();
+                root.confirmReset = false;
+                root.currentSection = root._normalizeSection(ShellState.settingsSection);
+            } else {
+                hideTimer.start();
             }
+        }
+        function onSettingsSectionChanged() {
+            if (ShellState.settingsWindowOpen)
+                root.currentSection = root._normalizeSection(ShellState.settingsSection);
         }
     }
 
-    RectangularShadow {
-        anchors.fill: winBg
-        anchors.margins: -10
-        radius: winBg.radius
-        color: Qt.rgba(0, 0, 0, 0.35)
-        blur: 24
-        spread: 0
-        offset: Qt.point(0, 6)
-    }
+    LazyLoader {
+        id: overlayLoader
+        active: ShellState.settingsWindowOpen || hideTimer.running
 
-    Rectangle {
-        id: winBg
-        anchors.fill: parent
-        radius: 16
-        color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.98)
-        border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.2)
-        border.width: 1
+        PanelWindow {
+            id: overlay
 
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 18
-            spacing: 14
+            property bool _animReady: false
+            readonly property bool visualOpen: ShellState.settingsWindowOpen && overlay._animReady
 
-            Item {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 28
+            screen: root.activeScreen
+            anchors {
+                top: true
+                bottom: true
+                left: true
+                right: true
+            }
+            exclusiveZone: 0
+            color: "transparent"
+            visible: true
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.keyboardFocus: ShellState.settingsWindowOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+            mask: ShellState.settingsWindowOpen ? null : emptyMask
 
-                MouseArea {
-                    id: dragArea
-                    anchors.fill: parent
-                    anchors.rightMargin: 34
-                    cursorShape: Qt.SizeAllCursor
-                    onPressed: mouse => settingsWin.startSystemMove()
-                }
+            Region {
+                id: emptyMask
+            }
 
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "Settings"
-                    color: Colors.surfaceText
-                    font.pixelSize: 18
-                    font.bold: true
-                }
+            Component.onCompleted: Qt.callLater(() => overlay._animReady = true)
 
-                Rectangle {
-                    id: closeBtn
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 26
-                    height: 26
-                    radius: 8
-                    color: closeHover.hovered ? Qt.rgba(1, 1, 1, 0.1) : "transparent"
-                    Behavior on color {
-                        ColorAnimation {
-                            duration: 150
-                        }
-                    }
-
-                    HoverHandler {
-                        id: closeHover
-                    }
-                    Text {
-                        anchors.centerIn: parent
-                        text: "󰅖"
-                        color: Colors.surfaceText
-                        font.pixelSize: 12
-                    }
-                    TapHandler {
-                        onTapped: ShellState.settingsWindowOpen = false
-                    }
-                }
+            Shortcut {
+                sequence: "Escape"
+                enabled: ShellState.settingsWindowOpen
+                onActivated: root._close()
             }
 
             Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: Qt.rgba(1, 1, 1, 0.08)
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                spacing: 14
-
-                ColumnLayout {
-                    Layout.preferredWidth: 150
-                    Layout.minimumWidth: 150
-                    Layout.maximumWidth: 150
-                    Layout.fillHeight: true
-                    spacing: 4
-
-                    NavItem {
-                        label: "Bar"
-                        icon: "󰍜"
-                        selected: settingsWin.currentSection === "bar"
-                        onClicked: settingsWin.currentSection = "bar"
-                    }
-                    NavItem {
-                        label: "Keybinds"
-                        icon: "󰌌"
-                        selected: settingsWin.currentSection === "keybinds"
-                        onClicked: settingsWin.currentSection = "keybinds"
-                    }
-                    NavItem {
-                        label: "Hyprlock"
-                        icon: "󰌾"
-                        selected: settingsWin.currentSection === "hyprlock"
-                        onClicked: settingsWin.currentSection = "hyprlock"
-                    }
-                    NavItem {
-                        label: "About"
-                        icon: "󰋼"
-                        selected: settingsWin.currentSection === "about"
-                        onClicked: settingsWin.currentSection = "about"
-                    }
-
-                    Item {
-                        Layout.fillHeight: true
+                id: backdrop
+                anchors.fill: parent
+                color: Qt.rgba(0, 0, 0, overlay.visualOpen ? 0.45 : 0.0)
+                Behavior on color {
+                    ColorAnimation {
+                        duration: 180
+                        easing.type: Easing.OutQuad
                     }
                 }
 
-                Rectangle {
-                    Layout.preferredWidth: 1
-                    Layout.fillHeight: true
-                    color: Qt.rgba(1, 1, 1, 0.08)
+                TapHandler {
+                    onTapped: root._close()
                 }
-
-                Item {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-
-                    Loader {
-                        anchors.fill: parent
-                        active: settingsWin.currentSection === "bar"
-                        visible: active
-                        sourceComponent: barSectionComp
-                    }
-
-                    Loader {
-                        anchors.fill: parent
-                        active: settingsWin.currentSection === "keybinds"
-                        visible: active
-                        sourceComponent: keybindsSectionComp
-                    }
-
-                    Loader {
-                        anchors.fill: parent
-                        active: settingsWin.currentSection === "hyprlock"
-                        visible: active
-                        sourceComponent: hyprlockSectionComp
-                    }
-
-                    Loader {
-                        anchors.fill: parent
-                        active: settingsWin.currentSection === "about"
-                        visible: active
-                        sourceComponent: aboutSectionComp
-                    }
-                }
-            }
-        }
-    }
-
-    Component {
-        id: barSectionComp
-        ColumnLayout {
-            spacing: 10
-
-            Text {
-                text: "PANEL POSITION"
-                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
-                font.pixelSize: 11
-                font.bold: true
-                font.letterSpacing: 1
-            }
-
-            GridLayout {
-                Layout.fillWidth: true
-                columns: 2
-                columnSpacing: 12
-                rowSpacing: 12
-
-                PositionOption {
-                    label: "Top"
-                    pos: "top"
-                    selected: AppSettings.barPosition === "top"
-                    onClicked: AppSettings.barPosition = "top"
-                }
-                PositionOption {
-                    label: "Bottom"
-                    pos: "bottom"
-                    selected: AppSettings.barPosition === "bottom"
-                    onClicked: AppSettings.barPosition = "bottom"
-                }
-                PositionOption {
-                    label: "Left"
-                    pos: "left"
-                    selected: AppSettings.barPosition === "left"
-                    onClicked: AppSettings.barPosition = "left"
-                }
-                PositionOption {
-                    label: "Right"
-                    pos: "right"
-                    selected: AppSettings.barPosition === "right"
-                    onClicked: AppSettings.barPosition = "right"
-                }
-            }
-
-            Text {
-                text: "MODULES"
-                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
-                font.pixelSize: 11
-                font.bold: true
-                font.letterSpacing: 1
-                Layout.topMargin: 8
-            }
-
-            SettingRow {
-                label: "Media player"
-                checked: AppSettings.barShowPlayer
-                onToggled: AppSettings.barShowPlayer = !AppSettings.barShowPlayer
-            }
-            SettingRow {
-                label: "Tray icons"
-                checked: AppSettings.barShowTray
-                onToggled: AppSettings.barShowTray = !AppSettings.barShowTray
-            }
-
-            Text {
-                text: "LAYOUT"
-                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
-                font.pixelSize: 11
-                font.bold: true
-                font.letterSpacing: 1
-                Layout.topMargin: 8
-            }
-
-            SettingRow {
-                label: "Edge-to-edge"
-                checked: AppSettings.edgeToEdge
-                onToggled: AppSettings.edgeToEdge = !AppSettings.edgeToEdge
             }
 
             Item {
-                Layout.fillHeight: true
-            }
-        }
-    }
+                id: cardFrame
+                anchors.centerIn: parent
+                width: Math.min(660, parent.width - 48)
+                height: Math.min(520, parent.height - 48)
 
-    Component {
-        id: keybindsSectionComp
-        ColumnLayout {
-            spacing: 10
+                scale: overlay.visualOpen ? 1.0 : 0.93
+                opacity: overlay.visualOpen ? 1.0 : 0.0
 
-            Text {
-                text: "KEYBINDS (read-only, edit bind.lua to change)"
-                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
-                font.pixelSize: 11
-                font.bold: true
-                font.letterSpacing: 1
-            }
-
-            FileView {
-                id: bindFile
-                path: Quickshell.env("HOME") + "/.config/hypr/conf/bind.lua"
-                watchChanges: true
-                printErrors: false
-                onLoaded: keybindsModel.parse(bindFile.text())
-                onFileChanged: reload()
-            }
-
-            QtObject {
-                id: keybindsModel
-                property var rows: []
-
-                function dirName(d) {
-                    const m = {
-                        l: "left",
-                        r: "right",
-                        u: "up",
-                        d: "down",
-                        left: "left",
-                        right: "right",
-                        up: "up",
-                        down: "down"
-                    };
-                    return m[(d + "").toLowerCase()] || d;
-                }
-
-                function keyLabel(key) {
-                    if (key === "mouse:272")
-                        return "Mouse Left";
-                    if (key === "mouse:273")
-                        return "Mouse Right";
-                    if (key === "grave")
-                        return "` (grave)";
-                    return key;
-                }
-
-                function stripComments(t) {
-                    return t.replace(/--[^\n]*/g, "");
-                }
-
-                function expandLoops(t) {
-                    const loopRe = /for\s+(\w+)\s*=\s*(\d+)\s*,\s*(\d+)\s*do([\s\S]*?)end/g;
-                    return t.replace(loopRe, (full, varName, startStr, endStr, body) => {
-                        const start = parseInt(startStr, 10);
-                        const end = parseInt(endStr, 10);
-                        const wordRe = new RegExp("\\b" + varName + "\\b", "g");
-                        let out = "";
-                        for (let i = start; i <= end; i++) {
-                            out += body.replace(wordRe, String(i)) + "\n";
-                        }
-                        return out;
-                    });
-                }
-
-                function extractLocals(t) {
-                    const vars = {};
-                    const re = /local\s+(\w+)\s*=\s*"([^"]*)"/g;
-                    let m;
-                    while ((m = re.exec(t)) !== null)
-                        vars[m[1]] = m[2];
-                    return vars;
-                }
-
-                function findCalls(t, name) {
-                    const calls = [];
-                    const marker = name + "(";
-                    let idx = 0;
-                    while (true) {
-                        const start = t.indexOf(marker, idx);
-                        if (start === -1)
-                            break;
-                        let depth = 1;
-                        let i = start + marker.length;
-                        let inStr = false, strCh = "";
-                        while (i < t.length && depth > 0) {
-                            const c = t[i];
-                            if (inStr) {
-                                if (c === strCh)
-                                    inStr = false;
-                            } else if (c === '"' || c === "'") {
-                                inStr = true;
-                                strCh = c;
-                            } else if (c === "(") {
-                                depth++;
-                            } else if (c === ")") {
-                                depth--;
-                            }
-                            i++;
-                        }
-                        calls.push(t.slice(start + marker.length, i - 1));
-                        idx = i;
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: 210
+                        easing.type: Easing.OutCubic
                     }
-                    return calls;
                 }
-
-                function splitTopLevel(s) {
-                    const parts = [];
-                    let depth = 0, cur = "", inStr = false, strCh = "";
-                    for (let i = 0; i < s.length; i++) {
-                        const c = s[i];
-                        if (inStr) {
-                            cur += c;
-                            if (c === strCh)
-                                inStr = false;
-                            continue;
-                        }
-                        if (c === '"' || c === "'") {
-                            inStr = true;
-                            strCh = c;
-                            cur += c;
-                            continue;
-                        }
-                        if (c === "(" || c === "{" || c === "[") {
-                            depth++;
-                            cur += c;
-                            continue;
-                        }
-                        if (c === ")" || c === "}" || c === "]") {
-                            depth--;
-                            cur += c;
-                            continue;
-                        }
-                        if (c === "," && depth === 0) {
-                            parts.push(cur.trim());
-                            cur = "";
-                            continue;
-                        }
-                        cur += c;
-                    }
-                    if (cur.trim() !== "")
-                        parts.push(cur.trim());
-                    return parts;
-                }
-
-                function evalCombo(expr, vars) {
-                    const tokens = expr.split(/\.\./).map(t => t.trim());
-                    let out = "";
-                    for (const tok of tokens) {
-                        if (/^".*"$/.test(tok))
-                            out += tok.slice(1, -1);
-                        else if (/^\d+$/.test(tok))
-                            out += tok;
-                        else if (vars[tok] !== undefined)
-                            out += vars[tok];
-                        else
-                            out += tok;
-                    }
-                    return out;
-                }
-
-                function parseTable(s) {
-                    const obj = {};
-                    if (!s)
-                        return obj;
-                    const inner = s.trim().replace(/^\{/, "").replace(/\}$/, "");
-                    const re = /(\w+)\s*=\s*("(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?|true|false)/g;
-                    let m;
-                    while ((m = re.exec(inner)) !== null) {
-                        let v = m[2];
-                        if (/^".*"$/.test(v))
-                            v = v.slice(1, -1);
-                        else if (v === "true")
-                            v = true;
-                        else if (v === "false")
-                            v = false;
-                        else
-                            v = parseFloat(v);
-                        obj[m[1]] = v;
-                    }
-                    return obj;
-                }
-
-                function parseDispatch(expr) {
-                    const m = expr.match(/^([\w.]+)\s*\(([\s\S]*)\)\s*$/);
-                    if (!m)
-                        return {
-                            path: expr,
-                            argRaw: ""
-                        };
-                    return {
-                        path: m[1],
-                        argRaw: m[2].trim()
-                    };
-                }
-
-                function dispatchArgs(argRaw, vars) {
-                    if (argRaw === "")
-                        return {
-                            type: "none"
-                        };
-                    if (/^".*"$/.test(argRaw))
-                        return {
-                            type: "string",
-                            value: argRaw.slice(1, -1)
-                        };
-                    if (/^\{[\s\S]*\}$/.test(argRaw))
-                        return {
-                            type: "table",
-                            value: parseTable(argRaw)
-                        };
-                    if (/^\w+$/.test(argRaw) && vars[argRaw] !== undefined)
-                        return {
-                            type: "string",
-                            value: vars[argRaw]
-                        };
-                    return {
-                        type: "raw",
-                        value: argRaw
-                    };
-                }
-
-                function describeDispatch(path, argRaw, vars) {
-                    const a = keybindsModel.dispatchArgs(argRaw, vars);
-                    const t = a.value;
-                    switch (path) {
-                    case "hl.dsp.exec_cmd":
-                        {
-                            const cmd = (a.type === "string" ? t : argRaw) || "";
-                            if (/set-volume.*5%\+/.test(cmd))
-                                return "Volume up (+5%)";
-                            if (/set-volume.*5%-/.test(cmd))
-                                return "Volume down (−5%)";
-                            if (/set-mute/.test(cmd))
-                                return "Mute / unmute volume";
-                            if (/screenshot full/.test(cmd))
-                                return "Screenshot — full screen";
-                            if (/screenshot region/.test(cmd))
-                                return "Screenshot — select region";
-                            if (/clipboard toggle/.test(cmd))
-                                return "Toggle clipboard history";
-                            if (/launcher toggle/.test(cmd))
-                                return "Toggle app launcher";
-                            return "Launch " + cmd;
-                        }
-                    case "hl.dsp.window.close":
-                        return "Close active window";
-                    case "hl.dsp.window.float":
-                        return "Toggle floating";
-                    case "hl.dsp.window.fullscreen":
-                        return "Toggle fullscreen";
-                    case "hl.dsp.window.resize":
-                        return "Resize window (drag)";
-                    case "hl.dsp.window.drag":
-                        return "Move window (drag)";
-                    case "hl.dsp.workspace.toggle_special":
-                        return "Toggle special workspace focus";
-                    case "hl.dsp.focus":
-                        {
-                            if (t && t.workspace !== undefined)
-                                return "Switch to workspace " + t.workspace;
-                            if (t && t.direction !== undefined)
-                                return "Focus " + keybindsModel.dirName(t.direction) + " window";
-                            return path;
-                        }
-                    case "hl.dsp.window.move":
-                        {
-                            if (t && t.workspace !== undefined) {
-                                return t.workspace === "special" ? "Move window to special workspace" : "Move window to workspace " + t.workspace;
-                            }
-                            if (t && t.direction !== undefined)
-                                return "Move window " + keybindsModel.dirName(t.direction);
-                            return path;
-                        }
-                    default:
-                        return path.replace(/^hl\.dsp\./, "") + (argRaw ? " " + argRaw : "");
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: 160
+                        easing.type: Easing.OutQuad
                     }
                 }
 
-                function parse(text) {
-                    let t = keybindsModel.stripComments(text);
-                    t = keybindsModel.expandLoops(t);
-                    const vars = keybindsModel.extractLocals(t);
-                    const calls = keybindsModel.findCalls(t, "hl.bind");
-
-                    const out = [];
-                    for (const callArgs of calls) {
-                        const parts = keybindsModel.splitTopLevel(callArgs);
-                        if (parts.length < 2)
-                            continue;
-
-                        const comboRaw = keybindsModel.evalCombo(parts[0], vars);
-                        const comboParts = comboRaw.split(/\s*\+\s*/).map(p => p.trim()).filter(Boolean);
-                        if (comboParts.length === 0)
-                            continue;
-                        const keyPart = comboParts.pop();
-                        const combo = (comboParts.length ? comboParts.join(" + ") + " + " : "") + keybindsModel.keyLabel(keyPart);
-
-                        const {
-                            path,
-                            argRaw
-                        } = keybindsModel.parseDispatch(parts[1]);
-
-                        out.push({
-                            combo: combo,
-                            action: keybindsModel.describeDispatch(path, argRaw, vars)
-                        });
-                    }
-                    keybindsModel.rows = out;
+                RectangularShadow {
+                    anchors.fill: cardBg
+                    anchors.margins: -8
+                    radius: cardBg.radius + 8
+                    color: Qt.rgba(0, 0, 0, 0.48)
+                    blur: 28
+                    spread: 0
+                    offset: Qt.point(0, 10)
                 }
-            }
 
-            Flickable {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                contentHeight: keybindsCol.height
-                ScrollBar.vertical: ScrollBar {}
+                Rectangle {
+                    id: cardBg
+                    anchors.fill: parent
+                    radius: 22
+                    color: Qt.rgba(Colors.surface.r, Colors.surface.g, Colors.surface.b, 0.97)
+                    border.color: Qt.rgba(Colors.outline.r, Colors.outline.g, Colors.outline.b, 0.28)
+                    border.width: 1
+                    clip: true
 
-                ColumnLayout {
-                    id: keybindsCol
-                    width: parent.width
-                    spacing: 8
+                    TapHandler {
+                        onTapped: {}
+                    }
 
-                    Repeater {
-                        model: keybindsModel.rows
-                        delegate: RowLayout {
-                            required property var modelData
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 22
+                        spacing: 16
+
+                        // Header
+                        RowLayout {
                             Layout.fillWidth: true
                             spacing: 12
 
                             Rectangle {
-                                Layout.preferredWidth: 210
-                                Layout.preferredHeight: 32
-                                radius: 8
-                                color: Qt.rgba(1, 1, 1, 0.07)
+                                Layout.preferredWidth: 38
+                                Layout.preferredHeight: 38
+                                radius: 11
+                                color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16)
+                                border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.25)
+                                border.width: 1
+
                                 Text {
                                     anchors.centerIn: parent
-                                    text: modelData.combo
+                                    text: "󰒓"
+                                    font.pixelSize: 18
                                     color: Colors.primary
-                                    font.pixelSize: 14
-                                    font.bold: true
-                                    elide: Text.ElideRight
                                 }
                             }
-                            Text {
+
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                text: modelData.action
-                                color: Colors.surfaceText
-                                font.pixelSize: 14
-                                elide: Text.ElideRight
+                                spacing: 1
+                                Text {
+                                    text: "Shell Settings"
+                                    color: Colors.surfaceText
+                                    font.pixelSize: 18
+                                    font.bold: true
+                                }
+                                Text {
+                                    text: "Autonomous configuration · saved locally"
+                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                                    font.pixelSize: 11
+                                }
+                            }
+
+                            Rectangle {
+                                Layout.preferredWidth: 32
+                                Layout.preferredHeight: 32
+                                radius: 10
+                                color: closeHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.1) : "transparent"
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: 120
+                                    }
+                                }
+
+                                HoverHandler {
+                                    id: closeHover
+                                }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰅖"
+                                    font.pixelSize: 14
+                                    color: Colors.surfaceText
+                                    opacity: closeHover.hovered ? 1.0 : 0.65
+                                }
+                                TapHandler {
+                                    onTapped: root._close()
+                                }
+                            }
+                        }
+
+                        // Segmented Section Tabs
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 42
+                            radius: 13
+                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.05)
+                            border.color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07)
+                            border.width: 1
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.margins: 4
+                                spacing: 4
+
+                                TabPill {
+                                    icon: "󰍜"
+                                    label: "Panel & Theme"
+                                    selected: root.currentSection === "panel"
+                                    onClicked: root.currentSection = "panel"
+                                }
+                                TabPill {
+                                    icon: "󰀻"
+                                    label: "Launcher"
+                                    selected: root.currentSection === "launcher"
+                                    onClicked: root.currentSection = "launcher"
+                                }
+                                TabPill {
+                                    icon: "󰂚"
+                                    label: "Behavior"
+                                    selected: root.currentSection === "behavior"
+                                    onClicked: root.currentSection = "behavior"
+                                }
+                                TabPill {
+                                    icon: "󰋼"
+                                    label: "System"
+                                    selected: root.currentSection === "about"
+                                    onClicked: root.currentSection = "about"
+                                }
+                            }
+                        }
+
+                        // Active Section Content (single lazy Loader)
+                        Loader {
+                            id: sectionLoader
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            sourceComponent: {
+                                if (root.currentSection === "launcher")
+                                    return launcherSectionComp;
+                                if (root.currentSection === "behavior")
+                                    return behaviorSectionComp;
+                                if (root.currentSection === "about")
+                                    return aboutSectionComp;
+                                return panelSectionComp;
                             }
                         }
                     }
@@ -656,630 +293,697 @@ FloatingWindow {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Section 1: Panel & Theme
+    // -------------------------------------------------------------------------
     Component {
-        id: hyprlockSectionComp
-        ColumnLayout {
-            spacing: 14
+        id: panelSectionComp
+        Flickable {
+            clip: true
+            contentWidth: width
+            contentHeight: panelCol.implicitHeight
+            boundsBehavior: Flickable.StopAtBounds
 
-            SystemClock {
-                id: hlClock
-                precision: SystemClock.Minutes
-            }
-
-            QtObject {
-                id: hyprlockState
-                property int blur_passes: 2
-                property real contrast: 0.8916
-                property real brightness: 0.8172
-                property real vibrancy: 0.1696
-                property real vibrancy_darkness: 0.0
-
-                function updateConf(key, val) {
-                    const content = hlConfReader.text();
-                    if (!content)
-                        return;
-                    const re = new RegExp("^([ \\t]*)" + key + "[ \\t]*=.*$", "m");
-                    const updated = re.test(content) ? content.replace(re, "$1" + key + " = " + val) : content;
-                    if (updated !== content)
-                        hlConfReader.setText(updated);
-                }
-            }
-
-            FileView {
-                id: hlConfReader
-                path: Quickshell.env("HOME") + "/.config/hypr/hyprlock.conf"
-                watchChanges: true
-                printErrors: false
-                onLoaded: {
-                    const t = hlConfReader.text();
-                    let m;
-                    m = t.match(/^\s*blur_passes\s*=\s*([0-9.]+)/m);
-                    if (m)
-                        hyprlockState.blur_passes = parseInt(m[1], 10);
-                    m = t.match(/^\s*contrast\s*=\s*([0-9.]+)/m);
-                    if (m)
-                        hyprlockState.contrast = parseFloat(m[1]);
-                    m = t.match(/^\s*brightness\s*=\s*([0-9.]+)/m);
-                    if (m)
-                        hyprlockState.brightness = parseFloat(m[1]);
-                    m = t.match(/^\s*vibrancy\s*=\s*([0-9.]+)/m);
-                    if (m)
-                        hyprlockState.vibrancy = parseFloat(m[1]);
-                    m = t.match(/^\s*vibrancy_darkness\s*=\s*([0-9.]+)/m);
-                    if (m)
-                        hyprlockState.vibrancy_darkness = parseFloat(m[1]);
-                }
-                onFileChanged: reload()
-            }
-
-            QtObject {
-                id: hyprlockAssetsState
-                property int avatarTick: 0
-                property int bgTick: 0
-            }
-
-            Loader {
-                id: hlAvatarPickerLoader
-                active: false
-                sourceComponent: FilePicker {
-                    pickerTitle: "Choose Lock Screen Avatar"
-                    initialDir: Quickshell.env("HOME") + "/Pictures"
-                    nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
-                    onAccepted: path => {
-                        pickHyprlockAvatarProc.command = ["sh", "-c", "mkdir -p \"$2\" && cp -- \"$1\" \"$2/user.jpg\" && echo ok", "sh", path, Quickshell.env("HOME") + "/.config/hypr/assets"];
-                        pickHyprlockAvatarProc.running = true;
-                    }
-                }
-            }
-
-            Loader {
-                id: hlBgPickerLoader
-                active: false
-                sourceComponent: FilePicker {
-                    pickerTitle: "Choose Lock Screen Background"
-                    initialDir: AppSettings.wallpaperDir
-                    nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.webp"]
-                    onAccepted: path => {
-                        pickHyprlockBackgroundProc.command = ["sh", "-c", "mkdir -p \"$2\" && cp -- \"$1\" \"$2/background.jpg\" && echo ok", "sh", path, Quickshell.env("HOME") + "/.config/hypr/assets"];
-                        pickHyprlockBackgroundProc.running = true;
-                    }
-                }
-            }
-
-            Process {
-                id: pickHyprlockAvatarProc
-                stdout: StdioCollector {
-                    onStreamFinished: {
-                        if (this.text.trim() === "ok")
-                            hyprlockAssetsState.avatarTick++;
-                    }
-                }
-            }
-
-            Process {
-                id: pickHyprlockBackgroundProc
-                stdout: StdioCollector {
-                    onStreamFinished: {
-                        if (this.text.trim() === "ok")
-                            hyprlockAssetsState.bgTick++;
-                    }
-                }
-            }
-
-            Text {
-                text: "LOCK SCREEN (HYPRLOCK)"
-                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
-                font.pixelSize: 11
-                font.bold: true
-                font.letterSpacing: 1
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                Layout.minimumHeight: 200
-                Layout.preferredHeight: 320
-                radius: 16
-                clip: true
-                border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.3)
-                border.width: 1
-
-                Image {
-                    id: hlBg
-                    anchors.fill: parent
-                    source: "file://" + Quickshell.env("HOME") + "/.config/hypr/assets/background.jpg" + (hyprlockAssetsState.bgTick > 0 ? "?t=" + hyprlockAssetsState.bgTick : "")
-                    sourceSize: Qt.size(720, 400)
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    visible: false
-                }
-
-                MultiEffect {
-                    anchors.fill: hlBg
-                    source: hlBg
-                    blurEnabled: hyprlockState.blur_passes > 0
-                    blur: Math.min(1.0, hyprlockState.blur_passes * 0.25)
-                    blurMax: 64
-                    contrast: hyprlockState.contrast - 1.0
-                    brightness: hyprlockState.brightness - 1.0
-                }
-
-                Rectangle {
-                    anchors.fill: parent
-                    color: "black"
-                    opacity: hyprlockState.vibrancy_darkness * 0.5
-                }
-
-                ColumnLayout {
-                    anchors.centerIn: parent
-                    spacing: 18
-
-                    ColumnLayout {
-                        Layout.alignment: Qt.AlignHCenter
-                        spacing: -4
-                        Text {
-                            text: Qt.formatTime(hlClock.date, "hh:mm")
-                            font.pixelSize: 42
-                            font.bold: true
-                            color: Qt.rgba(1, 1, 1, 0.8)
-                            Layout.alignment: Qt.AlignHCenter
-                        }
-                        Text {
-                            text: Qt.formatDate(hlClock.date, "dddd, dd MMMM")
-                            font.pixelSize: 12
-                            color: Qt.rgba(1, 1, 1, 0.8)
-                            Layout.alignment: Qt.AlignHCenter
-                        }
-                    }
-
-                    Item {
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.preferredWidth: 64
-                        Layout.preferredHeight: 64
-
-                        ClippingRectangle {
-                            anchors.fill: parent
-                            radius: 32
-                            color: "transparent"
-                            visible: hlAvatar.status === Image.Ready
-
-                            Image {
-                                id: hlAvatar
-                                anchors.fill: parent
-                                source: "file://" + Quickshell.env("HOME") + "/.config/hypr/assets/user.jpg" + (hyprlockAssetsState.avatarTick > 0 ? "?t=" + hyprlockAssetsState.avatarTick : "")
-                                sourceSize: Qt.size(128, 128)
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                            }
-                        }
-
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 32
-                            visible: hlAvatar.status === Image.Ready
-                            border.color: Qt.rgba(1, 1, 1, 0.7)
-                            border.width: 1.5
-                            color: "transparent"
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.alignment: Qt.AlignHCenter
-                        width: 180
-                        height: 36
-                        radius: 18
-                        color: Qt.rgba(0, 0, 0, 0.3)
-                        border.color: Qt.rgba(1, 1, 1, 0.5)
-                        border.width: 1.5
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "<i>Password...</i>"
-                            color: Qt.rgba(1, 1, 1, 0.6)
-                            font.pixelSize: 13
-                        }
-                    }
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignHCenter
+            ColumnLayout {
+                id: panelCol
+                width: parent.width
                 spacing: 12
 
-                Rectangle {
-                    Layout.preferredWidth: 140
-                    Layout.preferredHeight: 32
-                    radius: 8
-                    color: Qt.rgba(1, 1, 1, 0.08)
-                    border.color: Qt.rgba(1, 1, 1, 0.2)
-                    border.width: 1
-                    Text {
-                        anchors.centerIn: parent
-                        text: "Change Background"
-                        color: "white"
-                        font.pixelSize: 11
-                        font.bold: true
-                    }
-                    HoverHandler {
-                        id: bgHover
-                        cursorShape: Qt.PointingHandCursor
-                    }
-                    TapHandler {
-                        onTapped: {
-                            hlBgPickerLoader.active = true;
-                            Qt.callLater(() => {
-                                if (hlBgPickerLoader.item)
-                                    hlBgPickerLoader.item.openAt(hlBgPickerLoader.item.initialDir);
-                            });
+                SectionCard {
+                    title: "PANEL PLACEMENT"
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        PlacementChip {
+                            label: "Top"
+                            pos: "top"
+                            selected: AppSettings.barPosition === "top"
+                            onClicked: AppSettings.barPosition = "top"
+                        }
+                        PlacementChip {
+                            label: "Bottom"
+                            pos: "bottom"
+                            selected: AppSettings.barPosition === "bottom"
+                            onClicked: AppSettings.barPosition = "bottom"
+                        }
+                        PlacementChip {
+                            label: "Left"
+                            pos: "left"
+                            selected: AppSettings.barPosition === "left"
+                            onClicked: AppSettings.barPosition = "left"
+                        }
+                        PlacementChip {
+                            label: "Right"
+                            pos: "right"
+                            selected: AppSettings.barPosition === "right"
+                            onClicked: AppSettings.barPosition = "right"
                         }
                     }
-                    opacity: bgHover.hovered ? 1.0 : 0.8
                 }
 
-                Rectangle {
-                    Layout.preferredWidth: 140
-                    Layout.preferredHeight: 32
-                    radius: 8
-                    color: Qt.rgba(1, 1, 1, 0.08)
-                    border.color: Qt.rgba(1, 1, 1, 0.2)
-                    border.width: 1
-                    Text {
-                        anchors.centerIn: parent
-                        text: "Change Avatar"
-                        color: "white"
-                        font.pixelSize: 11
-                        font.bold: true
+                SectionCard {
+                    title: "BAR MODULES & LAYOUT"
+
+                    SwitchRow {
+                        label: "Edge-to-edge layout"
+                        subtitle: "Compact Hyprland gaps with square window corners"
+                        checked: AppSettings.edgeToEdge
+                        onToggled: AppSettings.edgeToEdge = !AppSettings.edgeToEdge
                     }
-                    HoverHandler {
-                        id: avaHover
-                        cursorShape: Qt.PointingHandCursor
+
+                    RowDivider {}
+
+                    SwitchRow {
+                        label: "Media player in bar"
+                        subtitle: "Show active MPRIS track indicator"
+                        checked: AppSettings.barShowPlayer
+                        onToggled: AppSettings.barShowPlayer = !AppSettings.barShowPlayer
                     }
-                    TapHandler {
-                        onTapped: {
-                            hlAvatarPickerLoader.active = true;
-                            Qt.callLater(() => {
-                                if (hlAvatarPickerLoader.item)
-                                    hlAvatarPickerLoader.item.openAt(hlAvatarPickerLoader.item.initialDir);
-                            });
+
+                    RowDivider {}
+
+                    SwitchRow {
+                        label: "System tray icons"
+                        subtitle: "Display pinned and background tray apps"
+                        checked: AppSettings.barShowTray
+                        onToggled: AppSettings.barShowTray = !AppSettings.barShowTray
+                    }
+                }
+
+                SectionCard {
+                    title: "COLOR PALETTE"
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
+
+                        Row {
+                            spacing: 6
+                            Repeater {
+                                model: [Colors.background, Colors.surface, Colors.primary, Colors.secondary, Colors.error]
+                                delegate: Rectangle {
+                                    required property color modelData
+                                    width: 22
+                                    height: 22
+                                    radius: 7
+                                    color: modelData
+                                    border.color: Qt.rgba(1, 1, 1, 0.22)
+                                    border.width: 1
+                                }
+                            }
                         }
-                    }
-                    opacity: avaHover.hovered ? 1.0 : 0.8
-                }
-            }
 
-            Flickable {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                Layout.preferredHeight: 200
-                clip: true
-                contentHeight: hlSettingsCol.height
-                ScrollBar.vertical: ScrollBar {}
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 1
+                            Text {
+                                text: {
+                                    if (Colors.themeSource === "matugen")
+                                        return "Extracted via matugen";
+                                    if (Colors.themeSource === "quantizer")
+                                        return "Extracted via ColorQuantizer";
+                                    if (Colors.themeSource === "cache")
+                                        return "Loaded from local cache";
+                                    return "Default palette";
+                                }
+                                color: Colors.surfaceText
+                                font.pixelSize: 12
+                                font.bold: true
+                            }
+                            Text {
+                                text: "Updates Quickshell, kitty, and cava on wallpaper change"
+                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                                font.pixelSize: 11
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                        }
 
-                ColumnLayout {
-                    id: hlSettingsCol
-                    width: parent.width - 14
-                    spacing: 12
-
-                    SettingsSlider {
-                        label: "Blur Passes"
-                        value: hyprlockState.blur_passes
-                        from: 0
-                        to: 5
-                        decimals: 0
-                        onReleased: val => hyprlockState.updateConf("blur_passes", Math.round(val))
-                        onMoved: val => hyprlockState.blur_passes = Math.round(val)
-                    }
-                    SettingsSlider {
-                        label: "Contrast"
-                        value: hyprlockState.contrast
-                        from: 0.0
-                        to: 2.0
-                        decimals: 4
-                        onReleased: val => hyprlockState.updateConf("contrast", val.toFixed(4))
-                        onMoved: val => hyprlockState.contrast = val
-                    }
-                    SettingsSlider {
-                        label: "Brightness"
-                        value: hyprlockState.brightness
-                        from: 0.0
-                        to: 2.0
-                        decimals: 4
-                        onReleased: val => hyprlockState.updateConf("brightness", val.toFixed(4))
-                        onMoved: val => hyprlockState.brightness = val
-                    }
-                    SettingsSlider {
-                        label: "Vibrancy"
-                        value: hyprlockState.vibrancy
-                        from: 0.0
-                        to: 1.0
-                        decimals: 4
-                        onReleased: val => hyprlockState.updateConf("vibrancy", val.toFixed(4))
-                        onMoved: val => hyprlockState.vibrancy = val
-                    }
-                    SettingsSlider {
-                        label: "Vibrancy Darkness"
-                        value: hyprlockState.vibrancy_darkness
-                        from: 0.0
-                        to: 1.0
-                        decimals: 4
-                        onReleased: val => hyprlockState.updateConf("vibrancy_darkness", val.toFixed(4))
-                        onMoved: val => hyprlockState.vibrancy_darkness = val
+                        ActionPill {
+                            label: "Wallpapers"
+                            icon: "󰸉"
+                            accent: true
+                            onClicked: {
+                                root._close();
+                                ShellState.openWallpaperRequested = true;
+                            }
+                        }
                     }
                 }
             }
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Section 2: Launcher & Wallpapers
+    // -------------------------------------------------------------------------
+    Component {
+        id: launcherSectionComp
+        Flickable {
+            id: launcherFlick
+            clip: true
+            contentWidth: width
+            contentHeight: launcherCol.implicitHeight
+            boundsBehavior: Flickable.StopAtBounds
+
+            property bool editingWpDir: false
+            readonly property int hiddenCount: AppSettings.launcherHiddenApps.length ? AppSettings.launcherHiddenApps.split(",").filter(Boolean).length : 0
+
+            ColumnLayout {
+                id: launcherCol
+                width: parent.width
+                spacing: 12
+
+                SectionCard {
+                    title: "APP VIEW MODE"
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        ModeChip {
+                            icon: "󰉹"
+                            label: "List View"
+                            selected: AppSettings.launcherViewMode !== "grid"
+                            onClicked: AppSettings.launcherViewMode = "list"
+                        }
+                        ModeChip {
+                            icon: "󰕰"
+                            label: "Grid View"
+                            selected: AppSettings.launcherViewMode === "grid"
+                            onClicked: AppSettings.launcherViewMode = "grid"
+                        }
+                    }
+                }
+
+                SectionCard {
+                    title: "WALLPAPER SOURCE"
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                text: "Wallpapers directory"
+                                color: Colors.surfaceText
+                                font.pixelSize: 13
+                                font.bold: true
+                            }
+                            Text {
+                                text: AppSettings.wallpaperDir
+                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.55)
+                                font.pixelSize: 11
+                                elide: Text.ElideMiddle
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        ActionPill {
+                            label: launcherFlick.editingWpDir ? "Cancel" : "Edit"
+                            icon: launcherFlick.editingWpDir ? "󰅖" : "󰏫"
+                            onClicked: {
+                                launcherFlick.editingWpDir = !launcherFlick.editingWpDir;
+                                if (launcherFlick.editingWpDir) {
+                                    wpDirField.text = AppSettings.wallpaperDir;
+                                    Qt.callLater(() => wpDirField.forceActiveFocus());
+                                }
+                            }
+                        }
+
+                        ActionPill {
+                            label: "Default"
+                            visible: AppSettings.wallpaperDir !== AppSettings.defaultWallpaperDir
+                            onClicked: {
+                                AppSettings.wallpaperDir = AppSettings.defaultWallpaperDir;
+                                launcherFlick.editingWpDir = false;
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        visible: launcherFlick.editingWpDir
+                        spacing: 8
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 34
+                            radius: 9
+                            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07)
+                            border.color: wpDirField.activeFocus ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.14)
+                            border.width: 1
+
+                            TextField {
+                                id: wpDirField
+                                anchors.fill: parent
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                verticalAlignment: TextInput.AlignVCenter
+                                color: Colors.surfaceText
+                                font.pixelSize: 12
+                                background: Item {}
+                                selectByMouse: true
+                                placeholderText: "~/Pictures/Wallpapers"
+                                placeholderTextColor: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
+                                onAccepted: {
+                                    const t = text.trim();
+                                    if (t.length > 0)
+                                        AppSettings.wallpaperDir = t;
+                                    launcherFlick.editingWpDir = false;
+                                }
+                            }
+                        }
+
+                        ActionPill {
+                            label: "Save"
+                            icon: "󰄬"
+                            accent: true
+                            onClicked: {
+                                const t = wpDirField.text.trim();
+                                if (t.length > 0)
+                                    AppSettings.wallpaperDir = t;
+                                launcherFlick.editingWpDir = false;
+                            }
+                        }
+                    }
+                }
+
+                SectionCard {
+                    title: "HIDDEN APPLICATIONS"
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                text: launcherFlick.hiddenCount === 0 ? "No hidden apps" : launcherFlick.hiddenCount + (launcherFlick.hiddenCount === 1 ? " hidden app" : " hidden apps")
+                                color: Colors.surfaceText
+                                font.pixelSize: 13
+                                font.bold: true
+                            }
+                            Text {
+                                text: "Use >hidden-apps in launcher to manage individual apps"
+                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                                font.pixelSize: 11
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        ActionPill {
+                            label: "Restore all"
+                            icon: "󰜉"
+                            enabled: launcherFlick.hiddenCount > 0
+                            opacity: launcherFlick.hiddenCount > 0 ? 1.0 : 0.4
+                            onClicked: AppSettings.launcherHiddenApps = ""
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Section 3: Behavior (Notifications & Media)
+    // -------------------------------------------------------------------------
+    Component {
+        id: behaviorSectionComp
+        Flickable {
+            id: behaviorFlick
+            clip: true
+            contentWidth: width
+            contentHeight: behaviorCol.implicitHeight
+            boundsBehavior: Flickable.StopAtBounds
+
+            readonly property var defaultSink: Pipewire.defaultAudioSink
+            readonly property bool sinkMuted: !!(defaultSink && defaultSink.audio && defaultSink.audio.muted)
+            readonly property int sinkVolPct: (defaultSink && defaultSink.audio) ? Math.round(Math.min(1.5, defaultSink.audio.volume) * 100) : 0
+
+            PwObjectTracker {
+                objects: behaviorFlick.defaultSink ? [behaviorFlick.defaultSink] : []
+            }
+
+            ColumnLayout {
+                id: behaviorCol
+                width: parent.width
+                spacing: 12
+
+                SectionCard {
+                    title: "NOTIFICATIONS"
+
+                    SwitchRow {
+                        label: "Do Not Disturb"
+                        subtitle: "Silence popups and mute chat app streams"
+                        checked: NotificationService.dnd
+                        onToggled: NotificationService.dnd = !NotificationService.dnd
+                    }
+
+                    RowDivider {}
+
+                    SwitchRow {
+                        label: "Group by application"
+                        subtitle: "Cluster notifications per source in Notification Center"
+                        checked: AppSettings.groupNotificationsBySource
+                        onToggled: AppSettings.groupNotificationsBySource = !AppSettings.groupNotificationsBySource
+                    }
+
+                    RowDivider {}
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                text: "Notification history"
+                                color: Colors.surfaceText
+                                font.pixelSize: 13
+                                font.bold: true
+                            }
+                            Text {
+                                text: NotificationService.history.length + " stored · " + NotificationService.unreadCount + " unread"
+                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                                font.pixelSize: 11
+                            }
+                        }
+
+                        ActionPill {
+                            label: "Clear all"
+                            icon: "󰎟"
+                            enabled: NotificationService.history.length > 0
+                            opacity: NotificationService.history.length > 0 ? 1.0 : 0.4
+                            onClicked: NotificationService.clearAll()
+                        }
+                    }
+                }
+
+                SectionCard {
+                    title: "AUDIO & MEDIA"
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                text: behaviorFlick.defaultSink ? (behaviorFlick.defaultSink.description || behaviorFlick.defaultSink.nickname || behaviorFlick.defaultSink.name || "Output device") : "No output device"
+                                color: Colors.surfaceText
+                                font.pixelSize: 13
+                                font.bold: true
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                            Text {
+                                text: behaviorFlick.sinkMuted ? "Muted" : ("Master output volume: " + behaviorFlick.sinkVolPct + "%")
+                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                                font.pixelSize: 11
+                            }
+                        }
+
+                        ActionPill {
+                            label: behaviorFlick.sinkMuted ? "Unmute" : "Mute"
+                            icon: behaviorFlick.sinkMuted ? "󰖁" : "󰕾"
+                            enabled: behaviorFlick.defaultSink !== null && behaviorFlick.defaultSink.audio !== null
+                            onClicked: {
+                                if (behaviorFlick.defaultSink && behaviorFlick.defaultSink.audio)
+                                    behaviorFlick.defaultSink.audio.muted = !behaviorFlick.defaultSink.audio.muted;
+                            }
+                        }
+                    }
+
+                    RowDivider {}
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                text: MprisService.active ? (MprisService.trackTitle || "Active player") : "No active media player"
+                                color: Colors.surfaceText
+                                font.pixelSize: 13
+                                font.bold: true
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                            Text {
+                                text: MprisService.active ? ((MprisService.playerName || "MPRIS") + (MprisService.trackArtist ? " · " + MprisService.trackArtist : "")) : "Start playback in any MPRIS player"
+                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                                font.pixelSize: 11
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        ActionPill {
+                            label: MprisService.isPlaying ? "Pause" : "Play"
+                            icon: MprisService.isPlaying ? "󰏤" : "󰐊"
+                            enabled: MprisService.active
+                            opacity: MprisService.active ? 1.0 : 0.4
+                            onClicked: MprisService.playPause()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Section 4: System & About
+    // -------------------------------------------------------------------------
     Component {
         id: aboutSectionComp
+        Flickable {
+            clip: true
+            contentWidth: width
+            contentHeight: aboutCol.implicitHeight
+            boundsBehavior: Flickable.StopAtBounds
+
+            ColumnLayout {
+                id: aboutCol
+                width: parent.width
+                spacing: 12
+
+                SectionCard {
+                    title: "AUTONOMOUS STORAGE"
+
+                    InfoLine {
+                        label: "Shell settings"
+                        value: AppSettings.confPath
+                    }
+                    RowDivider {}
+                    InfoLine {
+                        label: "Palette cache"
+                        value: Colors.cacheJsonPath
+                    }
+                    RowDivider {}
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 2
+                            Text {
+                                text: "Reset shell preferences"
+                                color: Colors.surfaceText
+                                font.pixelSize: 13
+                                font.bold: true
+                            }
+                            Text {
+                                text: "Restores bar position, layout, view mode, and wallpaper path"
+                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                                font.pixelSize: 11
+                            }
+                        }
+
+                        ActionPill {
+                            label: root.confirmReset ? "Confirm reset" : "Reset"
+                            icon: "󰑓"
+                            accent: root.confirmReset
+                            onClicked: {
+                                if (!root.confirmReset) {
+                                    root.confirmReset = true;
+                                } else {
+                                    AppSettings.resetDefaults();
+                                    root.confirmReset = false;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                SectionCard {
+                    title: "ABOUT AEONSHELL"
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 16
+
+                        Rectangle {
+                            Layout.preferredWidth: 64
+                            Layout.preferredHeight: 64
+                            radius: 16
+                            color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.12)
+                            border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.25)
+                            border.width: 1
+
+                            Image {
+                                anchors.centerIn: parent
+                                width: 42
+                                height: 42
+                                source: "../../assets/logo.svg"
+                                sourceSize: Qt.size(84, 84)
+                                fillMode: Image.PreserveAspectFit
+                                smooth: true
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+                            Text {
+                                text: "aeonshell"
+                                color: Colors.surfaceText
+                                font.pixelSize: 18
+                                font.bold: true
+                            }
+                            Text {
+                                text: "Autonomous Quickshell + Hyprland desktop with matugen & ColorQuantizer theming."
+                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.65)
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        ActionPill {
+                            label: "GitHub"
+                            icon: "󰊤"
+                            onClicked: Qt.openUrlExternally("https://github.com/pzwt4cc/aeonshell")
+                        }
+                    }
+
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: 6
+
+                        Repeater {
+                            model: ["Quickshell", "Hyprland", "PipeWire", "matugen", "ColorQuantizer", "awww", "mpvpaper"]
+                            delegate: Rectangle {
+                                required property string modelData
+                                radius: 7
+                                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06)
+                                border.color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.1)
+                                border.width: 1
+                                implicitWidth: chipTxt.implicitWidth + 16
+                                implicitHeight: 24
+
+                                Text {
+                                    id: chipTxt
+                                    anchors.centerIn: parent
+                                    text: modelData
+                                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.85)
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Reusable Lightweight Components
+    // -------------------------------------------------------------------------
+    component SectionCard: Rectangle {
+        id: cardRoot
+        property string title: ""
+        default property alias content: cardCol.data
+
+        Layout.fillWidth: true
+        implicitHeight: cardCol.implicitHeight + 28
+        radius: 16
+        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.045)
+        border.color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.08)
+        border.width: 1
+
         ColumnLayout {
-            spacing: 0
-
-            Item {
-                Layout.fillHeight: true
-                Layout.preferredHeight: 1
-            }
-
-            Item {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.preferredWidth: 140
-                Layout.preferredHeight: 140
-
-                Rectangle {
-                    id: glowSource
-                    anchors.centerIn: parent
-                    width: 70
-                    height: 70
-                    radius: width / 2
-                    color: Colors.primary
-                    opacity: 0.4
-                    visible: false
-                }
-
-                MultiEffect {
-                    anchors.fill: glowSource
-                    source: glowSource
-                    blurEnabled: true
-                    blur: 1.0
-                    blurMax: 64
-                    opacity: 0.2
-                }
-
-                Image {
-                    anchors.centerIn: parent
-                    width: 112
-                    height: 112
-                    source: "../../assets/logo.png"
-                    sourceSize.width: 224
-                    sourceSize.height: 224
-                    fillMode: Image.PreserveAspectFit
-                    smooth: true
-                }
-            }
+            id: cardCol
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 14
+            spacing: 10
 
             Text {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 20
-                text: "aeonshell"
-                color: Colors.surfaceText
-                font.pixelSize: 30
+                visible: cardRoot.title !== ""
+                text: cardRoot.title
+                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.45)
+                font.pixelSize: 10
                 font.bold: true
                 font.letterSpacing: 1
             }
-
-            Text {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 8
-                Layout.preferredWidth: 380
-                horizontalAlignment: Text.AlignHCenter
-                text: "A Hyprland + Quickshell desktop that repaints itself\nfrom your wallpaper, powered by matugen."
-                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.65)
-                font.pixelSize: 13
-                wrapMode: Text.WordWrap
-                lineHeight: 1.3
-            }
-
-            RowLayout {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 24
-                spacing: 8
-
-                Repeater {
-                    model: ["Hyprland", "Quickshell", "awww", "matugen"]
-                    delegate: Rectangle {
-                        required property string modelData
-                        radius: 8
-                        color: Qt.rgba(1, 1, 1, 0.06)
-                        border.color: Qt.rgba(1, 1, 1, 0.12)
-                        border.width: 1
-                        implicitWidth: chipText.implicitWidth + 20
-                        implicitHeight: 28
-                        Text {
-                            id: chipText
-                            anchors.centerIn: parent
-                            text: modelData
-                            color: Colors.surfaceText
-                            font.pixelSize: 12
-                            font.bold: true
-                        }
-                    }
-                }
-            }
-
-            Rectangle {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 18
-                radius: 9
-                color: linkHover.hovered ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16) : Qt.rgba(1, 1, 1, 0.06)
-                border.color: Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.3)
-                border.width: 1
-                implicitWidth: linkRow.implicitWidth + 24
-                implicitHeight: 32
-                Behavior on color {
-                    ColorAnimation {
-                        duration: 120
-                    }
-                }
-
-                HoverHandler {
-                    id: linkHover
-                }
-                TapHandler {
-                    onTapped: Qt.openUrlExternally("https://github.com/pzwt4cc/aeonshell")
-                }
-
-                RowLayout {
-                    id: linkRow
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Text {
-                        text: "󰊤"
-                        font.pixelSize: 13
-                        color: Colors.primary
-                    }
-                    Text {
-                        text: "View on GitHub"
-                        color: Colors.surfaceText
-                        font.pixelSize: 12
-                        font.bold: true
-                    }
-                }
-            }
-
-            Item {
-                Layout.fillHeight: true
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: Qt.rgba(1, 1, 1, 0.08)
-            }
-
-            Text {
-                Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 12
-                Layout.bottomMargin: 4
-                text: "MIT License"
-                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.4)
-                font.pixelSize: 11
-            }
         }
     }
 
-    component SettingsSlider: ColumnLayout {
-        id: sroot
-        property string label: ""
-        property real value: 0
-        property real from: 0
-        property real to: 1
-        property int decimals: 2
-
-        signal moved(real val)
-        signal released(real val)
-
+    component RowDivider: Rectangle {
         Layout.fillWidth: true
-        spacing: 6
-
-        RowLayout {
-            Layout.fillWidth: true
-            Text {
-                text: sroot.label
-                color: Colors.surfaceText
-                font.pixelSize: 12
-                font.bold: true
-                Layout.fillWidth: true
-            }
-            Text {
-                text: sroot.value.toFixed(sroot.decimals)
-                color: Colors.primary
-                font.pixelSize: 12
-                font.bold: true
-            }
-        }
-
-        Item {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 14
-
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width
-                height: 6
-                radius: 3
-                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.1)
-            }
-
-            Rectangle {
-                id: fillRect
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.max(0, Math.min(parent.width, parent.width * (sroot.value - sroot.from) / (sroot.to - sroot.from)))
-                height: 6
-                radius: 3
-                color: Colors.primary
-            }
-
-            Rectangle {
-                anchors.verticalCenter: parent.verticalCenter
-                x: Math.max(0, Math.min(parent.width - width, fillRect.width - width / 2))
-                width: sliderHover.hovered ? 12 : 10
-                height: width
-                radius: width / 2
-                color: "#ffffff"
-                Behavior on width {
-                    NumberAnimation {
-                        duration: 100
-                    }
-                }
-            }
-
-            HoverHandler {
-                id: sliderHover
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                preventStealing: true
-                function emitMoved(mx) {
-                    let pct = Math.max(0, Math.min(1, mx / width));
-                    let val = sroot.from + pct * (sroot.to - sroot.from);
-                    sroot.moved(val);
-                    return val;
-                }
-                onPressed: mouse => emitMoved(mouse.x)
-                onPositionChanged: mouse => emitMoved(mouse.x)
-                onReleased: mouse => {
-                    const val = emitMoved(mouse.x);
-                    sroot.released(val);
-                }
-            }
-        }
+        Layout.preferredHeight: 1
+        color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07)
     }
 
-    component SettingRow: RowLayout {
-        id: rowRoot
+    component SwitchRow: RowLayout {
+        id: swRow
         property string label: ""
+        property string subtitle: ""
         property bool checked: false
         signal toggled
 
         Layout.fillWidth: true
-        Layout.preferredHeight: 32
-        spacing: 10
+        spacing: 12
 
-        Text {
-            text: rowRoot.label
-            color: Colors.surfaceText
-            font.pixelSize: 13
+        ColumnLayout {
             Layout.fillWidth: true
+            spacing: 1
+            Text {
+                text: swRow.label
+                color: Colors.surfaceText
+                font.pixelSize: 13
+                font.bold: true
+            }
+            Text {
+                visible: swRow.subtitle !== ""
+                text: swRow.subtitle
+                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
+                font.pixelSize: 11
+                elide: Text.ElideRight
+                Layout.fillWidth: true
+            }
         }
 
         Rectangle {
-            id: switchTrack
-            Layout.preferredWidth: 40
-            Layout.preferredHeight: 22
-            radius: 11
-            color: rowRoot.checked ? Colors.primary : Qt.rgba(1, 1, 1, 0.14)
+            Layout.preferredWidth: 42
+            Layout.preferredHeight: 24
+            radius: 12
+            color: swRow.checked ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.14)
             Behavior on color {
                 ColorAnimation {
                     duration: 120
@@ -1287,38 +991,39 @@ FloatingWindow {
             }
 
             Rectangle {
-                width: 16
-                height: 16
-                radius: 8
-                color: "white"
+                width: 18
+                height: 18
+                radius: 9
+                color: "#ffffff"
                 y: 3
-                x: rowRoot.checked ? parent.width - width - 3 : 3
+                x: swRow.checked ? parent.width - width - 3 : 3
                 Behavior on x {
                     NumberAnimation {
-                        duration: 120
+                        duration: 140
                         easing.type: Easing.OutCubic
                     }
                 }
             }
 
             TapHandler {
-                onTapped: rowRoot.toggled()
+                onTapped: swRow.toggled()
             }
         }
     }
 
-    component NavItem: Rectangle {
-        id: navRoot
-        property string label: ""
+    component TabPill: Rectangle {
+        id: tabRoot
         property string icon: ""
+        property string label: ""
         property bool selected: false
-        property string badge: ""
         signal clicked
 
         Layout.fillWidth: true
-        Layout.preferredHeight: 36
+        Layout.fillHeight: true
         radius: 9
-        color: navRoot.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16) : (navHover.hovered ? Qt.rgba(1, 1, 1, 0.06) : "transparent")
+        color: tabRoot.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.18) : (tabHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06) : "transparent")
+        border.color: tabRoot.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.35) : "transparent"
+        border.width: 1
         Behavior on color {
             ColorAnimation {
                 duration: 120
@@ -1326,80 +1031,43 @@ FloatingWindow {
         }
 
         HoverHandler {
-            id: navHover
-        }
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            width: 3
-            height: parent.height - 12
-            radius: 2
-            color: Colors.primary
-            opacity: navRoot.selected ? 1 : 0
-            Behavior on opacity {
-                NumberAnimation {
-                    duration: 120
-                }
-            }
+            id: tabHover
         }
 
         RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 6
-            spacing: 8
-
+            anchors.centerIn: parent
+            spacing: 6
             Text {
-                text: navRoot.icon
+                text: tabRoot.icon
                 font.pixelSize: 13
-                Layout.preferredWidth: 16
-                color: navRoot.enabled ? (navRoot.selected ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.7)) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.3)
+                color: tabRoot.selected ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.65)
             }
-
             Text {
-                text: navRoot.label
-                color: navRoot.enabled ? (navRoot.selected ? Colors.primary : Colors.surfaceText) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.35)
+                text: tabRoot.label
                 font.pixelSize: 12
-                font.bold: navRoot.selected
-                elide: Text.ElideRight
-                Layout.fillWidth: true
-            }
-
-            Rectangle {
-                visible: navRoot.badge !== ""
-                radius: 5
-                color: Qt.rgba(1, 1, 1, 0.08)
-                Layout.preferredHeight: 15
-                implicitWidth: badgeText.implicitWidth + 8
-                Text {
-                    id: badgeText
-                    anchors.centerIn: parent
-                    text: navRoot.badge
-                    color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
-                    font.pixelSize: 9
-                }
+                font.bold: tabRoot.selected
+                color: tabRoot.selected ? Colors.primary : Colors.surfaceText
             }
         }
 
         TapHandler {
-            onTapped: navRoot.clicked()
+            onTapped: tabRoot.clicked()
         }
     }
 
-    component PositionOption: Rectangle {
-        id: optRoot
+    component PlacementChip: Rectangle {
+        id: pChip
         property string label: ""
         property string pos: "top"
         property bool selected: false
         signal clicked
 
         Layout.fillWidth: true
-        Layout.preferredHeight: 96
-        radius: 14
-        color: optRoot.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16) : (optHover.hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
-        border.color: optRoot.selected ? Colors.primary : Qt.rgba(1, 1, 1, 0.14)
-        border.width: optRoot.selected ? 1.5 : 1
+        Layout.preferredHeight: 68
+        radius: 12
+        color: pChip.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16) : (pHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.03))
+        border.color: pChip.selected ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.1)
+        border.width: pChip.selected ? 1.5 : 1
         Behavior on color {
             ColorAnimation {
                 duration: 120
@@ -1407,48 +1075,162 @@ FloatingWindow {
         }
 
         HoverHandler {
-            id: optHover
+            id: pHover
         }
 
         ColumnLayout {
             anchors.centerIn: parent
-            spacing: 10
+            spacing: 6
 
             Rectangle {
                 Layout.alignment: Qt.AlignHCenter
-                width: 56
-                height: 38
-                radius: 6
-                color: Qt.rgba(1, 1, 1, 0.06)
-                border.color: Qt.rgba(1, 1, 1, 0.16)
+                width: 36
+                height: 24
+                radius: 5
+                color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.06)
+                border.color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.15)
                 border.width: 1
 
                 Rectangle {
                     radius: 2
-                    color: optRoot.selected ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.5)
-                    anchors.margins: 4
-                    anchors.top: optRoot.pos === "top" ? parent.top : undefined
-                    anchors.bottom: optRoot.pos === "bottom" ? parent.bottom : undefined
-                    anchors.left: optRoot.pos === "left" ? parent.left : undefined
-                    anchors.right: optRoot.pos === "right" ? parent.right : undefined
-                    anchors.horizontalCenter: (optRoot.pos === "top" || optRoot.pos === "bottom") ? parent.horizontalCenter : undefined
-                    anchors.verticalCenter: (optRoot.pos === "left" || optRoot.pos === "right") ? parent.verticalCenter : undefined
-                    width: (optRoot.pos === "top" || optRoot.pos === "bottom") ? parent.width - 12 : 6
-                    height: (optRoot.pos === "left" || optRoot.pos === "right") ? parent.height - 12 : 6
+                    color: pChip.selected ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.55)
+                    anchors.margins: 3
+                    anchors.top: pChip.pos === "top" ? parent.top : undefined
+                    anchors.bottom: pChip.pos === "bottom" ? parent.bottom : undefined
+                    anchors.left: pChip.pos === "left" ? parent.left : undefined
+                    anchors.right: pChip.pos === "right" ? parent.right : undefined
+                    anchors.horizontalCenter: (pChip.pos === "top" || pChip.pos === "bottom") ? parent.horizontalCenter : undefined
+                    anchors.verticalCenter: (pChip.pos === "left" || pChip.pos === "right") ? parent.verticalCenter : undefined
+                    width: (pChip.pos === "top" || pChip.pos === "bottom") ? parent.width - 8 : 5
+                    height: (pChip.pos === "left" || pChip.pos === "right") ? parent.height - 8 : 4
                 }
             }
 
             Text {
                 Layout.alignment: Qt.AlignHCenter
-                text: optRoot.label
-                color: optRoot.selected ? Colors.primary : Colors.surfaceText
-                font.pixelSize: 14
-                font.bold: optRoot.selected
+                text: pChip.label
+                color: pChip.selected ? Colors.primary : Colors.surfaceText
+                font.pixelSize: 12
+                font.bold: pChip.selected
             }
         }
 
         TapHandler {
-            onTapped: optRoot.clicked()
+            onTapped: pChip.clicked()
+        }
+    }
+
+    component ModeChip: Rectangle {
+        id: mChip
+        property string icon: ""
+        property string label: ""
+        property bool selected: false
+        signal clicked
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: 46
+        radius: 11
+        color: mChip.selected ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.16) : (mHover.hovered ? Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.07) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.03))
+        border.color: mChip.selected ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.1)
+        border.width: mChip.selected ? 1.5 : 1
+        Behavior on color {
+            ColorAnimation {
+                duration: 120
+            }
+        }
+
+        HoverHandler {
+            id: mHover
+        }
+
+        RowLayout {
+            anchors.centerIn: parent
+            spacing: 8
+            Text {
+                text: mChip.icon
+                font.pixelSize: 15
+                color: mChip.selected ? Colors.primary : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.65)
+            }
+            Text {
+                text: mChip.label
+                font.pixelSize: 13
+                font.bold: mChip.selected
+                color: mChip.selected ? Colors.primary : Colors.surfaceText
+            }
+        }
+
+        TapHandler {
+            onTapped: mChip.clicked()
+        }
+    }
+
+    component ActionPill: Rectangle {
+        id: actPill
+        property string label: ""
+        property string icon: ""
+        property bool accent: false
+        signal clicked
+
+        implicitWidth: pillRow.implicitWidth + 20
+        Layout.preferredHeight: 30
+        radius: 9
+        color: actPill.accent ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, actHover.hovered ? 0.28 : 0.18) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, actHover.hovered ? 0.12 : 0.07)
+        border.color: actPill.accent ? Qt.rgba(Colors.primary.r, Colors.primary.g, Colors.primary.b, 0.45) : Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.12)
+        border.width: 1
+        Behavior on color {
+            ColorAnimation {
+                duration: 120
+            }
+        }
+
+        HoverHandler {
+            id: actHover
+        }
+
+        RowLayout {
+            id: pillRow
+            anchors.centerIn: parent
+            spacing: 6
+            Text {
+                visible: actPill.icon !== ""
+                text: actPill.icon
+                font.pixelSize: 13
+                color: actPill.accent ? Colors.primary : Colors.surfaceText
+            }
+            Text {
+                text: actPill.label
+                font.pixelSize: 12
+                font.bold: true
+                color: actPill.accent ? Colors.primary : Colors.surfaceText
+            }
+        }
+
+        TapHandler {
+            onTapped: actPill.clicked()
+        }
+    }
+
+    component InfoLine: RowLayout {
+        id: infoLine
+        property string label: ""
+        property string value: ""
+
+        Layout.fillWidth: true
+        spacing: 10
+        Text {
+            text: infoLine.label
+            color: Colors.surfaceText
+            font.pixelSize: 12
+            font.bold: true
+            Layout.preferredWidth: 110
+        }
+        Text {
+            text: infoLine.value
+            color: Qt.rgba(Colors.surfaceText.r, Colors.surfaceText.g, Colors.surfaceText.b, 0.55)
+            font.pixelSize: 11
+            elide: Text.ElideMiddle
+            horizontalAlignment: Text.AlignRight
+            Layout.fillWidth: true
         }
     }
 }
