@@ -34,8 +34,21 @@ https://github.com/user-attachments/assets/5c14767b-d2c9-4ad7-b5de-51701005499c
 
 - `quickshell/` — shell UI, theming, and system integrations
 - `hypr/` — base Hyprland Lua config, keybinds, autostart, and Hyprlock
+- `install.sh` — interactive Arch installer (EN/RU, backups, pacman + AUR deps, configs)
 
 ## Install
+
+### Installer script (Arch Linux)
+
+```bash
+git clone https://github.com/pzwt4cc/aeonshell
+cd aeonshell
+./install.sh
+```
+
+Supports **EN / RU** prompts, automatic backup of existing `~/.config/{hypr,quickshell}`, **Full install** (dependencies + configs) or **Configs only** (`--configs-only`).
+
+### Manual install
 
 ```bash
 git clone https://github.com/pzwt4cc/aeonshell
@@ -99,8 +112,21 @@ MIT — see [LICENSE](./LICENSE).
 
 - `quickshell/` — весь интерфейс оболочки, темизация и системные модули
 - `hypr/` — базовый Lua-конфиг Hyprland, бинды, автозапуск и Hyprlock
+- `install.sh` — интерактивный установщик для Arch (RU/EN, бэкап, пакеты и конфиги)
 
 ## Установка
+
+### Скрипт установки (Arch Linux)
+
+```bash
+git clone https://github.com/pzwt4cc/aeonshell
+cd aeonshell
+./install.sh
+```
+
+Поддерживает выбор языка (**RU / EN**), автоматический бэкап существующих `~/.config/{hypr,quickshell}`, полную установку (пакеты + конфиги) или установку только конфигов (`--configs-only`).
+
+### Вручную
 
 ```bash
 git clone https://github.com/pzwt4cc/aeonshell
