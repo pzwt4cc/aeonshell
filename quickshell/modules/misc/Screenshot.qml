@@ -34,8 +34,15 @@ Scope {
         onTriggered: root.resultShown = false
     }
 
+    function copyToClipboard(path) {
+        if (!path || path.length === 0)
+            return;
+        Quickshell.execDetached(["sh", "-c", "wl-copy --type image/png < \"$1\" >/dev/null 2>&1", "sh", path]);
+    }
+
     function showResult(path) {
         root.shotPath = path;
+        root.copyToClipboard(path);
         root.resultShown = true;
         autoHide.restart();
     }
@@ -73,11 +80,6 @@ Scope {
         Quickshell.execDetached(["sh", "-c", "mkdir -p \"$1\" && f=\"$1/shot_$(date +%Y%m%d_%H%M%S).png\" && " + "{ if [ -n \"$2\" ]; then grim -o \"$2\" \"$f\"; else grim \"$f\"; fi; } 2>/dev/null && " + "qs ipc call screenshot _report \"$f\"", "sh", root.shotsDir, monName]);
     }
 
-    Process {
-        id: copyProc
-        running: false
-        command: []
-    }
     Process {
         id: deleteProc
         running: false
@@ -215,8 +217,7 @@ Scope {
                             icon: "󰆏"
                             label: Lang.t("shot.copy")
                             onClicked: {
-                                copyProc.command = ["sh", "-c", "wl-copy --type image/png < \"$1\"", "sh", root.shotPath];
-                                copyProc.running = true;
+                                root.copyToClipboard(root.shotPath);
                                 root.resultShown = false;
                             }
                         }
