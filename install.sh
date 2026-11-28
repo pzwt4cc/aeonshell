@@ -33,10 +33,7 @@ BACKUP_DIR="$HOME/aeonshell-backup-$TIMESTAMP"
 LOG_FILE="${_AEONSHELL_LOG_FILE:-$CACHE_DIR/install-$TIMESTAMP.log}"
 
 CONFIG_MODULES=(hypr quickshell)
-PRESERVED_HYPR_FILES=(
-    "hypr/conf/monitor.lua"
-    "hypr/conf/keyboard.lua"
-)
+HYPR_MANIFEST="$CACHE_DIR/hypr-manifest.sha256"
 
 PACMAN_DEPS=(
     hyprland hyprlock xdg-desktop-portal-hyprland xdg-desktop-portal
@@ -101,7 +98,7 @@ declare -A T_EN=(
     [no_conflicts]="No conflicting configs in %s."
     [found_conflicts]="Existing configs found:"
     [conflict_prompt]="  [B] Back up to %s and install (default)\n  [o] Overwrite without backup\n  [c] Cancel"
-    [update_conflict_prompt]="  [S] Smart update — back up + update, keep monitor.lua & keyboard.lua (default)\n  [b] Clean replace — back up + overwrite all files\n  [o] Overwrite all without backup\n  [c] Cancel"
+    [update_conflict_prompt]="  [S] Smart update — back up + update, preserve modified Hyprland configs (default)\n  [b] Clean replace — back up + overwrite all files\n  [o] Overwrite all without backup\n  [c] Cancel"
     [backed_up]="Backed up existing configs to %s"
     [overwriting]="Overwriting existing configs without backup."
     [cancelled]="Cancelled. Nothing was changed."
@@ -140,8 +137,8 @@ declare -A T_EN=(
     [copying_configs]="Deploying configs to %s"
     [module_copied]="%s deployed (%d files)"
     [module_failed]="Failed to deploy %s"
-    [preserved_file]="Preserved %s (new template is in repo)"
-    [bind_updated]="bind.lua was updated (your previous version is in %s)"
+    [preserved_file]="Preserved modified %s (new template: %s)"
+    [preserved_custom]="Preserved custom %s"
     [scripts_fixed]="Made %d script(s) executable."
     [wallpapers_dir]="Wallpapers folder ready: %s"
 
@@ -209,7 +206,7 @@ declare -A T_RU=(
     [no_conflicts]="Конфликтующих конфигов в %s не найдено."
     [found_conflicts]="Найдены установленные конфиги:"
     [conflict_prompt]="  [B] Сделать бэкап в %s и установить (по умолчанию)\n  [o] Перезаписать без бэкапа\n  [c] Отмена"
-    [update_conflict_prompt]="  [S] Умное обновление — бэкап + обновление, сохранить monitor.lua и keyboard.lua (по умолчанию)\n  [b] Полная замена — бэкап + перезаписать все файлы\n  [o] Перезаписать всё без бэкапа\n  [c] Отмена"
+    [update_conflict_prompt]="  [S] Умное обновление — бэкап + обновление, сохранить изменённые конфиги Hyprland (по умолчанию)\n  [b] Полная замена — бэкап + перезаписать все файлы\n  [o] Перезаписать всё без бэкапа\n  [c] Отмена"
     [backed_up]="Бэкап сохранён в %s"
     [overwriting]="Перезапись существующих конфигов без бэкапа."
     [cancelled]="Отменено. Ничего не изменено."
@@ -248,8 +245,8 @@ declare -A T_RU=(
     [copying_configs]="Установка конфигов в %s"
     [module_copied]="%s установлен (%d файлов)"
     [module_failed]="Не удалось скопировать %s"
-    [preserved_file]="Сохранён ваш %s (новый шаблон остался в репо)"
-    [bind_updated]="bind.lua обновлён (ваша старая версия сохранена в %s)"
+    [preserved_file]="Сохранён изменённый %s (новый шаблон: %s)"
+    [preserved_custom]="Сохранён ваш файл %s"
     [scripts_fixed]="Выданы права на запуск для %d скрипт(ов)."
     [wallpapers_dir]="Папка для обоев готова: %s"
 
@@ -876,8 +873,87 @@ install_dependencies() {
 }
 
 # ---------------------------------------------------------------------------
-# Deploy configs, preserve user hardware configs on Smart Update, verify
+# Deploy configs, preserve user-modified Hyprland configs on Smart Update, verify
 # ---------------------------------------------------------------------------
+write_hypr_manifest() {
+    [ -d "$REPO_DIR/hypr" ] || return 0
+    mkdir -p "$CACHE_DIR"
+    local tmp="$HYPR_MANIFEST.tmp"
+    if (
+        cd "$REPO_DIR/hypr" || exit 1
+        find . -type f -print0 | sort -z | xargs -0 -r sha256sum | sed 's|^\([0-9a-f]\{64\}\)  \./|\1  |'
+    ) > "$tmp" 2>/dev/null; then
+        mv "$tmp" "$HYPR_MANIFEST"
+    else
+        rm -f "$tmp"
+    fi
+}
+
+restore_modified_hypr_configs() {
+    local hypr_backup="$BACKUP_DIR/hypr"
+    [ -d "$hypr_backup" ] || return 0
+
+    local has_manifest=0
+    declare -A manifest_hashes=()
+    if [ -f "$HYPR_MANIFEST" ]; then
+        local line hash rel
+        while IFS= read -r line; do
+            [ -n "$line" ] || continue
+            hash="${line%%  *}"
+            rel="${line#*  }"
+            if [ -n "$hash" ] && [ -n "$rel" ]; then
+                manifest_hashes["$rel"]="$hash"
+            fi
+        done < "$HYPR_MANIFEST"
+        [ "${#manifest_hashes[@]}" -gt 0 ] && has_manifest=1
+    fi
+
+    local backed rel dst cur_hash preserve is_custom
+    while IFS= read -r -d '' backed; do
+        rel="${backed#"$hypr_backup/"}"
+        dst="$CONFIG_DIR/hypr/$rel"
+        preserve=0
+        is_custom=0
+
+        if [ -L "$backed" ]; then
+            preserve=1
+            [ ! -e "$REPO_DIR/hypr/$rel" ] && is_custom=1
+        elif [ "$has_manifest" -eq 1 ]; then
+            if [[ -v manifest_hashes["$rel"] ]]; then
+                cur_hash="$(sha256sum "$backed" 2>/dev/null | awk '{print $1}' || true)"
+                if [ -n "$cur_hash" ] && [ "$cur_hash" != "${manifest_hashes[$rel]}" ]; then
+                    preserve=1
+                fi
+            elif [ ! -e "$REPO_DIR/hypr/$rel" ]; then
+                preserve=1
+                is_custom=1
+            elif [ -f "$dst" ] && ! cmp -s "$backed" "$dst"; then
+                preserve=1
+            fi
+        else
+            if [ ! -e "$REPO_DIR/hypr/$rel" ]; then
+                preserve=1
+                is_custom=1
+            elif [ -f "$dst" ] && ! cmp -s "$backed" "$dst"; then
+                preserve=1
+            fi
+        fi
+
+        if [ "$preserve" -eq 1 ]; then
+            mkdir -p "$(dirname "$dst")"
+            if cp -af "$backed" "$dst"; then
+                if [ "$is_custom" -eq 1 ]; then
+                    info "$(t preserved_custom "hypr/$rel")"
+                elif [ -e "$REPO_DIR/hypr/$rel" ]; then
+                    info "$(t preserved_file "hypr/$rel" "$REPO_DIR/hypr/$rel")"
+                else
+                    info "$(t preserved_custom "hypr/$rel")"
+                fi
+            fi
+        fi
+    done < <(find "$hypr_backup" \( -type f -o -type l \) -print0 | sort -z)
+}
+
 deploy_configs() {
     step "$(t copying_configs "$CONFIG_DIR")"
     mkdir -p "$CONFIG_DIR"
@@ -902,21 +978,10 @@ deploy_configs() {
     done
 
     if [ "$SMART_UPDATE" -eq 1 ] && [ "$BACKUP_CREATED" -eq 1 ]; then
-        local rel backed
-        for rel in "${PRESERVED_HYPR_FILES[@]}"; do
-            backed="$BACKUP_DIR/$rel"
-            if [ -f "$backed" ] && [ -f "$CONFIG_DIR/$rel" ] && ! cmp -s "$backed" "$CONFIG_DIR/$rel"; then
-                cp "$backed" "$CONFIG_DIR/$rel"
-                info "$(t preserved_file "$rel")"
-            fi
-        done
-
-        local old_bind="$BACKUP_DIR/hypr/conf/bind.lua"
-        local new_bind="$CONFIG_DIR/hypr/conf/bind.lua"
-        if [ -f "$old_bind" ] && [ -f "$new_bind" ] && ! cmp -s "$old_bind" "$new_bind"; then
-            warn "$(t bind_updated "$old_bind")"
-        fi
+        restore_modified_hypr_configs
     fi
+
+    write_hypr_manifest
 
     local fixed=0 f
     if [ -d "$CONFIG_DIR/hypr/script" ]; then

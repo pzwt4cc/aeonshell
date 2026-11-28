@@ -46,7 +46,7 @@ cd aeonshell
 ./install.sh
 ```
 
-Supports **EN / RU** prompts, **Full install**, **Update** (`./install.sh --update`: `git pull`, smart config update keeping `monitor.lua` & `keyboard.lua`, new dependency checks, live reload), or **Configs only** (`--configs-only`). Existing `~/.config/{hypr,quickshell}` are backed up automatically.
+Supports **EN / RU** prompts, **Full install**, **Update** (`./install.sh --update`: `git pull`, smart config update preserving modified Hyprland configs, new dependency checks, live reload), or **Configs only** (`--configs-only`). Existing `~/.config/{hypr,quickshell}` are backed up automatically.
 
 ### Manual install
 
@@ -124,7 +124,7 @@ cd aeonshell
 ./install.sh
 ```
 
-Поддерживает выбор языка (**RU / EN**), полную установку, обновление (`./install.sh --update`: `git pull`, умное обновление с сохранением `monitor.lua` и `keyboard.lua`, доустановка новых пакетов и перезапуск сессии) или только конфиги (`--configs-only`). Существующие `~/.config/{hypr,quickshell}` автоматически сохраняются в бэкап.
+Поддерживает выбор языка (**RU / EN**), полную установку, обновление (`./install.sh --update`: `git pull`, умное обновление с сохранением изменённых конфигов Hyprland, доустановка новых пакетов и перезапуск сессии) или только конфиги (`--configs-only`). Существующие `~/.config/{hypr,quickshell}` автоматически сохраняются в бэкап.
 
 ### Вручную
 
