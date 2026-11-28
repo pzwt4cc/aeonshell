@@ -3,7 +3,7 @@
 -- base
 local mainMod = "SUPER"
 local terminal = "kitty"
-local fileManager = "xdg-open \"$HOME\""
+local fileManager = "nautilus"
 local browser = "firefox"
 
 -- binds

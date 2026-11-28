@@ -34,6 +34,8 @@ LOG_FILE="${_AEONSHELL_LOG_FILE:-$CACHE_DIR/install-$TIMESTAMP.log}"
 CONFIG_MODULES=(hypr quickshell)
 HYPR_MANIFEST="$CACHE_DIR/hypr-manifest.sha256"
 
+SYS_DRM_DIR="${_AEONSHELL_DRM_DIR:-/sys/class/drm}"
+
 PACMAN_DEPS=(
     hyprland hyprlock xdg-desktop-portal-hyprland xdg-desktop-portal
     qt6-wayland qt6ct kitty
@@ -41,12 +43,16 @@ PACMAN_DEPS=(
     bluez bluez-utils
     pipewire pipewire-pulse pipewire-alsa wireplumber
     wl-clipboard cliphist grim slurp swappy
-    udiskie ffmpeg
+    ffmpeg
 )
 
 AUR_DEPS=(
     quickshell-git awww mpvpaper
     bibata-cursor-theme ttf-jetbrains-mono-nerd
+)
+
+OPTIONAL_APP_DEPS=(
+    firefox nautilus
 )
 
 OPTIONAL_DEPS=(
@@ -110,6 +116,8 @@ declare -A T_EN=(
     [pacman_done]="Official-repo packages installed."
     [pacman_batch_fallback]="Batch install hit an error — retrying package by package."
 
+    [optional_firefox_prompt]="Install default browser 'firefox'? [Y/n] "
+    [optional_nautilus_prompt]="Install file manager 'nautilus'? [Y/n] "
     [optional_matugen_prompt]="Install optional 'matugen-bin' from AUR for wallpaper palette extraction? (built-in ColorQuantizer works without it) [Y/n] "
     [aur_install_prompt]="Install %d AUR package(s) (%s)? [Y/n] "
     [aur_skipped]="AUR packages skipped by user."
@@ -133,6 +141,11 @@ declare -A T_EN=(
     [preserved_summary]="Kept %d modified/custom Hyprland file(s)."
     [scripts_fixed]="Made %d script(s) executable."
     [wallpapers_dir]="Wallpapers folder ready: %s"
+    [monitors_title]="Monitor configuration"
+    [monitors_detected]="Detected %d monitors:"
+    [monitors_primary_prompt]="Choose primary monitor (0x0) [1-%d, default 1]: "
+    [monitors_invalid]="Please enter a number from 1 to %d."
+    [monitors_written]="Configured %d monitors in %s"
 
     [services_title]="System services"
     [service_prompt]="Enable and start %s now? [y/N] "
@@ -210,6 +223,8 @@ declare -A T_RU=(
     [pacman_done]="Пакеты из официальных репозиториев установлены."
     [pacman_batch_fallback]="Ошибка пакетной установки — пробуем устанавливать по одному."
 
+    [optional_firefox_prompt]="Установить базовый браузер 'firefox'? [Y/n] "
+    [optional_nautilus_prompt]="Установить файловый менеджер 'nautilus'? [Y/n] "
     [optional_matugen_prompt]="Установить опциональный 'matugen-bin' из AUR для генерации палитры? (без него работает встроенный ColorQuantizer) [Y/n] "
     [aur_install_prompt]="Установить %d пакет(ов) из AUR (%s)? [Y/n] "
     [aur_skipped]="Установка пакетов AUR пропущена пользователем."
@@ -233,6 +248,11 @@ declare -A T_RU=(
     [preserved_summary]="Сохранено изменённых/своих файлов Hyprland: %d."
     [scripts_fixed]="Выданы права на запуск для %d скрипт(ов)."
     [wallpapers_dir]="Папка для обоев готова: %s"
+    [monitors_title]="Настройка мониторов"
+    [monitors_detected]="Обнаружено мониторов (%d):"
+    [monitors_primary_prompt]="Выберите основной монитор (0x0) [1-%d, по умолчанию 1]: "
+    [monitors_invalid]="Введите число от 1 до %d."
+    [monitors_written]="Настроено мониторов (%d) в %s"
 
     [services_title]="Системные службы"
     [service_prompt]="Включить и запустить %s сейчас? [y/N] "
@@ -677,13 +697,19 @@ install_dependencies() {
 
     local want_optional=()
     if [ "$MODE" = "full" ]; then
-        for pkg in "${OPTIONAL_DEPS[@]}"; do
+        local reply prompt_key
+        for pkg in "${OPTIONAL_APP_DEPS[@]}" "${OPTIONAL_DEPS[@]}"; do
             if pkg_installed "$pkg"; then
                 PKG_STATUS[$pkg]="present"
                 already_count=$((already_count + 1))
             else
-                local reply
-                read -rp "  $(t optional_matugen_prompt)" reply
+                case "$pkg" in
+                    firefox)     prompt_key="optional_firefox_prompt" ;;
+                    nautilus)    prompt_key="optional_nautilus_prompt" ;;
+                    matugen-bin) prompt_key="optional_matugen_prompt" ;;
+                    *)           prompt_key="optional_matugen_prompt" ;;
+                esac
+                read -rp "  $(t "$prompt_key")" reply
                 case "$reply" in
                     ""|y|Y) want_optional+=("$pkg") ;;
                     *) PKG_STATUS[$pkg]="skipped" ;;
@@ -911,6 +937,173 @@ deploy_configs() {
     ok "$(t wallpapers_dir "$HOME/Pictures/Wallpapers")"
 }
 
+configure_monitors() {
+    local mon_file="$CONFIG_DIR/hypr/conf/monitor.lua"
+    [ -f "$mon_file" ] || return 0
+    [ -f "$REPO_DIR/hypr/conf/monitor.lua" ] || return 0
+
+    # Never overwrite a user-customized monitor.lua
+    cmp -s "$mon_file" "$REPO_DIR/hypr/conf/monitor.lua" || return 0
+
+    local entries=()
+
+    if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] && command -v hyprctl >/dev/null 2>&1; then
+        local raw_mon
+        raw_mon="$(hyprctl monitors 2>/dev/null | awk '
+            /^Monitor [^ ]+ / {
+                if (name != "" && mode != "" && pos != "") {
+                    printf "%s|%s|%s|%s|%s|%s\n", name, mode, pos, (scale != "" ? scale : "1"), (trans != "" ? trans : "0"), (foc != "" ? foc : "no")
+                }
+                name = $2; mode = ""; pos = ""; scale = "1"; trans = "0"; foc = "no"
+                next
+            }
+            /^[[:space:]]+[0-9]+x[0-9]+@[0-9.]+ at -?[0-9]+x-?[0-9]+$/ {
+                split($1, a, "@")
+                rate = a[2] + 0
+                if (rate == int(rate)) {
+                    rstr = sprintf("%d", int(rate))
+                } else {
+                    rstr = sprintf("%.2f", rate)
+                    sub(/0+$/, "", rstr)
+                    sub(/\.$/, "", rstr)
+                }
+                mode = a[1] "@" rstr
+                pos = $3
+                next
+            }
+            /^[[:space:]]+scale:/ { scale = $2; next }
+            /^[[:space:]]+transform:/ { trans = $2; next }
+            /^[[:space:]]+focused:/ { foc = $2; next }
+            END {
+                if (name != "" && mode != "" && pos != "") {
+                    printf "%s|%s|%s|%s|%s|%s\n", name, mode, pos, (scale != "" ? scale : "1"), (trans != "" ? trans : "0"), (foc != "" ? foc : "no")
+                }
+            }
+        ' || true)"
+
+        local line
+        while IFS= read -r line; do
+            [ -n "$line" ] && entries+=("$line")
+        done <<< "$raw_mon"
+
+        if [ "${#entries[@]}" -gt 1 ]; then
+            step "$(t monitors_title)"
+            info "$(t monitors_detected "${#entries[@]}")"
+            local item name mode pos scale trans foc idx=1
+            for item in "${entries[@]}"; do
+                IFS='|' read -r name mode pos scale trans foc <<< "$item"
+                printf "    [%d] %s (%s @ %s)\n" "$idx" "$name" "$mode" "$pos"
+                idx=$((idx + 1))
+            done
+
+            {
+                printf -- "-- monitor.lua (auto-detected %d monitors)\n" "${#entries[@]}"
+                printf -- "-- -----------------------------------------------------------\n\n"
+                for item in "${entries[@]}"; do
+                    IFS='|' read -r name mode pos scale trans foc <<< "$item"
+                    printf "hl.monitor({\n"
+                    printf "    output   = \"%s\",\n" "$name"
+                    printf "    mode     = \"%s\",\n" "$mode"
+                    printf "    position = \"%s\",\n" "$pos"
+                    printf "    scale    = %s,\n" "$scale"
+                    if [ "$trans" != "0" ]; then
+                        printf "    transform = %s,\n" "$trans"
+                    fi
+                    printf "})\n\n"
+                done
+                printf -- "-- Fallback for hotplugged monitors\n"
+                printf "hl.monitor({\n"
+                printf "    output   = \"\",\n"
+                printf "    mode     = \"preferred\",\n"
+                printf "    position = \"auto\",\n"
+                printf "    scale    = 1,\n"
+                printf "})\n"
+            } > "$mon_file"
+            ok "$(t monitors_written "${#entries[@]}" "$mon_file")"
+            return 0
+        fi
+    fi
+
+    # Fallback: detect connected outputs via /sys/class/drm (e.g. TTY first install)
+    local drm_entries=() s dir base mname first_mode
+    declare -A seen_mons=()
+    for s in "$SYS_DRM_DIR"/card*-*/status; do
+        [ -f "$s" ] || continue
+        [ "$(cat "$s" 2>/dev/null || true)" = "connected" ] || continue
+        dir="${s%/status}"
+        base="${dir##*/}"
+        mname="${base#card*-}"
+        [ -n "$mname" ] || continue
+        [[ -v seen_mons["$mname"] ]] && continue
+        seen_mons["$mname"]=1
+        first_mode="$(head -n1 "$dir/modes" 2>/dev/null || true)"
+        drm_entries+=("$mname|${first_mode:-preferred}")
+    done
+
+    if [ "${#drm_entries[@]}" -le 1 ]; then
+        return 0
+    fi
+
+    step "$(t monitors_title)"
+    info "$(t monitors_detected "${#drm_entries[@]}")"
+    local idx=1 item mname mmode
+    for item in "${drm_entries[@]}"; do
+        IFS='|' read -r mname mmode <<< "$item"
+        printf "    [%d] %s (%s)\n" "$idx" "$mname" "$mmode"
+        idx=$((idx + 1))
+    done
+
+    local primary_idx=1 choice
+    while true; do
+        read -rp "  $(t monitors_primary_prompt "${#drm_entries[@]}")" choice
+        if [ -z "$choice" ]; then
+            primary_idx=1
+            break
+        elif [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#drm_entries[@]}" ]; then
+            primary_idx="$choice"
+            break
+        else
+            warn "$(t monitors_invalid "${#drm_entries[@]}")"
+        fi
+    done
+
+    local p_item p_name p_mode
+    p_item="${drm_entries[$((primary_idx - 1))]}"
+    IFS='|' read -r p_name p_mode <<< "$p_item"
+
+    {
+        printf -- "-- monitor.lua (auto-detected %d monitors)\n" "${#drm_entries[@]}"
+        printf -- "-- -----------------------------------------------------------\n\n"
+        printf "hl.monitor({\n"
+        printf "    output   = \"%s\",\n" "$p_name"
+        printf "    mode     = \"preferred\",\n"
+        printf "    position = \"0x0\",\n"
+        printf "    scale    = 1,\n"
+        printf "})\n\n"
+        idx=1
+        for item in "${drm_entries[@]}"; do
+            if [ "$idx" -ne "$primary_idx" ]; then
+                IFS='|' read -r mname mmode <<< "$item"
+                printf "hl.monitor({\n"
+                printf "    output   = \"%s\",\n" "$mname"
+                printf "    mode     = \"preferred\",\n"
+                printf "    position = \"auto\",\n"
+                printf "    scale    = 1,\n"
+                printf "})\n\n"
+            fi
+            idx=$((idx + 1))
+        done
+        printf -- "-- Fallback for hotplugged monitors\n"
+        printf "hl.monitor({\n"
+        printf "    output   = \"\",\n"
+        printf "    mode     = \"preferred\",\n"
+        printf "    position = \"auto\",\n"
+        printf "    scale    = 1,\n"
+        printf "})\n"
+    } > "$mon_file"
+    ok "$(t monitors_written "${#drm_entries[@]}" "$mon_file")"
+}
+
 # ---------------------------------------------------------------------------
 # Systemd services & live session reload
 # ---------------------------------------------------------------------------
@@ -1030,6 +1223,7 @@ main() {
     update_repo_if_needed
     install_dependencies
     deploy_configs
+    configure_monitors
     offer_services
     offer_live_reload
     print_summary

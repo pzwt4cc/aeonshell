@@ -70,7 +70,7 @@ sudo pacman -S --needed \
   bluez bluez-utils \
   pipewire pipewire-pulse pipewire-alsa wireplumber \
   wl-clipboard cliphist grim slurp swappy \
-  udiskie ffmpeg
+  ffmpeg
 ```
 
 **AUR:**
@@ -148,7 +148,7 @@ sudo pacman -S --needed \
   bluez bluez-utils \
   pipewire pipewire-pulse pipewire-alsa wireplumber \
   wl-clipboard cliphist grim slurp swappy \
-  udiskie ffmpeg
+  ffmpeg
 ```
 
 **AUR:**
