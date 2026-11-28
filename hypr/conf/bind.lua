@@ -3,8 +3,8 @@
 -- base
 local mainMod = "SUPER"
 local terminal = "kitty"
-local fileManager = "pcmanfm-qt"
-local browser = "zen-browser"
+local fileManager = "xdg-open \"$HOME\""
+local browser = "firefox"
 
 -- binds
 hl.bind(mainMod .. " + T", hl.dsp.exec_cmd(terminal))
@@ -16,7 +16,7 @@ hl.bind(mainMod .. " + B", hl.dsp.exec_cmd(browser))
 hl.bind(mainMod .. " + D", hl.dsp.exec_cmd("qs ipc call launcher toggle"))
 
 -- Mouse
-hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag({ mode = "move" }))
+hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag())
 hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize())
 
 -- Workspaces

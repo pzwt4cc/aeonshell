@@ -233,7 +233,7 @@ Scope {
                             icon: "󰝰"
                             label: Lang.t("shot.folder")
                             onClicked: {
-                                Quickshell.execDetached(["pcmanfm-qt", root.shotsDir]);
+                                Quickshell.execDetached(["xdg-open", root.shotsDir]);
                                 root.resultShown = false;
                             }
                         }

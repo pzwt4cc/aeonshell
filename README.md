@@ -65,7 +65,7 @@ chmod +x ~/.config/hypr/script/*.sh
 ```bash
 sudo pacman -S --needed \
   hyprland hyprlock xdg-desktop-portal-hyprland xdg-desktop-portal \
-  qt6-wayland qt6ct kitty pcmanfm-qt \
+  qt6-wayland qt6ct kitty \
   networkmanager nm-connection-editor \
   bluez bluez-utils \
   pipewire pipewire-pulse pipewire-alsa wireplumber \
@@ -143,7 +143,7 @@ chmod +x ~/.config/hypr/script/*.sh
 ```bash
 sudo pacman -S --needed \
   hyprland hyprlock xdg-desktop-portal-hyprland xdg-desktop-portal \
-  qt6-wayland qt6ct kitty pcmanfm-qt \
+  qt6-wayland qt6ct kitty \
   networkmanager nm-connection-editor \
   bluez bluez-utils \
   pipewire pipewire-pulse pipewire-alsa wireplumber \

@@ -37,7 +37,7 @@ HYPR_MANIFEST="$CACHE_DIR/hypr-manifest.sha256"
 
 PACMAN_DEPS=(
     hyprland hyprlock xdg-desktop-portal-hyprland xdg-desktop-portal
-    qt6-wayland qt6ct kitty pcmanfm-qt
+    qt6-wayland qt6ct kitty
     networkmanager nm-connection-editor
     bluez bluez-utils
     pipewire pipewire-pulse pipewire-alsa wireplumber
@@ -62,6 +62,7 @@ AUR_DECLINED=0
 AUR_IN_PROGRESS=0
 BACKUP_CREATED=0
 SMART_UPDATE=0
+PRESERVED_COUNT=0
 
 # ---------------------------------------------------------------------------
 # Translations (EN / RU)
@@ -71,12 +72,12 @@ declare -A T_EN=(
     [log_path]="Log: %s"
 
     [mode_title]="Action"
-    [mode_install_full]="  [1] Full install — dependencies + configs (default)"
-    [mode_install_update]="  [2] Update — git pull + update configs & missing packages"
-    [mode_install_configs]="  [3] Configs only — copy hypr & quickshell without packages"
-    [mode_update_first]="  [1] Update aeonshell — git pull + smart config update (default)"
-    [mode_update_full]="  [2] Full reinstall — check all packages + replace configs"
-    [mode_update_configs]="  [3] Configs only — copy local hypr & quickshell without pull/packages"
+    [mode_install_full]="  [1] Full install — packages + Quickshell + Hyprland configs (default)"
+    [mode_install_update]="  [2] Update shell — git pull + update Quickshell & configs + check new packages"
+    [mode_install_configs]="  [3] Local configs only — deploy Quickshell & Hyprland from this folder (no pull/packages)"
+    [mode_update_first]="  [1] Update shell — git pull + update Quickshell (keeps Hyprland edits) + check packages (default)"
+    [mode_update_configs]="  [2] Update from local folder — update Quickshell & configs here (no git pull/packages)"
+    [mode_update_full]="  [3] Full reinstall — check all packages + clean replace configs"
     [mode_invalid]="Please choose 1, 2, or 3."
 
     [no_root]="Run this script as a regular user, not root (sudo will be used when needed)."
@@ -95,10 +96,12 @@ declare -A T_EN=(
     [repo_self_updated]="Installer script updated — reloading..."
 
     [checking_existing]="Checking existing configs"
+    [updating_configs_step]="Shell & config update"
     [no_conflicts]="No conflicting configs in %s."
     [found_conflicts]="Existing configs found:"
+    [update_targets]="Updating in %s (Quickshell will be refreshed, modified Hyprland files kept by default):"
     [conflict_prompt]="  [B] Back up to %s and install (default)\n  [o] Overwrite without backup\n  [c] Cancel"
-    [update_conflict_prompt]="  [S] Smart update — back up + update, preserve modified Hyprland configs (default)\n  [b] Clean replace — back up + overwrite all files\n  [o] Overwrite all without backup\n  [c] Cancel"
+    [update_conflict_prompt]="  [S] Smart update — back up, update Quickshell & untouched Hyprland defaults, keep your Hyprland edits (default)\n  [b] Clean replace — back up and reset both Quickshell & Hyprland to repo defaults\n  [o] Overwrite all without backup\n  [c] Cancel"
     [backed_up]="Backed up existing configs to %s"
     [overwriting]="Overwriting existing configs without backup."
     [cancelled]="Cancelled. Nothing was changed."
@@ -135,10 +138,15 @@ declare -A T_EN=(
     [aur_batch_fallback]="AUR batch install hit an error — retrying package by package."
 
     [copying_configs]="Deploying configs to %s"
+    [updating_shell_configs]="Updating Quickshell & Hyprland configs in %s"
     [module_copied]="%s deployed (%d files)"
+    [shell_updated]="Quickshell updated (%d files)"
+    [hypr_updated]="Hyprland defaults synced (%d files)"
     [module_failed]="Failed to deploy %s"
     [preserved_file]="Preserved modified %s (new template: %s)"
     [preserved_custom]="Preserved custom %s"
+    [preserved_none]="No local Hyprland edits detected — all Hyprland files match repo defaults."
+    [preserved_summary]="Kept %d modified/custom Hyprland file(s)."
     [scripts_fixed]="Made %d script(s) executable."
     [wallpapers_dir]="Wallpapers folder ready: %s"
 
@@ -165,6 +173,8 @@ declare -A T_EN=(
     [next_1]="Review %s~/.config/hypr/conf/%s (monitor.lua, keyboard.lua, bind.lua) if needed."
     [next_2]="Add wallpapers/videos to %s~/Pictures/Wallpapers%s."
     [next_3]="Press %sSuper + D%s and run %s>wallpaper%s; open Settings from the bar gear icon."
+    [next_update_1]="Quickshell updated from %s%s%s; your modified Hyprland configs were preserved."
+    [next_update_2]="If you skipped live reload, restart Quickshell (%shyprctl reload%s) or reload Hyprland when ready."
 
     [fail_pkg_not_found]="%s — not found in pacman or AUR"
     [fail_pkg_install]="%s (%s) — installation failed"
@@ -179,12 +189,12 @@ declare -A T_RU=(
     [log_path]="Лог: %s"
 
     [mode_title]="Действие"
-    [mode_install_full]="  [1] Полная установка — пакеты + конфиги (по умолчанию)"
-    [mode_install_update]="  [2] Обновление — git pull + обновить конфиги и недостающие пакеты"
-    [mode_install_configs]="  [3] Только конфиги — скопировать hypr и quickshell без пакетов"
-    [mode_update_first]="  [1] Обновить aeonshell — git pull + умное обновление конфигов (по умолчанию)"
-    [mode_update_full]="  [2] Полная переустановка — проверить пакеты + заменить все конфиги"
-    [mode_update_configs]="  [3] Только конфиги — скопировать локальные hypr и quickshell без pull/пакетов"
+    [mode_install_full]="  [1] Полная установка — пакеты + Quickshell + конфиги Hyprland (по умолчанию)"
+    [mode_install_update]="  [2] Обновить шелл — git pull + обновить Quickshell и конфиги + проверить новые пакеты"
+    [mode_install_configs]="  [3] Локальные конфиги — накатить Quickshell и Hyprland из этой папки (без git pull и пакетов)"
+    [mode_update_first]="  [1] Обновить шелл — git pull + обновить Quickshell (с сохранением правок Hyprland) + пакеты (по умолчанию)"
+    [mode_update_configs]="  [2] Обновить из локальной папки — обновить Quickshell и конфиги отсюда (без git pull и пакетов)"
+    [mode_update_full]="  [3] Полная переустановка — проверить все пакеты и сбросить конфиги к версии из репо"
     [mode_invalid]="Введите 1, 2 или 3."
 
     [no_root]="Запускайте скрипт от обычного пользователя, не от root (sudo запросится сам)."
@@ -203,10 +213,12 @@ declare -A T_RU=(
     [repo_self_updated]="Скрипт установки обновился — перезапуск..."
 
     [checking_existing]="Проверка существующих конфигов"
+    [updating_configs_step]="Обновление шелла и конфигов"
     [no_conflicts]="Конфликтующих конфигов в %s не найдено."
     [found_conflicts]="Найдены установленные конфиги:"
+    [update_targets]="Обновление в %s (Quickshell обновится полностью, ваши правки Hyprland сохранятся по умолчанию):"
     [conflict_prompt]="  [B] Сделать бэкап в %s и установить (по умолчанию)\n  [o] Перезаписать без бэкапа\n  [c] Отмена"
-    [update_conflict_prompt]="  [S] Умное обновление — бэкап + обновление, сохранить изменённые конфиги Hyprland (по умолчанию)\n  [b] Полная замена — бэкап + перезаписать все файлы\n  [o] Перезаписать всё без бэкапа\n  [c] Отмена"
+    [update_conflict_prompt]="  [S] Умное обновление — бэкап, обновить Quickshell и нетронутые файлы Hyprland, сохранить ваши правки Hyprland (по умолчанию)\n  [b] Полная замена — бэкап и сброс Quickshell и Hyprland к версии из репо\n  [o] Перезаписать всё без бэкапа\n  [c] Отмена"
     [backed_up]="Бэкап сохранён в %s"
     [overwriting]="Перезапись существующих конфигов без бэкапа."
     [cancelled]="Отменено. Ничего не изменено."
@@ -243,10 +255,15 @@ declare -A T_RU=(
     [aur_batch_fallback]="Ошибка пакетной установки AUR — пробуем устанавливать по одному."
 
     [copying_configs]="Установка конфигов в %s"
+    [updating_shell_configs]="Обновление Quickshell и конфигов Hyprland в %s"
     [module_copied]="%s установлен (%d файлов)"
+    [shell_updated]="Шелл (Quickshell) обновлён (%d файлов)"
+    [hypr_updated]="Базовые файлы Hyprland синхронизированы (%d файлов)"
     [module_failed]="Не удалось скопировать %s"
     [preserved_file]="Сохранён изменённый %s (новый шаблон: %s)"
     [preserved_custom]="Сохранён ваш файл %s"
+    [preserved_none]="Локальных правок в Hyprland не найдено — все файлы актуальны."
+    [preserved_summary]="Сохранено изменённых/своих файлов Hyprland: %d."
     [scripts_fixed]="Выданы права на запуск для %d скрипт(ов)."
     [wallpapers_dir]="Папка для обоев готова: %s"
 
@@ -273,6 +290,8 @@ declare -A T_RU=(
     [next_1]="При необходимости проверьте %s~/.config/hypr/conf/%s (monitor.lua, keyboard.lua, bind.lua)."
     [next_2]="Добавьте картинки или видео в %s~/Pictures/Wallpapers%s."
     [next_3]="Нажмите %sSuper + D%s и введите %s>wallpaper%s; настройки — через шестерёнку на панели."
+    [next_update_1]="Quickshell обновлён из %s%s%s; ваши правки в конфигах Hyprland сохранены."
+    [next_update_2]="Если пропустили автоперезапуск, перезапустите Quickshell или выполните %shyprctl reload%s."
 
     [fail_pkg_not_found]="%s — не найден в pacman или AUR"
     [fail_pkg_install]="%s (%s) — ошибка установки"
@@ -331,8 +350,8 @@ aeonshell installer & updater
 
 Usage: ./install.sh [options]
   --lang en|ru     Skip language prompt
-  -u, --update     Update mode (git pull + smart config update + check new deps)
-  --configs-only   Only copy local hypr & quickshell configs (skip pull & packages)
+  -u, --update     Update shell & configs (git pull + smart Hyprland preservation + deps check)
+  --configs-only   Update Quickshell & configs from local folder (smart preservation, no pull/packages)
   --skip-pull      Skip git pull in update mode
   -h, --help       Show this help
 EOF
@@ -437,14 +456,14 @@ ask_mode() {
 
     if [ "$installed" -eq 1 ]; then
         printf "%s\n" "$(t mode_update_first)"
-        printf "%s\n" "$(t mode_update_full)"
         printf "%s\n" "$(t mode_update_configs)"
+        printf "%s\n" "$(t mode_update_full)"
         while true; do
             read -rp "  > " choice
             case "$choice" in
                 ""|1) MODE="update"; break ;;
-                2)    MODE="full"; break ;;
-                3)    MODE="configs"; break ;;
+                2)    MODE="configs"; break ;;
+                3)    MODE="full"; break ;;
                 *)    warn "$(t mode_invalid)" ;;
             esac
         done
@@ -525,6 +544,7 @@ update_repo_if_needed() {
 
     old_hash="$(sha256sum "$REPO_DIR/install.sh" 2>/dev/null | awk '{print $1}')"
     info "$(t repo_pulling "$behind")"
+    git -C "$REPO_DIR" log --format="    · %h %s" -n 5 "HEAD..$upstream" 2>/dev/null || true
     if git -C "$REPO_DIR" pull --ff-only --quiet; then
         ok "$(t repo_pulled)"
         new_hash="$(sha256sum "$REPO_DIR/install.sh" 2>/dev/null | awk '{print $1}')"
@@ -542,7 +562,11 @@ update_repo_if_needed() {
 # Existing configs handling & backup
 # ---------------------------------------------------------------------------
 handle_existing_configs() {
-    step "$(t checking_existing)"
+    if [ "$MODE" = "update" ] || [ "$MODE" = "configs" ]; then
+        step "$(t updating_configs_step)"
+    else
+        step "$(t checking_existing)"
+    fi
 
     local conflicts=() m
     for m in "${CONFIG_MODULES[@]}"; do
@@ -554,14 +578,18 @@ handle_existing_configs() {
         return 0
     fi
 
-    warn "$(t found_conflicts)"
+    if [ "$MODE" = "update" ] || [ "$MODE" = "configs" ]; then
+        info "$(t update_targets "$CONFIG_DIR")"
+    else
+        warn "$(t found_conflicts)"
+    fi
     local c
     for c in "${conflicts[@]}"; do
         printf "    - %s\n" "$c"
     done
 
     local choice
-    if [ "$MODE" = "update" ]; then
+    if [ "$MODE" = "update" ] || [ "$MODE" = "configs" ]; then
         while true; do
             printf "\n%b\n" "$(t update_conflict_prompt)"
             read -rp "  > " choice
@@ -942,6 +970,7 @@ restore_modified_hypr_configs() {
         if [ "$preserve" -eq 1 ]; then
             mkdir -p "$(dirname "$dst")"
             if cp -af "$backed" "$dst"; then
+                PRESERVED_COUNT=$((PRESERVED_COUNT + 1))
                 if [ "$is_custom" -eq 1 ]; then
                     info "$(t preserved_custom "hypr/$rel")"
                 elif [ -e "$REPO_DIR/hypr/$rel" ]; then
@@ -952,10 +981,20 @@ restore_modified_hypr_configs() {
             fi
         fi
     done < <(find "$hypr_backup" \( -type f -o -type l \) -print0 | sort -z)
+
+    if [ "$PRESERVED_COUNT" -eq 0 ]; then
+        info "$(t preserved_none)"
+    else
+        ok "$(t preserved_summary "$PRESERVED_COUNT")"
+    fi
 }
 
 deploy_configs() {
-    step "$(t copying_configs "$CONFIG_DIR")"
+    if [ "$MODE" = "update" ] || [ "$MODE" = "configs" ]; then
+        step "$(t updating_shell_configs "$CONFIG_DIR")"
+    else
+        step "$(t copying_configs "$CONFIG_DIR")"
+    fi
     mkdir -p "$CONFIG_DIR"
 
     local m src_count dst_count
@@ -966,7 +1005,15 @@ deploy_configs() {
             src_count=$(find "$REPO_DIR/$m" -type f 2>/dev/null | wc -l)
             dst_count=$(find "$CONFIG_DIR/$m" -type f 2>/dev/null | wc -l)
             if [ "$src_count" -gt 0 ] && [ "$dst_count" -ge "$src_count" ]; then
-                ok "$(t module_copied "$m" "$dst_count")"
+                if [ "$MODE" = "update" ] || [ "$MODE" = "configs" ]; then
+                    if [ "$m" = "quickshell" ]; then
+                        ok "$(t shell_updated "$dst_count")"
+                    else
+                        ok "$(t hypr_updated "$dst_count")"
+                    fi
+                else
+                    ok "$(t module_copied "$m" "$dst_count")"
+                fi
             else
                 err "$(t module_failed "$m")"
                 FAILURES+=("$(t fail_config "$m")")
@@ -1032,19 +1079,22 @@ offer_services() {
 }
 
 offer_live_reload() {
-    [ "$MODE" = "update" ] || return 0
+    [ "$MODE" = "update" ] || [ "$MODE" = "configs" ] || return 0
     [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || return 0
     command -v hyprctl >/dev/null 2>&1 || return 0
 
     step "$(t reload_title)"
-    local reply
+    local reply i
     read -rp "  $(t reload_prompt)" reply
     case "$reply" in
         ""|y|Y)
             hyprctl reload >/dev/null 2>&1 || true
             if command -v quickshell >/dev/null 2>&1; then
-                pkill -x quickshell >/dev/null 2>&1 || true
-                sleep 0.3
+                pkill -u "$USER" -x quickshell >/dev/null 2>&1 || true
+                for i in $(seq 1 20); do
+                    pgrep -u "$USER" -x quickshell >/dev/null 2>&1 || break
+                    sleep 0.1
+                done
                 nohup quickshell >/dev/null 2>&1 </dev/null &
             fi
             ok "$(t reload_done)"
@@ -1093,9 +1143,14 @@ print_summary() {
     fi
 
     step "$(t next_title)"
-    printf "  1. %s\n" "$(t next_1 "$C_BOLD" "$C_RESET")"
-    printf "  2. %s\n" "$(t next_2 "$C_BOLD" "$C_RESET")"
-    printf "  3. %s\n\n" "$(t next_3 "$C_BOLD" "$C_RESET" "$C_BOLD" "$C_RESET")"
+    if [ "$MODE" = "update" ] || [ "$MODE" = "configs" ]; then
+        printf "  1. %s\n" "$(t next_update_1 "$C_BOLD" "$REPO_DIR/quickshell" "$C_RESET")"
+        printf "  2. %s\n\n" "$(t next_update_2 "$C_BOLD" "$C_RESET")"
+    else
+        printf "  1. %s\n" "$(t next_1 "$C_BOLD" "$C_RESET")"
+        printf "  2. %s\n" "$(t next_2 "$C_BOLD" "$C_RESET")"
+        printf "  3. %s\n\n" "$(t next_3 "$C_BOLD" "$C_RESET" "$C_BOLD" "$C_RESET")"
+    fi
 }
 
 # ---------------------------------------------------------------------------
