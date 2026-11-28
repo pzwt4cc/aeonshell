@@ -34,7 +34,7 @@ https://github.com/user-attachments/assets/5c14767b-d2c9-4ad7-b5de-51701005499c
 
 - `quickshell/` — shell UI, theming, and system integrations
 - `hypr/` — base Hyprland Lua config, keybinds, autostart, and Hyprlock
-- `install.sh` — interactive Arch installer & updater (EN/RU, backups, pacman + AUR deps, configs)
+- `install.sh` — interactive Arch installer & updater (EN/RU, pacman + AUR deps, clean install, smart update)
 
 ## Install
 
@@ -46,7 +46,7 @@ cd aeonshell
 ./install.sh
 ```
 
-Supports **EN / RU** prompts, **Full install**, **Update** (`./install.sh --update`: `git pull`, smart config update preserving modified Hyprland configs, new dependency checks, live reload), or **Configs only** (`--configs-only`). Existing `~/.config/{hypr,quickshell}` are backed up automatically.
+Supports **EN / RU** prompts: performs a **clean first install** automatically when the shell is not installed yet, and when `~/.config/quickshell` is detected offers **Update** (`./install.sh --update`: `git pull`, updates Quickshell & untouched Hyprland defaults while preserving your Hyprland edits, checks new deps, live reload) or **Reinstall** (`--reinstall`: clean replacement without backup).
 
 ### Manual install
 
@@ -112,7 +112,7 @@ MIT — see [LICENSE](./LICENSE).
 
 - `quickshell/` — весь интерфейс оболочки, темизация и системные модули
 - `hypr/` — базовый Lua-конфиг Hyprland, бинды, автозапуск и Hyprlock
-- `install.sh` — интерактивный установщик и обновлятор для Arch (RU/EN, бэкап, пакеты и конфиги)
+- `install.sh` — интерактивный установщик и обновлятор для Arch (RU/EN, пакеты, чистая установка и умное обновление)
 
 ## Установка
 
@@ -124,7 +124,7 @@ cd aeonshell
 ./install.sh
 ```
 
-Поддерживает выбор языка (**RU / EN**), полную установку, обновление (`./install.sh --update`: `git pull`, умное обновление с сохранением изменённых конфигов Hyprland, доустановка новых пакетов и перезапуск сессии) или только конфиги (`--configs-only`). Существующие `~/.config/{hypr,quickshell}` автоматически сохраняются в бэкап.
+Поддерживает выбор языка (**RU / EN**): при первом запуске выполняет **чистую установку**, а если `~/.config/quickshell` уже установлен, предлагает **Обновить** (`./install.sh --update`: `git pull`, обновляет Quickshell и нетронутые файлы Hyprland с сохранением ваших правок, доустанавливает новые пакеты и перезапускает сессию) или **Переустановить** (`--reinstall`: чистая замена без бэкапа).
 
 ### Вручную
 

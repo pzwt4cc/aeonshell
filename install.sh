@@ -29,7 +29,6 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/aeonshell"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-BACKUP_DIR="$HOME/aeonshell-backup-$TIMESTAMP"
 LOG_FILE="${_AEONSHELL_LOG_FILE:-$CACHE_DIR/install-$TIMESTAMP.log}"
 
 CONFIG_MODULES=(hypr quickshell)
@@ -60,9 +59,9 @@ AUR_HELPER=""
 AUR_CONFIRMED=0
 AUR_DECLINED=0
 AUR_IN_PROGRESS=0
-BACKUP_CREATED=0
 SMART_UPDATE=0
 PRESERVED_COUNT=0
+HYPR_STAGE_DIR=""
 
 # ---------------------------------------------------------------------------
 # Translations (EN / RU)
@@ -71,14 +70,12 @@ declare -A T_EN=(
     [subtitle]="Autonomous Quickshell + Hyprland installer & updater"
     [log_path]="Log: %s"
 
-    [mode_title]="Action"
-    [mode_install_full]="  [1] Full install — packages + Quickshell + Hyprland configs (default)"
-    [mode_install_update]="  [2] Update shell — git pull + update Quickshell & configs + check new packages"
-    [mode_install_configs]="  [3] Local configs only — deploy Quickshell & Hyprland from this folder (no pull/packages)"
-    [mode_update_first]="  [1] Update shell — git pull + update Quickshell (keeps Hyprland edits) + check packages (default)"
-    [mode_update_configs]="  [2] Update from local folder — update Quickshell & configs here (no git pull/packages)"
-    [mode_update_full]="  [3] Full reinstall — check all packages + clean replace configs"
-    [mode_invalid]="Please choose 1, 2, or 3."
+    [mode_title]="Mode"
+    [fresh_install_info]="Quickshell is not installed yet — running clean first install."
+    [shell_detected]="Installed shell detected in %s:"
+    [mode_update_first]="  [1] Update — git pull, update Quickshell (keep Hyprland edits), check packages (default)"
+    [mode_update_reinstall]="  [2] Reinstall — clean reinstall of Quickshell & Hyprland configs without backup"
+    [mode_invalid]="Please choose 1 or 2."
 
     [no_root]="Run this script as a regular user, not root (sudo will be used when needed)."
     [distro_unsupported]="Only Arch Linux and Arch-based distros (pacman) are supported."
@@ -94,19 +91,6 @@ declare -A T_EN=(
     [repo_pulled]="Repository updated."
     [repo_pull_failed]="git pull failed (fast-forward not possible) — continuing with local files."
     [repo_self_updated]="Installer script updated — reloading..."
-
-    [checking_existing]="Checking existing configs"
-    [updating_configs_step]="Shell & config update"
-    [no_conflicts]="No conflicting configs in %s."
-    [found_conflicts]="Existing configs found:"
-    [update_targets]="Updating in %s (Quickshell will be refreshed, modified Hyprland files kept by default):"
-    [conflict_prompt]="  [B] Back up to %s and install (default)\n  [o] Overwrite without backup\n  [c] Cancel"
-    [update_conflict_prompt]="  [S] Smart update — back up, update Quickshell & untouched Hyprland defaults, keep your Hyprland edits (default)\n  [b] Clean replace — back up and reset both Quickshell & Hyprland to repo defaults\n  [o] Overwrite all without backup\n  [c] Cancel"
-    [backed_up]="Backed up existing configs to %s"
-    [overwriting]="Overwriting existing configs without backup."
-    [cancelled]="Cancelled. Nothing was changed."
-    [invalid_boc]="Please enter b, o, or c."
-    [invalid_sboc]="Please enter s, b, o, or c."
 
     [aur_interrupt]="AUR build is in progress. Interrupting may leave a pacman lock or partial build."
     [aur_abort_prompt]="Type ABORT to quit, or press Enter to continue: "
@@ -137,9 +121,9 @@ declare -A T_EN=(
     [aur_done]="AUR packages installed."
     [aur_batch_fallback]="AUR batch install hit an error — retrying package by package."
 
-    [copying_configs]="Deploying configs to %s"
+    [copying_configs]="Installing clean configs to %s"
     [updating_shell_configs]="Updating Quickshell & Hyprland configs in %s"
-    [module_copied]="%s deployed (%d files)"
+    [module_copied]="%s installed cleanly (%d files)"
     [shell_updated]="Quickshell updated (%d files)"
     [hypr_updated]="Hyprland defaults synced (%d files)"
     [module_failed]="Failed to deploy %s"
@@ -156,7 +140,7 @@ declare -A T_EN=(
     [service_failed]="Could not enable %s."
 
     [reload_title]="Live reload"
-    [reload_prompt]="Reload Hyprland and restart Quickshell now to apply updates? [Y/n] "
+    [reload_prompt]="Reload Hyprland and restart Quickshell now to apply changes? [Y/n] "
     [reload_done]="Hyprland reloaded and Quickshell restarted."
     [reload_skipped]="Skipped live reload — restart Quickshell or log back in when ready."
 
@@ -165,7 +149,6 @@ declare -A T_EN=(
     [report_present]="Already present"
     [report_skipped]="Skipped"
     [report_failed]="Failed"
-    [report_backup]="Backup: %s"
     [report_failures]="Issues encountered:"
     [report_clean]="Finished cleanly."
 
@@ -174,7 +157,7 @@ declare -A T_EN=(
     [next_2]="Add wallpapers/videos to %s~/Pictures/Wallpapers%s."
     [next_3]="Press %sSuper + D%s and run %s>wallpaper%s; open Settings from the bar gear icon."
     [next_update_1]="Quickshell updated from %s%s%s; your modified Hyprland configs were preserved."
-    [next_update_2]="If you skipped live reload, restart Quickshell (%shyprctl reload%s) or reload Hyprland when ready."
+    [next_update_2]="If you skipped live reload, restart Quickshell or run %shyprctl reload%s."
 
     [fail_pkg_not_found]="%s — not found in pacman or AUR"
     [fail_pkg_install]="%s (%s) — installation failed"
@@ -183,19 +166,16 @@ declare -A T_EN=(
     [fail_config]="%s — config copy/verification failed"
     [warn_line]="Unexpected warning at line %s."
 )
-
 declare -A T_RU=(
     [subtitle]="Установщик и обновлятор автономной оболочки Quickshell + Hyprland"
     [log_path]="Лог: %s"
 
-    [mode_title]="Действие"
-    [mode_install_full]="  [1] Полная установка — пакеты + Quickshell + конфиги Hyprland (по умолчанию)"
-    [mode_install_update]="  [2] Обновить шелл — git pull + обновить Quickshell и конфиги + проверить новые пакеты"
-    [mode_install_configs]="  [3] Локальные конфиги — накатить Quickshell и Hyprland из этой папки (без git pull и пакетов)"
-    [mode_update_first]="  [1] Обновить шелл — git pull + обновить Quickshell (с сохранением правок Hyprland) + пакеты (по умолчанию)"
-    [mode_update_configs]="  [2] Обновить из локальной папки — обновить Quickshell и конфиги отсюда (без git pull и пакетов)"
-    [mode_update_full]="  [3] Полная переустановка — проверить все пакеты и сбросить конфиги к версии из репо"
-    [mode_invalid]="Введите 1, 2 или 3."
+    [mode_title]="Режим"
+    [fresh_install_info]="Шелл ещё не установлен — выполняем чистую первую установку."
+    [shell_detected]="Обнаружен установленный шелл в %s:"
+    [mode_update_first]="  [1] Обновить — git pull, обновить Quickshell (с сохранением правок Hyprland) и проверить пакеты (по умолчанию)"
+    [mode_update_reinstall]="  [2] Переустановить — чистая переустановка шелла и конфигов без бэкапа"
+    [mode_invalid]="Введите 1 или 2."
 
     [no_root]="Запускайте скрипт от обычного пользователя, не от root (sudo запросится сам)."
     [distro_unsupported]="Поддерживаются только Arch Linux и дистрибутивы на базе Arch (pacman)."
@@ -211,19 +191,6 @@ declare -A T_RU=(
     [repo_pulled]="Репозиторий обновлён."
     [repo_pull_failed]="Не удалось выполнить git pull (нужен ручной merge) — продолжаем с локальными файлами."
     [repo_self_updated]="Скрипт установки обновился — перезапуск..."
-
-    [checking_existing]="Проверка существующих конфигов"
-    [updating_configs_step]="Обновление шелла и конфигов"
-    [no_conflicts]="Конфликтующих конфигов в %s не найдено."
-    [found_conflicts]="Найдены установленные конфиги:"
-    [update_targets]="Обновление в %s (Quickshell обновится полностью, ваши правки Hyprland сохранятся по умолчанию):"
-    [conflict_prompt]="  [B] Сделать бэкап в %s и установить (по умолчанию)\n  [o] Перезаписать без бэкапа\n  [c] Отмена"
-    [update_conflict_prompt]="  [S] Умное обновление — бэкап, обновить Quickshell и нетронутые файлы Hyprland, сохранить ваши правки Hyprland (по умолчанию)\n  [b] Полная замена — бэкап и сброс Quickshell и Hyprland к версии из репо\n  [o] Перезаписать всё без бэкапа\n  [c] Отмена"
-    [backed_up]="Бэкап сохранён в %s"
-    [overwriting]="Перезапись существующих конфигов без бэкапа."
-    [cancelled]="Отменено. Ничего не изменено."
-    [invalid_boc]="Введите b, o или c."
-    [invalid_sboc]="Введите s, b, o или c."
 
     [aur_interrupt]="Идёт сборка пакета из AUR. Прерывание может оставить блокировку pacman или битый кэш."
     [aur_abort_prompt]="Введите ABORT для выхода, или нажмите Enter для продолжения: "
@@ -254,9 +221,9 @@ declare -A T_RU=(
     [aur_done]="Пакеты из AUR установлены."
     [aur_batch_fallback]="Ошибка пакетной установки AUR — пробуем устанавливать по одному."
 
-    [copying_configs]="Установка конфигов в %s"
+    [copying_configs]="Чистая установка конфигов в %s"
     [updating_shell_configs]="Обновление Quickshell и конфигов Hyprland в %s"
-    [module_copied]="%s установлен (%d файлов)"
+    [module_copied]="%s установлен начисто (%d файлов)"
     [shell_updated]="Шелл (Quickshell) обновлён (%d файлов)"
     [hypr_updated]="Базовые файлы Hyprland синхронизированы (%d файлов)"
     [module_failed]="Не удалось скопировать %s"
@@ -282,7 +249,6 @@ declare -A T_RU=(
     [report_present]="Уже было"
     [report_skipped]="Пропущено"
     [report_failed]="Ошибки"
-    [report_backup]="Бэкап: %s"
     [report_failures]="Не удалось завершить:"
     [report_clean]="Завершено без ошибок."
 
@@ -300,7 +266,6 @@ declare -A T_RU=(
     [fail_config]="%s — ошибка копирования или проверки конфига"
     [warn_line]="Предупреждение на строке %s."
 )
-
 t() {
     local key="$1"; shift || true
     local ref="T_EN"
@@ -340,6 +305,7 @@ aur_sigint_handler() {
     fi
 }
 trap aur_sigint_handler SIGINT
+trap '[ -n "${HYPR_STAGE_DIR:-}" ] && rm -rf "$HYPR_STAGE_DIR"' EXIT
 
 # ---------------------------------------------------------------------------
 # CLI arguments
@@ -350,8 +316,9 @@ aeonshell installer & updater
 
 Usage: ./install.sh [options]
   --lang en|ru     Skip language prompt
-  -u, --update     Update shell & configs (git pull + smart Hyprland preservation + deps check)
-  --configs-only   Update Quickshell & configs from local folder (smart preservation, no pull/packages)
+  -u, --update     Update shell & configs (git pull + keep Hyprland edits + deps check)
+  --reinstall      Clean reinstall without backup (packages + replace configs)
+  --configs-only   Update Quickshell & configs from local folder (keep Hyprland edits)
   --skip-pull      Skip git pull in update mode
   -h, --help       Show this help
 EOF
@@ -370,6 +337,9 @@ parse_args() {
                 ;;
             -u|--update)
                 MODE="update"
+                ;;
+            --reinstall)
+                MODE="full"
                 ;;
             --configs-only)
                 MODE="configs"
@@ -439,47 +409,34 @@ setup_logging() {
     fi
 }
 
-has_existing_configs() {
-    local m
-    for m in "${CONFIG_MODULES[@]}"; do
-        [ -e "$CONFIG_DIR/$m" ] && return 0
-    done
-    return 1
+has_shell_installed() {
+    [ -d "$CONFIG_DIR/quickshell" ]
 }
 
 ask_mode() {
-    [ -n "$MODE" ] && return 0
+    if [ -n "$MODE" ]; then
+        [ "$MODE" = "update" ] || [ "$MODE" = "configs" ] && SMART_UPDATE=1
+        return 0
+    fi
 
     step "$(t mode_title)"
-    local installed=0 choice
-    has_existing_configs && installed=1
-
-    if [ "$installed" -eq 1 ]; then
+    if has_shell_installed; then
+        info "$(t shell_detected "$CONFIG_DIR/quickshell")"
         printf "%s\n" "$(t mode_update_first)"
-        printf "%s\n" "$(t mode_update_configs)"
-        printf "%s\n" "$(t mode_update_full)"
+        printf "%s\n" "$(t mode_update_reinstall)"
+        local choice
         while true; do
             read -rp "  > " choice
             case "$choice" in
-                ""|1) MODE="update"; break ;;
-                2)    MODE="configs"; break ;;
-                3)    MODE="full"; break ;;
+                ""|1) MODE="update"; SMART_UPDATE=1; break ;;
+                2)    MODE="full"; SMART_UPDATE=0; break ;;
                 *)    warn "$(t mode_invalid)" ;;
             esac
         done
     else
-        printf "%s\n" "$(t mode_install_full)"
-        printf "%s\n" "$(t mode_install_update)"
-        printf "%s\n" "$(t mode_install_configs)"
-        while true; do
-            read -rp "  > " choice
-            case "$choice" in
-                ""|1) MODE="full"; break ;;
-                2)    MODE="update"; break ;;
-                3)    MODE="configs"; break ;;
-                *)    warn "$(t mode_invalid)" ;;
-            esac
-        done
+        info "$(t fresh_install_info)"
+        MODE="full"
+        SMART_UPDATE=0
     fi
 }
 
@@ -556,105 +513,6 @@ update_repo_if_needed() {
     else
         warn "$(t repo_pull_failed)"
     fi
-}
-
-# ---------------------------------------------------------------------------
-# Existing configs handling & backup
-# ---------------------------------------------------------------------------
-handle_existing_configs() {
-    if [ "$MODE" = "update" ] || [ "$MODE" = "configs" ]; then
-        step "$(t updating_configs_step)"
-    else
-        step "$(t checking_existing)"
-    fi
-
-    local conflicts=() m
-    for m in "${CONFIG_MODULES[@]}"; do
-        [ -e "$CONFIG_DIR/$m" ] && conflicts+=("$CONFIG_DIR/$m")
-    done
-
-    if [ "${#conflicts[@]}" -eq 0 ]; then
-        ok "$(t no_conflicts "$CONFIG_DIR")"
-        return 0
-    fi
-
-    if [ "$MODE" = "update" ] || [ "$MODE" = "configs" ]; then
-        info "$(t update_targets "$CONFIG_DIR")"
-    else
-        warn "$(t found_conflicts)"
-    fi
-    local c
-    for c in "${conflicts[@]}"; do
-        printf "    - %s\n" "$c"
-    done
-
-    local choice
-    if [ "$MODE" = "update" ] || [ "$MODE" = "configs" ]; then
-        while true; do
-            printf "\n%b\n" "$(t update_conflict_prompt)"
-            read -rp "  > " choice
-            case "$choice" in
-                ""|s|S)
-                    SMART_UPDATE=1
-                    _backup_conflicts "${conflicts[@]}"
-                    break
-                    ;;
-                b|B)
-                    SMART_UPDATE=0
-                    _backup_conflicts "${conflicts[@]}"
-                    break
-                    ;;
-                o|O)
-                    SMART_UPDATE=0
-                    warn "$(t overwriting)"
-                    for c in "${conflicts[@]}"; do rm -rf "$c"; done
-                    break
-                    ;;
-                c|C)
-                    info "$(t cancelled)"
-                    exit 0
-                    ;;
-                *)
-                    warn "$(t invalid_sboc)"
-                    ;;
-            esac
-        done
-    else
-        while true; do
-            printf "\n%b\n" "$(t conflict_prompt "$BACKUP_DIR")"
-            read -rp "  > " choice
-            case "$choice" in
-                ""|b|B)
-                    _backup_conflicts "${conflicts[@]}"
-                    break
-                    ;;
-                o|O)
-                    warn "$(t overwriting)"
-                    for c in "${conflicts[@]}"; do rm -rf "$c"; done
-                    break
-                    ;;
-                c|C)
-                    info "$(t cancelled)"
-                    exit 0
-                    ;;
-                *)
-                    warn "$(t invalid_boc)"
-                    ;;
-            esac
-        done
-    fi
-}
-
-_backup_conflicts() {
-    local c rel
-    mkdir -p "$BACKUP_DIR"
-    for c in "$@"; do
-        rel="${c#"$CONFIG_DIR"/}"
-        mkdir -p "$BACKUP_DIR/$(dirname "$rel")"
-        mv "$c" "$BACKUP_DIR/$rel"
-    done
-    BACKUP_CREATED=1
-    ok "$(t backed_up "$BACKUP_DIR")"
 }
 
 # ---------------------------------------------------------------------------
@@ -918,8 +776,8 @@ write_hypr_manifest() {
 }
 
 restore_modified_hypr_configs() {
-    local hypr_backup="$BACKUP_DIR/hypr"
-    [ -d "$hypr_backup" ] || return 0
+    local hypr_prev="$1"
+    [ -n "$hypr_prev" ] && [ -d "$hypr_prev" ] || return 0
 
     local has_manifest=0
     declare -A manifest_hashes=()
@@ -936,40 +794,40 @@ restore_modified_hypr_configs() {
         [ "${#manifest_hashes[@]}" -gt 0 ] && has_manifest=1
     fi
 
-    local backed rel dst cur_hash preserve is_custom
-    while IFS= read -r -d '' backed; do
-        rel="${backed#"$hypr_backup/"}"
+    local prev_file rel dst cur_hash preserve is_custom
+    while IFS= read -r -d '' prev_file; do
+        rel="${prev_file#"$hypr_prev/"}"
         dst="$CONFIG_DIR/hypr/$rel"
         preserve=0
         is_custom=0
 
-        if [ -L "$backed" ]; then
+        if [ -L "$prev_file" ]; then
             preserve=1
             [ ! -e "$REPO_DIR/hypr/$rel" ] && is_custom=1
         elif [ "$has_manifest" -eq 1 ]; then
             if [[ -v manifest_hashes["$rel"] ]]; then
-                cur_hash="$(sha256sum "$backed" 2>/dev/null | awk '{print $1}' || true)"
+                cur_hash="$(sha256sum "$prev_file" 2>/dev/null | awk '{print $1}' || true)"
                 if [ -n "$cur_hash" ] && [ "$cur_hash" != "${manifest_hashes[$rel]}" ]; then
                     preserve=1
                 fi
             elif [ ! -e "$REPO_DIR/hypr/$rel" ]; then
                 preserve=1
                 is_custom=1
-            elif [ -f "$dst" ] && ! cmp -s "$backed" "$dst"; then
+            elif [ -f "$dst" ] && ! cmp -s "$prev_file" "$dst"; then
                 preserve=1
             fi
         else
             if [ ! -e "$REPO_DIR/hypr/$rel" ]; then
                 preserve=1
                 is_custom=1
-            elif [ -f "$dst" ] && ! cmp -s "$backed" "$dst"; then
+            elif [ -f "$dst" ] && ! cmp -s "$prev_file" "$dst"; then
                 preserve=1
             fi
         fi
 
         if [ "$preserve" -eq 1 ]; then
             mkdir -p "$(dirname "$dst")"
-            if cp -af "$backed" "$dst"; then
+            if cp -af "$prev_file" "$dst"; then
                 PRESERVED_COUNT=$((PRESERVED_COUNT + 1))
                 if [ "$is_custom" -eq 1 ]; then
                     info "$(t preserved_custom "hypr/$rel")"
@@ -980,7 +838,7 @@ restore_modified_hypr_configs() {
                 fi
             fi
         fi
-    done < <(find "$hypr_backup" \( -type f -o -type l \) -print0 | sort -z)
+    done < <(find "$hypr_prev" \( -type f -o -type l \) -print0 | sort -z)
 
     if [ "$PRESERVED_COUNT" -eq 0 ]; then
         info "$(t preserved_none)"
@@ -997,8 +855,14 @@ deploy_configs() {
     fi
     mkdir -p "$CONFIG_DIR"
 
+    if [ "$SMART_UPDATE" -eq 1 ] && [ -d "$CONFIG_DIR/hypr" ]; then
+        HYPR_STAGE_DIR="$(mktemp -d)"
+        cp -a "$CONFIG_DIR/hypr/." "$HYPR_STAGE_DIR/" 2>/dev/null || true
+    fi
+
     local m src_count dst_count
     for m in "${CONFIG_MODULES[@]}"; do
+        rm -rf "$CONFIG_DIR/$m"
         mkdir -p "$CONFIG_DIR/$m"
         if cp -r "$REPO_DIR/$m/." "$CONFIG_DIR/$m/"; then
             rm -f "$CONFIG_DIR/quickshell/.qmlls.ini"
@@ -1024,8 +888,10 @@ deploy_configs() {
         fi
     done
 
-    if [ "$SMART_UPDATE" -eq 1 ] && [ "$BACKUP_CREATED" -eq 1 ]; then
-        restore_modified_hypr_configs
+    if [ "$SMART_UPDATE" -eq 1 ] && [ -n "$HYPR_STAGE_DIR" ]; then
+        restore_modified_hypr_configs "$HYPR_STAGE_DIR"
+        rm -rf "$HYPR_STAGE_DIR"
+        HYPR_STAGE_DIR=""
     fi
 
     write_hypr_manifest
@@ -1079,7 +945,6 @@ offer_services() {
 }
 
 offer_live_reload() {
-    [ "$MODE" = "update" ] || [ "$MODE" = "configs" ] || return 0
     [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] || return 0
     command -v hyprctl >/dev/null 2>&1 || return 0
 
@@ -1129,7 +994,6 @@ print_summary() {
             "$C_RED" "$(t report_failed):" "$C_RESET" "$fail"
     fi
 
-    [ "$BACKUP_CREATED" -eq 1 ] && info "$(t report_backup "$BACKUP_DIR")"
     info "$(t log_path "$LOG_FILE")"
 
     if [ "${#FAILURES[@]}" -gt 0 ]; then
@@ -1164,7 +1028,6 @@ main() {
     setup_logging
     ask_mode
     update_repo_if_needed
-    handle_existing_configs
     install_dependencies
     deploy_configs
     offer_services
