@@ -16,40 +16,49 @@ Item {
     property var active: []
     property int unreadCount: 0
     property int nextLocalId: 1
+    property var _dndMutedIds: ({})
 
-    readonly property var _chatKeywords: ["discord", "vesktop", "telegram"]
-
-    readonly property var chatStreamNodes: {
-        const list = [...Pipewire.nodes.values];
+    readonly property var notificationSoundNodes: {
+        const list = Pipewire.nodes ? [...Pipewire.nodes.values] : [];
         return list.filter(function (n) {
             if (!n || !n.isStream || !n.audio)
                 return false;
             const props = n.properties || ({});
-            const appName = (props["application.name"] || props["application.process.binary"] || n.name || "").toLowerCase();
-            for (let i = 0; i < service._chatKeywords.length; i++) {
-                if (appName.indexOf(service._chatKeywords[i]) !== -1)
-                    return true;
-            }
-            return false;
+            if (props["media.class"] !== "Stream/Output/Audio")
+                return false;
+            const role = String(props["media.role"] || "").toLowerCase();
+            return role === "notification" || role === "event";
         });
     }
 
     PwObjectTracker {
-        objects: service.chatStreamNodes
+        objects: service.notificationSoundNodes
     }
 
-    function _syncChatMute() {
-        const nodes = service.chatStreamNodes;
+    function _syncNotificationSounds() {
+        const nodes = service.notificationSoundNodes;
+        const tracked = Object.assign({}, service._dndMutedIds);
         for (let i = 0; i < nodes.length; i++) {
             const n = nodes[i];
-            if (n && n.audio)
-                n.audio.muted = service.dnd;
+            if (!n || !n.audio)
+                continue;
+            const key = String(n.id);
+            if (service.dnd) {
+                if (!n.audio.muted) {
+                    n.audio.muted = true;
+                    tracked[key] = true;
+                }
+            } else if (tracked[key]) {
+                n.audio.muted = false;
+                delete tracked[key];
+            }
         }
+        service._dndMutedIds = service.dnd ? tracked : ({});
     }
 
-    onDndChanged: service._syncChatMute()
-    onChatStreamNodesChanged: if (service.dnd)
-        service._syncChatMute()
+    onDndChanged: service._syncNotificationSounds()
+    onNotificationSoundNodesChanged: if (service.dnd)
+        service._syncNotificationSounds()
 
     readonly property var appAliases: ({
             "discord": {
